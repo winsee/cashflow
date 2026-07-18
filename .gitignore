@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+server/.venv/
+.pytest_cache/
+.hypothesis/
+
+# 运行时数据（事件日志数据库，勿入库）
+server/cashflow.db*
+*.db-wal
+*.db-shm
+
+# 前端
+web/node_modules/
+web/dist/
+
+# 说明书扫描页（版权资料，本地放置不入库）
+server/manual_pages/
