@@ -7,6 +7,16 @@ interface Session {
   playerToken: string
 }
 
+/** 局域网 HTTP（非安全上下文）没有 crypto.randomUUID，用 getRandomValues 兜底 */
+function uuid(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  b[6] = (b[6] & 0x0f) | 0x40
+  b[8] = (b[8] & 0x3f) | 0x80
+  const h = Array.from(b, x => x.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
+
 function loadSession(): Session | null {
   try {
     const raw = localStorage.getItem('cashflow.session')
@@ -111,12 +121,19 @@ export const useGame = defineStore('game', {
           resolve(false)
           return
         }
-        const actionId = crypto.randomUUID()
+        const actionId = uuid()
         this.pendingResolvers.set(actionId, (ok) => {
           this.pendingResolvers.delete(actionId)
           resolve(ok)
         })
-        this.ws.send(JSON.stringify({ actionId, type, payload }))
+        try {
+          this.ws.send(JSON.stringify({ actionId, type, payload }))
+        } catch (e) {
+          this.pendingResolvers.delete(actionId)
+          this.lastError = '发送失败，请重试'
+          resolve(false)
+          return
+        }
         // 兜底超时
         setTimeout(() => {
           if (this.pendingResolvers.has(actionId)) {

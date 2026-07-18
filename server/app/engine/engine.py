@@ -104,6 +104,9 @@ def _d_select_profession(state, actor_id, p, lib) -> list[Event]:
     card = lib.get(p["professionId"])
     if card.deck != "PROFESSION":
         raise EngineError("BAD_CARD", "所选卡不是职业卡")
+    for other in state.players.values():
+        if other.id != player.id and other.profession_id == card.id:
+            raise EngineError("PROFESSION_TAKEN", f"该职业已被 {other.nickname} 选择")
     return [_ev("PROFESSION_SELECTED", player_id=player.id,
                 profession_id=card.id, title=card.title, data=card.data)]
 
@@ -113,6 +116,9 @@ def _d_select_dream(state, actor_id, p, lib) -> list[Event]:
         raise EngineError("GAME_STARTED", "对局已开始，不能换梦想")
     player = _get_player(state, actor_id)
     dream = lib.get_ft_dream(p["dreamId"])
+    for other in state.players.values():
+        if other.id != player.id and other.dream_id == dream.id:
+            raise EngineError("DREAM_TAKEN", f"该梦想已被 {other.nickname} 选择")
     return [_ev("DREAM_SELECTED", player_id=player.id, dream_id=dream.id, name=dream.name)]
 
 

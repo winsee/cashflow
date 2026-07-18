@@ -53,8 +53,41 @@ function nickOf(id: string | null): string {
   return players.value.find(p => p.id === id)?.nickname ?? '—'
 }
 
+// 其他玩家已占用的职业/梦想（规则：玩家间不可重复）
+const takenProfessions = computed(() => {
+  const m = new Map<string, string>()
+  for (const p of players.value)
+    if (p.id !== game.session?.playerId && p.professionId) m.set(p.professionId, p.nickname)
+  return m
+})
+const takenDreams = computed(() => {
+  const m = new Map<string, string>()
+  for (const p of players.value)
+    if (p.id !== game.session?.playerId && p.dreamId) m.set(p.dreamId, p.nickname)
+  return m
+})
+
+const urlInput = ref<HTMLInputElement | null>(null)
+const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
+
 async function copyUrl() {
-  try { await navigator.clipboard.writeText(joinUrl.value) } catch {}
+  let ok = false
+  // 局域网 HTTP（非安全上下文）没有 navigator.clipboard，回退到 execCommand
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(joinUrl.value)
+      ok = true
+    }
+  } catch {}
+  if (!ok && urlInput.value) {
+    try {
+      urlInput.value.select()
+      urlInput.value.setSelectionRange(0, joinUrl.value.length)
+      ok = document.execCommand('copy')
+    } catch {}
+  }
+  copyState.value = ok ? 'copied' : 'failed'
+  setTimeout(() => { copyState.value = 'idle' }, 2000)
 }
 </script>
 
@@ -68,8 +101,11 @@ async function copyUrl() {
     <div class="card">
       <div class="muted">邀请：让朋友访问下方地址，或输入房间码 <b>{{ game.state.roomCode }}</b></div>
       <div class="row" style="margin-top:6px">
-        <input readonly :value="joinUrl" style="font-size:12px" />
-        <button class="small ghost" @click="copyUrl">复制</button>
+        <input ref="urlInput" readonly :value="joinUrl" style="font-size:12px" />
+        <button class="small ghost" @click="copyUrl">{{ copyState === 'copied' ? '已复制' : '复制' }}</button>
+      </div>
+      <div v-if="copyState === 'failed'" class="muted" style="color:var(--danger,#c00)">
+        复制失败，请长按地址手动复制
       </div>
     </div>
 
@@ -79,8 +115,8 @@ async function copyUrl() {
       <select :value="game.me?.professionId ?? ''"
               @change="game.act('SELECT_PROFESSION', { professionId: ($event.target as HTMLSelectElement).value })">
         <option value="" disabled>请选择职业</option>
-        <option v-for="p in professions" :key="p.id" :value="p.id">
-          {{ p.title }}（工资 ${{ p.data.salary.toLocaleString() }}）
+        <option v-for="p in professions" :key="p.id" :value="p.id" :disabled="takenProfessions.has(p.id)">
+          {{ p.title }}（工资 ${{ p.data.salary.toLocaleString() }}）{{ takenProfessions.has(p.id) ? `（已被${takenProfessions.get(p.id)}选）` : '' }}
         </option>
       </select>
 
@@ -88,8 +124,8 @@ async function copyUrl() {
       <select :value="game.me?.dreamId ?? ''"
               @change="game.act('SELECT_DREAM', { dreamId: ($event.target as HTMLSelectElement).value })">
         <option value="" disabled>请选择梦想</option>
-        <option v-for="d in dreams" :key="d.id" :value="d.id">
-          {{ d.name }}（${{ d.price.toLocaleString() }}）
+        <option v-for="d in dreams" :key="d.id" :value="d.id" :disabled="takenDreams.has(d.id)">
+          {{ d.name }}（${{ d.price.toLocaleString() }}）{{ takenDreams.has(d.id) ? `（已被${takenDreams.get(d.id)}选）` : '' }}
         </option>
       </select>
     </div>

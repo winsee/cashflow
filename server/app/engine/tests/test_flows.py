@@ -16,6 +16,36 @@ def test_setup_grants(duo):
     assert duo.state.current_player_id == "A"
 
 
+# ---------- 大厅：职业/梦想玩家间不可重复 ----------
+
+def test_profession_unique_across_players(game):
+    game.act(None, "JOIN", player_id="A", nickname="阿呆", is_host=True)
+    game.act(None, "JOIN", player_id="B", nickname="阿瓜")
+    game.act("A", "SELECT_PROFESSION", professionId="prof-doctor")
+    with pytest.raises(EngineError) as ei:
+        game.act("B", "SELECT_PROFESSION", professionId="prof-doctor")
+    assert ei.value.code == "PROFESSION_TAKEN"
+    # 自己重复选同一职业不算冲突
+    game.act("A", "SELECT_PROFESSION", professionId="prof-doctor")
+    # A 换选后让出的职业可被 B 选走
+    game.act("A", "SELECT_PROFESSION", professionId="prof-manager")
+    game.act("B", "SELECT_PROFESSION", professionId="prof-doctor")
+    assert game.player("B").profession_id == "prof-doctor"
+
+
+def test_dream_unique_across_players(game):
+    game.act(None, "JOIN", player_id="A", nickname="阿呆", is_host=True)
+    game.act(None, "JOIN", player_id="B", nickname="阿瓜")
+    game.act("A", "SELECT_DREAM", dreamId="ft-d-safari")
+    with pytest.raises(EngineError) as ei:
+        game.act("B", "SELECT_DREAM", dreamId="ft-d-safari")
+    assert ei.value.code == "DREAM_TAKEN"
+    game.act("A", "SELECT_DREAM", dreamId="ft-d-safari")
+    game.act("A", "SELECT_DREAM", dreamId="ft-d-jet")
+    game.act("B", "SELECT_DREAM", dreamId="ft-d-safari")
+    assert game.player("B").dream_id == "ft-d-safari"
+
+
 # ---------- 买房 → 市场卡（§6.1、§6.3） ----------
 
 def test_buy_house_then_inflation_surrender(duo):
