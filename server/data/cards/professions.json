@@ -1,0 +1,54 @@
+[
+  {
+    "id": "prof-doctor",
+    "deck": "PROFESSION",
+    "subtype": "PROFESSION",
+    "title": "医生",
+    "data": {
+      "salary": 13200,
+      "taxes": 3420,
+      "mortgagePayment": 1900,
+      "schoolLoanPayment": 750,
+      "carLoanPayment": 380,
+      "creditCardPayment": 270,
+      "extraExpenses": 50,
+      "otherExpenses": 2880,
+      "perChildExpense": 640,
+      "savings": 400,
+      "liabilities": {
+        "mortgage": 190000,
+        "schoolLoan": 150000,
+        "carLoan": 19000,
+        "creditCard": 9000,
+        "extra": 1000
+      }
+    },
+    "ocr_keywords": ["医生", "13200", "13,200"]
+  },
+  {
+    "id": "prof-manager",
+    "deck": "PROFESSION",
+    "subtype": "PROFESSION",
+    "title": "经理",
+    "data": {
+      "salary": 4600,
+      "taxes": 910,
+      "mortgagePayment": 700,
+      "schoolLoanPayment": 60,
+      "carLoanPayment": 120,
+      "creditCardPayment": 90,
+      "extraExpenses": 50,
+      "otherExpenses": 1000,
+      "perChildExpense": 240,
+      "savings": 400,
+      "liabilities": {
+        "mortgage": 75000,
+        "schoolLoan": 12000,
+        "carLoan": 7000,
+        "creditCard": 4000,
+        "extra": 1000
+      }
+    },
+    "ocr_keywords": ["经理", "4600", "4,600"]
+  }
+]

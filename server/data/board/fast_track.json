@@ -1,0 +1,50 @@
+{
+  "businesses": [
+    { "id": "ft-b-auto-repair", "name": "汽车修理店", "downPayment": 150000, "cashflow": 6000, "roiPct": 48 },
+    { "id": "ft-b-russia-oil", "name": "俄罗斯石油贸易", "downPayment": 300000, "diceRule": { "threshold": 4, "successCashflow": 75000 } },
+    { "id": "ft-b-drycleaner", "name": "干洗店（2间）", "downPayment": 100000, "cashflow": 3000, "roiPct": 36 },
+    { "id": "ft-b-beauty", "name": "美容院（3家分店）", "downPayment": 250000, "cashflow": 10000, "roiPct": 48 },
+    { "id": "ft-b-chicken", "name": "鸡肉专卖店（2个分店）", "downPayment": 300000, "cashflow": 10000, "roiPct": 40 },
+    { "id": "ft-b-goldmine", "name": "购买一座金矿", "downPayment": 150000, "diceRule": { "threshold": 3, "successCashflow": 50000 } },
+    { "id": "ft-b-autoparts", "name": "汽车配件制造公司", "downPayment": 150000, "cashflow": 5000, "roiPct": 40 },
+    { "id": "ft-b-hvac", "name": "冷暖气服务公司", "downPayment": 200000, "cashflow": 10000, "roiPct": 60 },
+    { "id": "ft-b-fastfood", "name": "快餐店（3家）", "downPayment": 150000, "cashflow": 5000, "roiPct": 50 },
+    { "id": "ft-b-burger", "name": "汉堡包特许经营店", "downPayment": 300000, "cashflow": 9500, "roiPct": 38 },
+    { "id": "ft-b-inn", "name": "家庭旅馆连锁店", "downPayment": 300000, "cashflow": 14000, "roiPct": 56 },
+    { "id": "ft-b-biotech", "name": "生物技术公司股票", "downPayment": 50000, "diceRule": { "threshold": 5, "lumpSum": 500000 } },
+    { "id": "ft-b-software", "name": "软件公司股票", "downPayment": 25000, "diceRule": { "threshold": 6, "lumpSum": 500000 } },
+    { "id": "ft-b-storage", "name": "200个单元的小型仓库", "downPayment": 200000, "cashflow": 6000, "roiPct": 36 },
+    { "id": "ft-b-pizza", "name": "比萨饼专卖店（2个分店）", "downPayment": 225000, "cashflow": 7000, "roiPct": 37 },
+    { "id": "ft-b-apt60", "name": "60单元的公寓楼房", "downPayment": 300000, "cashflow": 8000, "roiPct": 32 },
+    { "id": "ft-b-tshirt", "name": "T恤衫商店（5家分店）", "downPayment": 200000, "cashflow": 8000, "roiPct": 48 },
+    { "id": "ft-b-cookware", "name": "炊具经销公司", "downPayment": 225000, "diceRule": { "threshold": 4, "successCashflow": 50000 } }
+  ],
+  "dreams": [
+    { "id": "ft-d-ski", "name": "在瑞士的阿尔卑斯山滑雪", "price": 150000 },
+    { "id": "ft-d-charity-children", "name": "为世界贫困地区儿童捐款", "price": 175000 },
+    { "id": "ft-d-mayor", "name": "竞选市长", "price": 125000 },
+    { "id": "ft-d-park", "name": "以您的名字命名公园", "price": 225000 },
+    { "id": "ft-d-fishing", "name": "蒙大拿湖边的私人钓鱼屋", "price": 100000 },
+    { "id": "ft-d-cannes", "name": "夏纳电影节", "price": 125000 },
+    { "id": "ft-d-sailing", "name": "帆船比赛（澳大利亚珀斯）", "price": 150000 },
+    { "id": "ft-d-stockmarket-school", "name": "建立模拟股票市场", "price": 125000 },
+    { "id": "ft-d-asia", "name": "亚洲古城探险", "price": 150000 },
+    { "id": "ft-d-fans-restaurant", "name": "开办球迷餐厅", "price": 200000 },
+    { "id": "ft-d-safari", "name": "非洲狩猎旅行", "price": 100000 },
+    { "id": "ft-d-forest", "name": "购买一片森林", "price": 250000 },
+    { "id": "ft-d-cityfarm", "name": "城市微型农场", "price": 150000 },
+    { "id": "ft-d-yacht", "name": "乘坐私家游艇在地中海上航行", "price": 100000 },
+    { "id": "ft-d-peacecorps", "name": "投资于和平队", "price": 200000 },
+    { "id": "ft-d-island-spa", "name": "南部海岛温泉（两个月）", "price": 100000 },
+    { "id": "ft-d-library", "name": "开办儿童图书馆", "price": 175000 },
+    { "id": "ft-d-golf", "name": "高尔夫环球巡回赛", "price": 150000 },
+    { "id": "ft-d-jet", "name": "拥有私人飞机", "price": 250000 },
+    { "id": "ft-d-marine", "name": "援救海洋哺乳动物", "price": 125000 },
+    { "id": "ft-d-7wonders", "name": "游览世界七大奇迹", "price": 200000 },
+    { "id": "ft-d-research", "name": "癌症和艾滋病研究中心", "price": 225000 },
+    { "id": "ft-d-president", "name": "请总统吃饭", "price": 100000 }
+  ],
+  "specials": {
+    "charityCost": 100000
+  }
+}

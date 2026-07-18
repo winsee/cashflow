@@ -1,0 +1,74 @@
+[
+  {
+    "id": "sd-house-3b2b-01",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "3室2厅出租房",
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 50000,
+      "downPayment": 3000,
+      "mortgage": 47000,
+      "cashflow": 100,
+      "roiPct": 40,
+      "priceRange": [
+        65000,
+        135000
+      ]
+    },
+    "ocr_keywords": [
+      "3室2厅",
+      "50,000",
+      "47,000",
+      "3,000"
+    ]
+  },
+  {
+    "id": "sd-stock-on2u-30",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "ON2U 股票 今日价 $30",
+    "data": {
+      "symbol": "ON2U",
+      "price": 30,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0
+    },
+    "ocr_keywords": [
+      "ON2U",
+      "30"
+    ]
+  },
+  {
+    "id": "sd-stockevt-myt4u",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_EVENT",
+    "title": "MYT4U 并股 2:1",
+    "data": {
+      "symbol": "MYT4U",
+      "ratio": "2:1"
+    },
+    "ocr_keywords": [
+      "MYT4U",
+      "并股",
+      "每两股"
+    ]
+  },
+  {
+    "id": "sd-loss-tenant",
+    "deck": "SMALL_DEAL",
+    "subtype": "LOSS_EVENT",
+    "title": "承租人损坏财产",
+    "data": {
+      "condition": "hasRentalProperty",
+      "amount": 500
+    },
+    "ocr_keywords": [
+      "承租人",
+      "500"
+    ]
+  }
+]

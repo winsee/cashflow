@@ -1,0 +1,29 @@
+[
+  {
+    "id": "bd-apt4-01",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "4室公寓",
+    "data": {
+      "assetType": "4室公寓",
+      "cost": 125000,
+      "downPayment": 15000,
+      "mortgage": 110000,
+      "cashflow": 600,
+      "roiPct": 48,
+      "priceRange": [100000, 140000]
+    },
+    "ocr_keywords": ["4室公寓", "125,000", "110,000", "15,000"]
+  },
+  {
+    "id": "bd-evt-sewer",
+    "deck": "BIG_DEAL",
+    "subtype": "EXPENSE_EVENT",
+    "title": "下水管破裂",
+    "data": {
+      "targetAssetType": "8室公寓",
+      "amountPerUnit": 2000
+    },
+    "ocr_keywords": ["下水管", "2,000", "8室"]
+  }
+]

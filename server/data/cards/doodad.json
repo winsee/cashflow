@@ -1,0 +1,37 @@
+[
+  {
+    "id": "dd-boat",
+    "deck": "DOODAD",
+    "subtype": "INSTALLMENT",
+    "title": "购买游艇",
+    "data": {
+      "downPayment": 1000,
+      "liability": 17000,
+      "liabilityName": "游艇信贷",
+      "monthly": 340
+    },
+    "ocr_keywords": ["游艇", "17,000", "340"]
+  },
+  {
+    "id": "dd-wedding",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "参加婚礼",
+    "data": {
+      "amount": 2000,
+      "condition": "hasChildren"
+    },
+    "ocr_keywords": ["婚礼", "2,000"]
+  },
+  {
+    "id": "dd-tv",
+    "deck": "DOODAD",
+    "subtype": "CREDIT_OPTION",
+    "title": "购买大屏幕彩电",
+    "data": {
+      "amount": 4000,
+      "creditMonthly": 120
+    },
+    "ocr_keywords": ["彩电", "4,000", "120"]
+  }
+]

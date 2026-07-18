@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fast_track.schema.json",
+  "title": "快车道格子数据",
+  "type": "object",
+  "required": ["businesses", "dreams", "specials"],
+  "properties": {
+    "businesses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "downPayment"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^ft-b-[a-z0-9-]+$" },
+          "name": { "type": "string" },
+          "downPayment": { "type": "integer", "minimum": 0 },
+          "cashflow": { "type": "integer", "minimum": 0 },
+          "roiPct": { "type": "number" },
+          "diceRule": {
+            "type": "object",
+            "required": ["threshold"],
+            "additionalProperties": false,
+            "properties": {
+              "threshold": { "type": "integer", "minimum": 1, "maximum": 6 },
+              "successCashflow": { "type": "integer", "minimum": 0 },
+              "lumpSum": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "dreams": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "price"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^ft-d-[a-z0-9-]+$" },
+          "name": { "type": "string" },
+          "price": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "specials": {
+      "type": "object",
+      "required": ["charityCost"],
+      "properties": {
+        "charityCost": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "card.schema.json",
+  "title": "卡牌文件（对象数组）",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "deck", "subtype", "title", "data"],
+    "additionalProperties": false,
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "deck": { "enum": ["SMALL_DEAL", "BIG_DEAL", "MARKET", "DOODAD", "PROFESSION"] },
+      "subtype": {
+        "enum": [
+          "REALESTATE", "STOCK_OFFER", "STOCK_EVENT", "LOSS_EVENT", "BUSINESS",
+          "EXPENSE_EVENT", "BUYER_OFFER", "MULTIPLE_OFFER", "ECONOMY_EVENT",
+          "CASH", "CREDIT_OPTION", "INSTALLMENT", "PROFESSION"
+        ]
+      },
+      "title": { "type": "string", "minLength": 1 },
+      "data": { "type": "object" },
+      "effects": { "type": "array" },
+      "ocr_keywords": { "type": "array", "items": { "type": "string" } },
+      "image_hash": { "type": ["string", "null"] }
+    },
+    "allOf": [
+      {
+        "if": { "properties": { "subtype": { "const": "REALESTATE" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["assetType", "cost", "downPayment", "mortgage", "cashflow"],
+              "properties": {
+                "assetType": { "type": "string" },
+                "cost": { "type": "integer", "minimum": 0 },
+                "downPayment": { "type": "integer", "minimum": 0 },
+                "mortgage": { "type": "integer", "minimum": 0 },
+                "cashflow": { "type": "integer" },
+                "roiPct": { "type": "number" },
+                "priceRange": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "BUSINESS" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["cost", "downPayment", "cashflow"],
+              "properties": {
+                "cost": { "type": "integer", "minimum": 0 },
+                "downPayment": { "type": "integer", "minimum": 0 },
+                "mortgage": { "type": "integer", "minimum": 0 },
+                "cashflow": { "type": "integer" }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "STOCK_OFFER" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["symbol", "price", "dividendPerShare"],
+              "properties": {
+                "symbol": { "type": "string" },
+                "price": { "type": "integer", "minimum": 1 },
+                "priceRange": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+                "dividendPerShare": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "STOCK_EVENT" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["symbol", "ratio"],
+              "properties": {
+                "symbol": { "type": "string" },
+                "ratio": { "type": "string", "pattern": "^[0-9]+:[0-9]+$" }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "LOSS_EVENT" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["amount"],
+              "properties": {
+                "condition": { "type": "string" },
+                "amount": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "EXPENSE_EVENT" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["targetAssetType", "amountPerUnit"],
+              "properties": {
+                "targetAssetType": { "type": "string" },
+                "amountPerUnit": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "BUYER_OFFER" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["targetAssetType", "pricePerUnit"],
+              "properties": {
+                "targetAssetType": { "type": "string" },
+                "pricePerUnit": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "MULTIPLE_OFFER" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["targetAssetType", "multiple"],
+              "properties": {
+                "targetAssetType": { "type": "string" },
+                "multiple": { "type": "number", "exclusiveMinimum": 0 }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "ECONOMY_EVENT" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["kind"],
+              "properties": {
+                "kind": { "enum": ["FORCED_SURRENDER", "MODIFY_EXPENSE"] },
+                "targetAssetType": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "CASH" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["amount"],
+              "properties": {
+                "amount": { "type": "integer", "minimum": 0 },
+                "condition": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "CREDIT_OPTION" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["amount", "creditMonthly"],
+              "properties": {
+                "amount": { "type": "integer", "minimum": 0 },
+                "creditMonthly": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "INSTALLMENT" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["downPayment", "liability", "liabilityName", "monthly"],
+              "properties": {
+                "downPayment": { "type": "integer", "minimum": 0 },
+                "liability": { "type": "integer", "minimum": 0 },
+                "liabilityName": { "type": "string" },
+                "monthly": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "PROFESSION" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": [
+                "salary", "taxes", "mortgagePayment", "schoolLoanPayment",
+                "carLoanPayment", "creditCardPayment", "otherExpenses",
+                "extraExpenses", "perChildExpense", "savings", "liabilities"
+              ],
+              "properties": {
+                "salary": { "type": "integer", "minimum": 0 },
+                "taxes": { "type": "integer", "minimum": 0 },
+                "mortgagePayment": { "type": "integer", "minimum": 0 },
+                "schoolLoanPayment": { "type": "integer", "minimum": 0 },
+                "carLoanPayment": { "type": "integer", "minimum": 0 },
+                "creditCardPayment": { "type": "integer", "minimum": 0 },
+                "otherExpenses": { "type": "integer", "minimum": 0 },
+                "extraExpenses": { "type": "integer", "minimum": 0 },
+                "perChildExpense": { "type": "integer", "minimum": 0 },
+                "savings": { "type": "integer", "minimum": 0 },
+                "liabilities": {
+                  "type": "object",
+                  "required": ["mortgage", "schoolLoan", "carLoan", "creditCard", "extra"],
+                  "properties": {
+                    "mortgage": { "type": "integer", "minimum": 0 },
+                    "schoolLoan": { "type": "integer", "minimum": 0 },
+                    "carLoan": { "type": "integer", "minimum": 0 },
+                    "creditCard": { "type": "integer", "minimum": 0 },
+                    "extra": { "type": "integer", "minimum": 0 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
