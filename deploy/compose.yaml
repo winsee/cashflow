@@ -1,0 +1,17 @@
+# 房主笔记本一键启动：docker compose -f deploy/compose.yaml up -d
+# 玩家手机访问 http://<房主局域网IP>:8000（拍照用系统相机方案，无需 HTTPS）
+services:
+  cashflow:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - cashflow-data:/data
+      # 说明书扫描页（可选）：放本机目录后取消注释
+      # - ./manual_pages:/srv/manual_pages:ro
+    restart: unless-stopped
+
+volumes:
+  cashflow-data:
