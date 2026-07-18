@@ -1,0 +1,10 @@
+{
+  "name": "现金流游戏助手",
+  "short_name": "现金流",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1120",
+  "theme_color": "#0f766e",
+  "lang": "zh-CN",
+  "icons": []
+}
