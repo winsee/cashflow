@@ -13,6 +13,7 @@ COPY server/pyproject.toml ./
 RUN pip install --no-cache-dir fastapi "uvicorn[standard]" pydantic jsonschema qrcode python-multipart
 COPY server/app ./app
 COPY server/data ./data
+COPY server/manual_pages ./manual_pages
 COPY --from=webbuild /web/dist ./webdist
 ENV CASHFLOW_DB=/data/cashflow.db \
     CASHFLOW_WEB_DIST=/srv/webdist \

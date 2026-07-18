@@ -9,7 +9,8 @@ services:
       - "8000:8000"
     volumes:
       - cashflow-data:/data
-      # 说明书扫描页（可选）：放本机目录后取消注释
+      # 说明书扫描页已内置于镜像（server/manual_pages/ 随仓库交付）；
+      # 若想不重建镜像就更新页面，可挂载本机目录覆盖：
       # - ./manual_pages:/srv/manual_pages:ro
     restart: unless-stopped
 
