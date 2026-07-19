@@ -1,0 +1,35 @@
+[
+  {
+    "id": "mk-offer-2b1b-55k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购2室1厅 $55,000",
+    "data": {
+      "targetAssetType": "2室1厅",
+      "pricePerUnit": 55000
+    },
+    "ocr_keywords": ["2室1厅", "55,000"]
+  },
+  {
+    "id": "mk-multi-lp-3x",
+    "deck": "MARKET",
+    "subtype": "MULTIPLE_OFFER",
+    "title": "有限合伙按原价3倍出售",
+    "data": {
+      "targetAssetType": "有限合伙",
+      "multiple": 3
+    },
+    "ocr_keywords": ["有限合伙", "3倍"]
+  },
+  {
+    "id": "mk-evt-inflation",
+    "deck": "MARKET",
+    "subtype": "ECONOMY_EVENT",
+    "title": "通货膨胀爆发",
+    "data": {
+      "kind": "FORCED_SURRENDER",
+      "targetAssetType": "3室2厅"
+    },
+    "ocr_keywords": ["通货膨胀", "3室2厅"]
+  }
+]

@@ -108,6 +108,36 @@ def _business_validate_card(card: Card, source: str) -> None:
             raise DataValidationError(
                 f"{source} 卡 {card.id}: cost({d['cost']}) != downPayment({d['downPayment']}) + mortgage({mortgage})"
             )
+    pr = d.get("priceRange")
+    if isinstance(pr, (list, tuple)) and len(pr) == 2 and pr[0] > pr[1]:
+        raise DataValidationError(
+            f"{source} 卡 {card.id}: 价格区间下限({pr[0]})大于上限({pr[1]})")
+
+
+def _content_key(item: dict) -> str:
+    """卡牌内容签名：子类型 + 全部数值（与标题一起构成重复卡判定，design 决策：
+    标题+数值全同 = 重复卡；同名不同值 = 多版本卡，须每张有 ocr_keywords 区分。"""
+    return item["subtype"] + "|" + json.dumps(item["data"], sort_keys=True, ensure_ascii=False)
+
+
+def _check_deck_duplicates(items: list[dict], source: str) -> None:
+    by_title: dict[str, list[dict]] = {}
+    for it in items:
+        by_title.setdefault(it["title"], []).append(it)
+    for title, group in by_title.items():
+        if len(group) == 1:
+            continue
+        seen: dict[str, str] = {}
+        for it in group:
+            key = _content_key(it)
+            if key in seen:
+                raise DataValidationError(
+                    f"{source} 重复卡「{title}」({seen[key]} / {it['id']})：标题与数值完全相同，不能入库")
+            seen[key] = it["id"]
+        for it in group:
+            if not it.get("ocr_keywords"):
+                raise DataValidationError(
+                    f"{source} 同名卡「{title}」({it['id']})：同名多版本卡须每张都填区分关键词（ocr_keywords）")
 
 
 def load_library(data_dir: Path | None = None) -> CardLibrary:
@@ -115,11 +145,11 @@ def load_library(data_dir: Path | None = None) -> CardLibrary:
     if data_dir is not None:
         DATA_DIR = data_dir
     lib = CardLibrary()
-    titles: dict[tuple[str, str], str] = {}
     for deck, rel in CARD_FILES.items():
         path = DATA_DIR / rel
         raw = _load_json(path)
         _validate_schema(raw, "card.schema.json", rel)
+        _check_deck_duplicates(raw, rel)
         for item in raw:
             card = Card(
                 id=item["id"],
@@ -133,12 +163,6 @@ def load_library(data_dir: Path | None = None) -> CardLibrary:
                 raise DataValidationError(f"{rel} 卡 {card.id}: deck 字段 {card.deck} 与文件不符（应为 {deck}）")
             if card.id in lib.cards:
                 raise DataValidationError(f"{rel} 卡 id 重复: {card.id}")
-            key = (card.deck, card.title)
-            if key in titles:
-                raise DataValidationError(
-                    f"{rel} 重复标题「{card.title}」({titles[key]} / {card.id})：须补充区分关键词并改标题"
-                )
-            titles[key] = card.id
             _business_validate_card(card, rel)
             lib.cards[card.id] = card
 

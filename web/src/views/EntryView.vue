@@ -1,87 +1,117 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useGame } from '../store'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import type { CardDto } from '../types'
-
-const game = useGame()
-
-const DECKS: Record<string, string> = {
-  SMALL_DEAL: '小生意', BIG_DEAL: '大买卖', MARKET: '市场风云',
-  DOODAD: '额外支出', PROFESSION: '职业卡',
-}
-const SUBTYPES: Record<string, string[]> = {
-  SMALL_DEAL: ['REALESTATE', 'STOCK_OFFER', 'STOCK_EVENT', 'LOSS_EVENT'],
-  BIG_DEAL: ['REALESTATE', 'BUSINESS', 'EXPENSE_EVENT'],
-  MARKET: ['BUYER_OFFER', 'MULTIPLE_OFFER', 'ECONOMY_EVENT'],
-  DOODAD: ['CASH', 'CREDIT_OPTION', 'INSTALLMENT'],
-  PROFESSION: ['PROFESSION'],
-}
-const SUBTYPE_NAMES: Record<string, string> = {
-  REALESTATE: '房地产', STOCK_OFFER: '股票报价', STOCK_EVENT: '拆并股', LOSS_EVENT: '损失事件',
-  BUSINESS: '企业投资', EXPENSE_EVENT: '维修支出', BUYER_OFFER: '定价求购',
-  MULTIPLE_OFFER: '倍数收购', ECONOMY_EVENT: '经济事件', CASH: '现金支出',
-  CREDIT_OPTION: '可信用卡', INSTALLMENT: '分期负债', PROFESSION: '职业',
-}
-// 字段模板（design/04 §3），n=数字 s=文本
-const FIELDS: Record<string, [string, string, 'n' | 's'][]> = {
-  REALESTATE: [['assetType', '资产类型(如 3室2厅)', 's'], ['cost', '成本', 'n'], ['downPayment', '首期支付', 'n'], ['mortgage', '抵押贷款', 'n'], ['cashflow', '月现金流', 'n'], ['roiPct', '收益率%', 'n']],
-  BUSINESS: [['assetType', '资产类型', 's'], ['cost', '成本', 'n'], ['downPayment', '首期支付', 'n'], ['mortgage', '负债', 'n'], ['cashflow', '月现金流', 'n']],
-  STOCK_OFFER: [['symbol', '代码', 's'], ['price', '今日价格', 'n'], ['dividendPerShare', '每股红利', 'n']],
-  STOCK_EVENT: [['symbol', '代码', 's'], ['ratio', '比例(如 2:1)', 's']],
-  LOSS_EVENT: [['condition', '条件(hasRentalProperty/hasChildren/空)', 's'], ['amount', '金额', 'n']],
-  EXPENSE_EVENT: [['targetAssetType', '目标资产类型', 's'], ['amountPerUnit', '每套金额', 'n']],
-  BUYER_OFFER: [['targetAssetType', '目标资产类型', 's'], ['pricePerUnit', '每套价格', 'n']],
-  MULTIPLE_OFFER: [['targetAssetType', '目标资产类型', 's'], ['multiple', '倍数', 'n']],
-  ECONOMY_EVENT: [['kind', '类型(FORCED_SURRENDER)', 's'], ['targetAssetType', '目标资产类型', 's']],
-  CASH: [['amount', '金额', 'n'], ['condition', '条件(hasChildren/空)', 's']],
-  CREDIT_OPTION: [['amount', '金额', 'n'], ['creditMonthly', '信用卡月供', 'n']],
-  INSTALLMENT: [['downPayment', '首付', 'n'], ['liability', '负债', 'n'], ['liabilityName', '负债名称', 's'], ['monthly', '月供', 'n']],
-  PROFESSION: [['salary', '工资', 'n'], ['taxes', '税金', 'n'], ['mortgagePayment', '住房抵押支出', 'n'], ['schoolLoanPayment', '教育贷款支出', 'n'], ['carLoanPayment', '购车贷款支出', 'n'], ['creditCardPayment', '信用卡支出', 'n'], ['otherExpenses', '其他支出', 'n'], ['extraExpenses', '额外支出', 'n'], ['perChildExpense', '每孩支出', 'n'], ['savings', '储蓄', 'n'], ['liabilities.mortgage', '负债·住房抵押', 'n'], ['liabilities.schoolLoan', '负债·教育贷款', 'n'], ['liabilities.carLoan', '负债·购车贷款', 'n'], ['liabilities.creditCard', '负债·信用卡', 'n'], ['liabilities.extra', '负债·额外', 'n']],
-}
+import { DECKS, FIELDS, SUBTYPES, SUBTYPE_NAMES, readField } from '../entry-fields'
 
 const deck = ref('SMALL_DEAL')
 const cards = ref<CardDto[]>([])
-const stats = ref<Record<string, number>>({})
+const stats = ref<Record<string, { entry: number; runtime: number }>>({})
 const editing = ref(false)
 const form = ref<Record<string, any>>({})
 const msg = ref('')
 
 async function refresh() {
-  cards.value = await game.fetchCards(deck.value)
+  cards.value = await (await fetch(`/api/entry/cards?deck=${deck.value}`)).json()
   stats.value = await (await fetch('/api/entry/stats')).json()
 }
-onMounted(refresh)
+
+// 核对页「✗ 有问题」带 ?deck=&edit= 跳回来，直接打开对应卡的编辑表单
+const route = useRoute()
+onMounted(async () => {
+  const qDeck = route.query.deck as string | undefined
+  if (qDeck && DECKS[qDeck]) deck.value = qDeck
+  await refresh()
+  const editId = route.query.edit as string | undefined
+  const target = editId && cards.value.find(c => c.id === editId)
+  if (target) editCard(target)
+})
+
+// 多人同时录入：页面可见时每 5s 轮询，别人保存的卡自动出现在列表
+const timer = window.setInterval(() => {
+  if (!document.hidden && !editing.value) refresh()
+}, 5000)
+onUnmounted(() => window.clearInterval(timer))
 
 const subtype = computed(() => form.value.subtype ?? SUBTYPES[deck.value][0])
 
+function formDirty(): boolean {
+  return editing.value && Object.entries(form.value).some(
+    ([k, v]) => !['id', 'subtype'].includes(k) && v !== '' && v !== undefined && v !== null)
+}
+
+function confirmDiscard(): boolean {
+  return !formDirty() || confirm('表单尚未保存，确定放弃当前编辑？')
+}
+
+function switchDeck(d: string) {
+  if (!confirmDiscard()) return
+  editing.value = false
+  deck.value = d
+  refresh()
+}
+
 function newCard() {
+  if (!confirmDiscard()) return
   form.value = { id: '', title: '', subtype: SUBTYPES[deck.value][0], keywords: '' }
   editing.value = true
 }
 
 function editCard(c: CardDto) {
+  if (!confirmDiscard()) return
   const f: Record<string, any> = { id: c.id, title: c.title, subtype: c.subtype, keywords: '' }
-  for (const [key] of FIELDS[c.subtype] ?? []) {
-    if (key.startsWith('liabilities.')) f[key] = c.data.liabilities?.[key.split('.')[1]] ?? 0
-    else f[key] = c.data[key] ?? (typeof c.data[key] === 'string' ? '' : undefined)
-  }
+  for (const [key] of FIELDS[c.subtype] ?? []) f[key] = readField(c.data, key) ?? ''
   editing.value = true
   form.value = f
 }
 
+function cancelEdit() {
+  if (!confirmDiscard()) return
+  editing.value = false
+}
+
+function summary(data: Record<string, any>): string {
+  return (FIELDS[subtype.value] ?? [])
+    .map(([key, label]) => {
+      const v = readField(data, key)
+      return v === undefined || v === '' ? null : `${label}=${v}`
+    })
+    .filter(Boolean).join('，')
+}
+
 async function save() {
   const data: Record<string, any> = {}
-  for (const [key, , typ] of FIELDS[subtype.value]) {
+  for (const [key, label, typ] of FIELDS[subtype.value]) {
     let v = form.value[key]
     if (v === '' || v === undefined || v === null) continue
-    if (typ === 'n') v = Number(String(v).replace(/[,，$￥\s]/g, ''))   // 千分位/全半角清洗
-    if (key.startsWith('liabilities.')) {
-      data.liabilities = data.liabilities ?? {}
-      data.liabilities[key.split('.')[1]] = v
+    if (typ === 'n') {
+      v = Number(String(v).replace(/[,，$￥\s]/g, ''))   // 千分位/全半角清洗
+      if (Number.isNaN(v)) { msg.value = `❌ ${label} 不是有效数字`; return }
+    }
+    if (key.includes('.')) {
+      const [head, tail] = key.split('.')
+      if (head === 'priceRange') {
+        data.priceRange = data.priceRange ?? []
+        data.priceRange[Number(tail)] = v
+      } else {
+        data[head] = data[head] ?? {}
+        data[head][tail] = v
+      }
     } else data[key] = v
   }
+  if (data.priceRange !== undefined) {
+    const [lo, hi] = data.priceRange
+    if (lo === undefined || hi === undefined) { msg.value = '❌ 价格区间需低/高都填（或都不填）'; return }
+    if (lo > hi) { msg.value = '❌ 价格区间下限不能大于上限'; return }
+  }
+  if (!form.value.title) { msg.value = '❌ 标题不能为空'; return }
+  const isEdit = !!form.value.id
+  const hint = isEdit
+    ? `将覆盖已有卡「${form.value.title}」(${form.value.id})：\n${summary(data)}\n确认保存？`
+    : `新增「${form.value.title}」(${SUBTYPE_NAMES[subtype.value]})：\n${summary(data)}\n确认入库？`
+  if (!confirm(hint)) return
   const body = {
-    id: form.value.id, deck: deck.value, subtype: subtype.value,
+    id: form.value.id ?? '', deck: deck.value, subtype: subtype.value,
     title: form.value.title, data,
     ocr_keywords: String(form.value.keywords ?? '').split(/[,，]/).map(s => s.trim()).filter(Boolean),
   }
@@ -91,14 +121,47 @@ async function save() {
   })
   const d = await r.json()
   if (!r.ok) { msg.value = '❌ ' + d.message; return }
-  msg.value = '✅ 已保存并写回 JSON'
+  msg.value = `✅ 已保存 ${d.id}${d.replaced ? '（覆盖）' : ''}，写回 JSON`
   editing.value = false
   refresh()
 }
 
-async function remove(id: string) {
-  if (!confirm(`删除卡 ${id}？（写回 JSON 文件）`)) return
-  await fetch(`/api/entry/cards/${id}`, { method: 'DELETE' })
+async function remove(c: CardDto) {
+  if (!confirm(`删除「${c.title}」？（从 JSON 文件中移除）`)) return
+  const r = await fetch(`/api/entry/cards/${c.id}`, { method: 'DELETE' })
+  const d = await r.json()
+  msg.value = r.ok ? `✅ 已删除「${c.title}」` : '❌ ' + d.message
+  refresh()
+}
+
+async function clearDeck() {
+  const n = cards.value.length
+  if (!confirm(`清空录入库「${DECKS[deck.value]}」整叠？（不影响游戏运行时库）`)) return
+  if (!confirm(`再次确认：将删除录入库 ${DECKS[deck.value]} 全部 ${n} 张卡！`)) return
+  const r = await fetch(`/api/entry/decks/${deck.value}`, { method: 'DELETE' })
+  const d = await r.json()
+  msg.value = r.ok ? `✅ 已清空录入库 ${DECKS[deck.value]}` : '❌ ' + d.message
+  refresh()
+}
+
+function diffText(diff: Record<string, { added: string[]; removed: string[]; changed: string[] }>): string {
+  const lines: string[] = []
+  for (const [d, x] of Object.entries(diff)) {
+    if (!x.added.length && !x.removed.length && !x.changed.length) continue
+    lines.push(`${DECKS[d]}：新增 ${x.added.length}、修改 ${x.changed.length}、删除 ${x.removed.length}`)
+  }
+  return lines.length ? lines.join('\n') : '（与运行时库无差异）'
+}
+
+async function publish() {
+  const pr = await fetch('/api/entry/publish/preview')
+  const pd = await pr.json()
+  if (!pr.ok) { msg.value = '❌ 发布前校验失败：' + pd.message; return }
+  const text = diffText(pd.diff)
+  if (!confirm(`将录入库发布到游戏运行时库：\n${text}\n\n进行中的对局不受影响（新抽卡用新数据）。确认发布？`)) return
+  const r = await fetch('/api/entry/publish', { method: 'POST' })
+  const d = await r.json()
+  msg.value = r.ok ? '✅ 已发布到游戏运行时库' : '❌ ' + d.message
   refresh()
 }
 </script>
@@ -107,21 +170,27 @@ async function remove(id: string) {
   <div class="page no-tabbar">
     <div class="row between">
       <h1>🗂️ 卡牌录入工具</h1>
-      <button class="small ghost" @click="$router.back()">返回</button>
+      <div class="row">
+        <button class="small ghost" @click="$router.push('/entry/review')">🔍 核对</button>
+        <button class="small ghost" @click="$router.back()">返回</button>
+      </div>
     </div>
-    <p class="muted">保存即写回 server/data/cards/*.json（权威数据源，git 版本管理）。
-      各叠进度：<span v-for="(n, d) in stats" :key="d">{{ DECKS[d] }} {{ n }} 张 · </span></p>
+    <p class="muted">录入库为纯数据记录（server/data/entry/），随录随存；
+      点「发布」才导入游戏运行时库。各叠 录入/游戏：
+      <span v-for="(s, d) in stats" :key="d">{{ DECKS[d] }} {{ s.entry }}/{{ s.runtime }} · </span></p>
 
     <div class="row wrap" style="margin:8px 0">
       <button v-for="(name, d) in DECKS" :key="d" class="small"
-              :class="{ ghost: deck !== d }" @click="deck = d as string; refresh()">{{ name }}</button>
+              :class="{ ghost: deck !== d }" @click="switchDeck(d as string)">{{ name }}</button>
       <button class="small gold" @click="newCard">＋ 新增</button>
+      <button class="small" @click="publish">🚀 发布</button>
+      <button class="small warn" v-if="cards.length" @click="clearDeck">清空本叠</button>
     </div>
     <p v-if="msg" class="muted">{{ msg }}</p>
 
     <div v-if="editing" class="card" style="border-color:var(--gold)">
-      <label>卡 id（小写字母数字连字符，如 sd-house-2b1b-01）</label>
-      <input v-model="form.id" />
+      <p v-if="form.id" class="muted">编辑中：{{ form.id }}（id 由系统生成，不可改）</p>
+      <p v-else class="muted">新卡 id 将由系统自动生成</p>
       <label>标题（简短，不抄整段卡面文案）</label>
       <input v-model="form.title" />
       <label>子类型</label>
@@ -132,11 +201,11 @@ async function remove(id: string) {
         <label>{{ label }}</label>
         <input v-model="form[key]" />
       </template>
-      <label>识别关键词（逗号分隔：标题词/代码/显著金额）</label>
+      <label>识别关键词（逗号分隔；同名多版本卡每张必填，用于区分）</label>
       <input v-model="form.keywords" placeholder="如：游艇, 17,000, 340" />
       <div class="row" style="margin-top:10px">
         <button class="grow" @click="save">保存入库</button>
-        <button class="ghost" @click="editing = false">取消</button>
+        <button class="ghost" @click="cancelEdit">取消</button>
       </div>
     </div>
 
@@ -149,7 +218,7 @@ async function remove(id: string) {
         </div>
         <div class="row">
           <button class="small ghost" @click="editCard(c)">改</button>
-          <button class="small warn" @click="remove(c.id)">删</button>
+          <button class="small warn" @click="remove(c)">删</button>
         </div>
       </div>
     </div>

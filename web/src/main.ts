@@ -10,6 +10,7 @@ import RoomView from './views/RoomView.vue'
 import PlayView from './views/PlayView.vue'
 import ManualView from './views/ManualView.vue'
 import EntryView from './views/EntryView.vue'
+import ReviewView from './views/ReviewView.vue'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -20,6 +21,7 @@ const router = createRouter({
     { path: '/play', component: PlayView },
     { path: '/manual', component: ManualView },
     { path: '/entry', component: EntryView },
+    { path: '/entry/review', component: ReviewView },
   ],
 })
 
