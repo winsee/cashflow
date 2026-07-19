@@ -63,6 +63,17 @@ def _require_no_bankruptcy(p: PlayerState) -> None:
         raise EngineError("IN_BANKRUPTCY", "破产流程中，只能执行破产清算操作")
 
 
+def _require_square_free(state: RoomState) -> None:
+    # 实体规则每回合掷骰只停一个格（design/02 §5）
+    if state.turn_square_used:
+        raise EngineError("SQUARE_USED", "本回合已声明过停留格事件；如录错请房主在日志中撤销")
+
+
+def _require_payday_free(state: RoomState, hint: str) -> None:
+    if state.turn_payday_used:
+        raise EngineError("PAYDAY_DONE", f"本回合已结算过（经过多次请用次数 {hint} 一并结算）")
+
+
 def _ev(etype: str, **payload) -> Event:
     return {"type": etype, "payload": payload}
 
@@ -172,6 +183,7 @@ def _d_payday(state, actor_id, p, lib) -> list[Event]:
     _require_no_bankruptcy(player)
     if player.phase != Phase.RAT_RACE:
         raise EngineError("WRONG_PHASE", "快车道请用现金流量日收款")
+    _require_payday_free(state, "1–3")
     times = int(p.get("times", 1))
     if times < 1 or times > 3:
         raise EngineError("BAD_TIMES", "结算次数须为 1–3")
@@ -195,6 +207,7 @@ def _d_draw_card(state, actor_id, p, lib) -> list[Event]:
     _require_no_bankruptcy(player)
     if player.phase != Phase.RAT_RACE:
         raise EngineError("WRONG_PHASE", "快车道阶段不抽内圈卡")
+    _require_square_free(state)
     if state.active_card and not state.active_card.resolved:
         raise EngineError("CARD_ACTIVE", "上一张卡尚未处理完")
     card = lib.get(p["cardId"])
@@ -485,6 +498,7 @@ def _d_pay_off_debt(state, actor_id, p, lib) -> list[Event]:
 def _d_add_child(state, actor_id, p, lib) -> list[Event]:
     player = _require_current(state, actor_id)
     _require_no_bankruptcy(player)
+    _require_square_free(state)
     if player.child_count >= 3:
         return [_ev("CHILD_NOOP", player_id=player.id)]   # 满 3 无效果（P.4）
     return [_ev("CHILD_ADDED", player_id=player.id)]
@@ -493,6 +507,7 @@ def _d_add_child(state, actor_id, p, lib) -> list[Event]:
 def _d_charity(state, actor_id, p, lib) -> list[Event]:
     player = _require_current(state, actor_id)
     _require_no_bankruptcy(player)
+    _require_square_free(state)
     amount = (F.total_income(player) + 5) // 10   # 总收入×10%，四舍五入到美元
     _require_cash(player, amount)
     return [_ev("CHARITY_DONATED", player_id=player.id, amount=amount)]
@@ -501,6 +516,7 @@ def _d_charity(state, actor_id, p, lib) -> list[Event]:
 def _d_unemployment(state, actor_id, p, lib) -> list[Event]:
     player = _require_current(state, actor_id)
     _require_no_bankruptcy(player)
+    _require_square_free(state)
     amount = F.total_expenses(player)
     _require_cash(player, amount)
     return [_ev("UNEMPLOYMENT_HIT", player_id=player.id, amount=amount)]
@@ -582,8 +598,7 @@ def _d_bankruptcy_resolve(state, actor_id, p, lib) -> list[Event]:
 # ---------- 快车道（design/02 §9–§11） ----------
 
 def _require_ft(state: RoomState, pid: str) -> PlayerState:
-    _require_playing(state)
-    p = _get_player(state, pid)
+    p = _require_current(state, pid)
     if p.phase != Phase.FAST_TRACK:
         raise EngineError("WRONG_PHASE", "不在快车道阶段")
     return p
@@ -604,6 +619,7 @@ def _d_enter_fasttrack(state, actor_id, p, lib) -> list[Event]:
 
 def _d_ft_payday(state, actor_id, p, lib) -> list[Event]:
     player = _require_ft(state, actor_id)
+    _require_payday_free(state, "1–4")
     times = int(p.get("times", 1))
     if times < 1 or times > 4:
         raise EngineError("BAD_TIMES", "收款次数须为 1–4")
@@ -613,6 +629,7 @@ def _d_ft_payday(state, actor_id, p, lib) -> list[Event]:
 
 def _d_ft_buy_business(state, actor_id, p, lib) -> list[Event]:
     player = _require_ft(state, actor_id)
+    _require_square_free(state)
     sq = lib.get_ft_business(p["squareId"])
     if sq.id in state.ft_sold_squares:
         raise EngineError("SQUARE_SOLD", "该企业已被其他玩家买断")
@@ -639,6 +656,7 @@ def _dream_price(state: RoomState, dream) -> int:
 
 def _d_ft_buy_dream(state, actor_id, p, lib) -> list[Event]:
     player = _require_ft(state, actor_id)
+    _require_square_free(state)
     dream = lib.get_ft_dream(p["squareId"])
     if player.dream_id != dream.id:
         raise EngineError("NOT_YOUR_DREAM", "只能购买自己选定的梦想（他人梦想可双倍加价）")
@@ -650,6 +668,7 @@ def _d_ft_buy_dream(state, actor_id, p, lib) -> list[Event]:
 
 def _d_ft_double_dream(state, actor_id, p, lib) -> list[Event]:
     player = _require_ft(state, actor_id)
+    _require_square_free(state)
     dream = lib.get_ft_dream(p["squareId"])
     if player.dream_id == dream.id:
         raise EngineError("OWN_DREAM", "这是你自己的梦想，直接购买即可")
@@ -663,6 +682,7 @@ def _d_ft_double_dream(state, actor_id, p, lib) -> list[Event]:
 
 def _d_ft_charity(state, actor_id, p, lib) -> list[Event]:
     player = _require_ft(state, actor_id)
+    _require_square_free(state)
     _require_cash(player, lib.ft_charity_cost, loan_hint=False)
     return [_ev("FT_CHARITY_DONATED", player_id=player.id, amount=lib.ft_charity_cost)]
 
@@ -670,6 +690,7 @@ def _d_ft_charity(state, actor_id, p, lib) -> list[Event]:
 def _d_ft_cash_hit(kind: str, factor_desc: str):
     def handler(state, actor_id, p, lib) -> list[Event]:
         player = _require_ft(state, actor_id)
+        _require_square_free(state)
         if kind == "DIVORCE":
             amount = player.cash
         else:
@@ -690,6 +711,40 @@ def _d_host_adjust(state, actor_id, p, lib) -> list[Event]:
         raise EngineError("BAD_AMOUNT", "调整后现金不能为负")
     return [_ev("HOST_ADJUSTED", player_id=target.id, delta=delta,
                 reason=str(p.get("reason", "")))]
+
+
+def _require_host(state: RoomState, actor_id, what: str) -> PlayerState:
+    host = _get_player(state, actor_id)
+    if not host.is_host:
+        raise EngineError("NOT_HOST", f"只有房主能{what}")
+    return host
+
+
+def _d_end_game(state, actor_id, p, lib) -> list[Event]:
+    _require_host(state, actor_id, "结束对局")
+    if state.status == RoomStatus.CLOSED:
+        raise EngineError("ALREADY_CLOSED", "对局已结束")
+    return [_ev("GAME_ENDED", reason=str(p.get("reason", "")))]
+
+
+def _d_host_remove_player(state, actor_id, p, lib) -> list[Event]:
+    host = _require_host(state, actor_id, "移除玩家")
+    _require_playing(state)
+    target = _get_player(state, p["playerId"])
+    if target.id == host.id:
+        raise EngineError("BAD_TARGET", "不能移除自己")
+    if target.phase == Phase.OUT:
+        raise EngineError("BAD_TARGET", "该玩家已退出")
+    return [_ev("PLAYER_REMOVED", player_id=target.id)]
+
+
+def _d_host_end_turn(state, actor_id, p, lib) -> list[Event]:
+    # 当前玩家临时离开时房主强制推进；未结算的强制卡随回合结束一并作废
+    _require_host(state, actor_id, "代结束回合")
+    _require_playing(state)
+    if state.current_player_id is None:
+        raise EngineError("NO_CURRENT", "当前没有行动中的玩家")
+    return [_ev("TURN_ENDED", player_id=state.current_player_id)]
 
 
 _HANDLERS = {
@@ -727,6 +782,9 @@ _HANDLERS = {
     "FT_DIVORCE": _d_ft_cash_hit("DIVORCE", "全额"),
     "FT_LAWSUIT": _d_ft_cash_hit("LAWSUIT", "半额"),
     "HOST_ADJUST": _d_host_adjust,
+    "END_GAME": _d_end_game,
+    "HOST_REMOVE_PLAYER": _d_host_remove_player,
+    "HOST_END_TURN": _d_host_end_turn,
 }
 
 
@@ -804,6 +862,13 @@ def _a_turn_ended(s: RoomState, p) -> None:
     # 机会卡失效（⚠️ADAPT：抽卡人结束回合时失效），其市场/转卖窗口一并关闭
     s.active_card = None
     s.prompts = [pr for pr in s.prompts if pr.kind == "TRANSFER_CONFIRM"]
+    # 回合内"停留格/结算日"标志复位，下一玩家重新计
+    s.turn_square_used = False
+    s.turn_payday_used = False
+    _advance_turn(s)
+
+
+def _advance_turn(s: RoomState) -> None:
     # 推进回合指针，自动跳过 OUT 与停赛玩家
     n = len(s.turn_order)
     for _ in range(n * 3 + 1):
@@ -823,6 +888,7 @@ def _a_turn_ended(s: RoomState, p) -> None:
 def _a_payday(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash += p["cashflow"] * p["times"]
+    s.turn_payday_used = True
 
 
 def _a_card_drawn(s: RoomState, p) -> None:
@@ -830,6 +896,7 @@ def _a_card_drawn(s: RoomState, p) -> None:
     s.active_card = ActiveCard(card_id=p["card_id"], deck=p["deck"],
                                subtype=p["subtype"], drawer_id=p["player_id"],
                                resolved=resolved)
+    s.turn_square_used = True
 
 
 def _a_card_resolved(s: RoomState, p) -> None:
@@ -1010,10 +1077,11 @@ def _a_debt_paid_off(s: RoomState, p) -> None:
 
 def _a_child_added(s: RoomState, p) -> None:
     s.players[p["player_id"]].child_count += 1
+    s.turn_square_used = True
 
 
 def _a_child_noop(s: RoomState, p) -> None:
-    pass
+    s.turn_square_used = True    # 满3孩无效果，但停留格已消耗
 
 
 def _a_charity_donated(s: RoomState, p) -> None:
@@ -1021,12 +1089,14 @@ def _a_charity_donated(s: RoomState, p) -> None:
     pl.cash -= p["amount"]
     pl.charity_turns = 3
     pl.charity_just_donated = True
+    s.turn_square_used = True
 
 
 def _a_unemployment_hit(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["amount"]
     pl.skip_turns = 2
+    s.turn_square_used = True
     pl.charity_turns = 0    # 失业清除慈善状态（P.4）
     pl.charity_just_donated = False
 
@@ -1102,6 +1172,7 @@ def _a_entered_fasttrack(s: RoomState, p) -> None:
 
 def _a_ft_payday(s: RoomState, p) -> None:
     s.players[p["player_id"]].cash += p["amount"]
+    s.turn_payday_used = True
 
 
 def _check_income_victory(s: RoomState, pl: PlayerState) -> None:
@@ -1114,6 +1185,7 @@ def _check_income_victory(s: RoomState, pl: PlayerState) -> None:
 def _a_ft_business_bought(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["down_payment"]
+    s.turn_square_used = True
     if p["success"]:
         s.ft_sold_squares.append(p["square_id"])   # 独占；掷骰格成功前保持开放
         if p.get("lump_sum"):
@@ -1128,6 +1200,7 @@ def _a_ft_business_bought(s: RoomState, p) -> None:
 def _a_ft_dream_bought(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["price"]
+    s.turn_square_used = True
     s.status = RoomStatus.FINISHED
     s.winner_id = pl.id
 
@@ -1136,12 +1209,14 @@ def _a_ft_dream_doubled(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["price_paid"]
     s.dream_price_bumps[p["square_id"]] = s.dream_price_bumps.get(p["square_id"], 0) + 1
+    s.turn_square_used = True
 
 
 def _a_ft_charity_donated(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["amount"]
     pl.fasttrack.charity_forever = True
+    s.turn_square_used = True
 
 
 def _a_ft_cash_hit(s: RoomState, p) -> None:
@@ -1150,10 +1225,42 @@ def _a_ft_cash_hit(s: RoomState, p) -> None:
         pl.cash = 0
     else:
         pl.cash -= p["amount"]
+    s.turn_square_used = True
 
 
 def _a_host_adjusted(s: RoomState, p) -> None:
     s.players[p["player_id"]].cash += p["delta"]
+
+
+def _a_host_reverted(s: RoomState, p) -> None:
+    # 审计事件不改状态（design/03 §6）：撤销的实际效果 = 被撤销事件从重放流中剔除。
+    # 必须注册，否则含撤销记录的事件流在试重放/重启恢复时会抛 UNKNOWN_EVENT。
+    pass
+
+
+def _a_game_ended(s: RoomState, p) -> None:
+    s.status = RoomStatus.CLOSED
+    s.prompts = []
+    s.active_card = None
+
+
+def _a_player_removed(s: RoomState, p) -> None:
+    pl = s.players[p["player_id"]]
+    was_current = s.current_player_id == pl.id
+    pl.phase = Phase.OUT
+    pl.in_bankruptcy = False
+    # 资产/现金保留原样：误点可由房主在日志中撤销恢复
+    s.prompts = [pr for pr in s.prompts if pr.target_player_id != pl.id]
+    if s.active_card and s.active_card.drawer_id == pl.id:
+        s.active_card = None
+    if was_current:
+        s.turn_square_used = False
+        s.turn_payday_used = False
+        _advance_turn(s)
+    alive = [q for q in s.players.values() if q.phase != Phase.OUT]
+    if len(alive) == 1 and s.status == RoomStatus.PLAYING:
+        s.status = RoomStatus.FINISHED
+        s.winner_id = alive[0].id
 
 
 _APPLIERS = {
@@ -1203,6 +1310,9 @@ _APPLIERS = {
     "FT_CHARITY_DONATED": _a_ft_charity_donated,
     "FT_CASH_HIT": _a_ft_cash_hit,
     "HOST_ADJUSTED": _a_host_adjusted,
+    "HOST_REVERTED": _a_host_reverted,
+    "GAME_ENDED": _a_game_ended,
+    "PLAYER_REMOVED": _a_player_removed,
 }
 
 

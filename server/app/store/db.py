@@ -10,6 +10,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS room(
   id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'LOBBY', settings TEXT NOT NULL DEFAULT '{}',
+  password_hash TEXT,
   created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')));
 
 CREATE TABLE IF NOT EXISTS player(
@@ -43,6 +44,11 @@ class Database:
         self._local = threading.local()
         conn = self.conn
         conn.executescript(_SCHEMA)
+        # 旧库迁移：早期版本 room 表无 password_hash 列
+        try:
+            conn.execute("ALTER TABLE room ADD COLUMN password_hash TEXT")
+        except sqlite3.OperationalError:
+            pass
         conn.commit()
 
     @property
@@ -58,10 +64,17 @@ class Database:
 
     # ---- room / player ----
 
-    def create_room(self, room_id: str, code: str, name: str, settings: dict) -> None:
+    def create_room(self, room_id: str, code: str, name: str, settings: dict,
+                    password_hash: str | None = None) -> None:
         self.conn.execute(
-            "INSERT INTO room(id, code, name, settings) VALUES(?,?,?,?)",
-            (room_id, code, name, json.dumps(settings, ensure_ascii=False)))
+            "INSERT INTO room(id, code, name, settings, password_hash) VALUES(?,?,?,?,?)",
+            (room_id, code, name, json.dumps(settings, ensure_ascii=False), password_hash))
+        self.conn.commit()
+
+    def delete_room(self, room_id: str) -> None:
+        for table in ("action_dedupe", "room_state", "event", "player", "room"):
+            key = "id" if table == "room" else "room_id"
+            self.conn.execute(f"DELETE FROM {table} WHERE {key}=?", (room_id,))
         self.conn.commit()
 
     def find_room_by_code(self, code: str):
@@ -86,6 +99,12 @@ class Database:
     def find_player_by_token(self, token_hash: str):
         return self.conn.execute(
             "SELECT * FROM player WHERE token_hash=?", (token_hash,)).fetchone()
+
+    def update_player_token(self, player_id: str, token_hash: str) -> None:
+        """座位接管：重发令牌，旧令牌即刻失效。"""
+        self.conn.execute(
+            "UPDATE player SET token_hash=? WHERE id=?", (token_hash, player_id))
+        self.conn.commit()
 
     # ---- events ----
 

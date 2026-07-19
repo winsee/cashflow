@@ -1,9 +1,35 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { confirmAction } from '../confirm'
 import { fmt, useGame } from '../store'
+import type { Player } from '../types'
 
 const game = useGame()
 const st = computed(() => game.state!)
+const isHost = computed(() => game.me?.isHost ?? false)
+
+async function removePlayer(p: Player) {
+  const ok = await confirmAction({
+    title: `移除玩家「${p.nickname}」？`,
+    lines: ['用于玩家中途退出：轮转将永久跳过 TA', '误点可由房主在「日志」中撤销'],
+    danger: true,
+    okText: '移除',
+  })
+  if (ok && await game.act('HOST_REMOVE_PLAYER', { playerId: p.id })) {
+    game.flash(`已移除 ${p.nickname}`)
+  }
+}
+
+async function endGame() {
+  const ok = await confirmAction({
+    title: '结束对局？',
+    lines: ['所有玩家将退出房间返回首页', '账目日志保留在服务器，可在结束前导出'],
+    warning: '此操作不可撤销',
+    danger: true,
+    okText: '结束对局',
+  })
+  if (ok) await game.act('END_GAME')
+}
 </script>
 
 <template>
@@ -45,11 +71,22 @@ const st = computed(() => game.state!)
         <span v-for="b in p.businesses" :key="b.id">🏢{{ b.name }} </span>
         <span v-for="s in p.stocks" :key="s.symbol + s.cost_per_share">📈{{ s.symbol }}×{{ s.shares }} </span>
       </div>
+
+      <div v-if="isHost && p.id !== game.me?.id && p.phase !== 'OUT' && st.status === 'PLAYING'"
+           class="row" style="margin-top:6px;justify-content:flex-end">
+        <button class="small ghost warn" @click="removePlayer(p)">移除玩家</button>
+      </div>
     </div>
 
     <div v-if="st.winnerId" class="card" style="border-color:var(--gold);text-align:center">
       <h1>🏆 {{ st.players.find(p => p.id === st.winnerId)?.nickname }} 获胜！</h1>
       <p class="muted">对局结束，可在「日志」中回顾全程账目</p>
+    </div>
+
+    <div v-if="isHost" class="card" style="border-color:var(--red)">
+      <h2>房主操作</h2>
+      <p class="muted">结束对局后所有玩家自动返回首页；重开一局请重新创建房间。</p>
+      <button class="block warn" @click="endGame">🛑 结束对局</button>
     </div>
   </div>
 </template>

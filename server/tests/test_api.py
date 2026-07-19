@@ -5,7 +5,9 @@ import uuid
 os.environ["CASHFLOW_DB"] = os.path.join(
     os.environ.get("TEMP", "/tmp"), f"cashflow-test-{uuid.uuid4().hex}.db")
 
+import pytest                               # noqa: E402
 from fastapi.testclient import TestClient   # noqa: E402
+from starlette.websockets import WebSocketDisconnect  # noqa: E402
 
 from app.main import app                    # noqa: E402
 
@@ -89,6 +91,62 @@ def test_full_room_flow():
                         files={"image": ("x.jpg", b"fake", "image/jpeg")},
                         data={"deckHint": "SMALL_DEAL"})
         assert r.json() == {"candidates": [], "engine": "manual"}
+
+
+def test_lobby_password_takeover_delete():
+    """大厅列表 / 房间密码 / 座位接管 / 删除房间（FR-1、NFR-6）。"""
+    with TestClient(app) as client:
+        a = client.post("/api/rooms", json={
+            "nickname": "房主", "name": "加密局", "password": "8888"}).json()
+        b = client.post("/api/rooms", json={"nickname": "路人", "name": "开放局"}).json()
+
+        rooms = {r["code"]: r for r in client.get("/api/rooms").json()}
+        assert rooms[a["roomCode"]]["hasPassword"] is True
+        assert rooms[b["roomCode"]]["hasPassword"] is False
+        assert rooms[a["roomCode"]]["playerCount"] == 1
+        assert rooms[a["roomCode"]]["status"] == "LOBBY"
+
+        # 加入：错密码拒绝，对密码进入
+        r = client.post(f"/api/rooms/{a['roomCode']}/join",
+                        json={"nickname": "小明", "password": "0000"})
+        assert r.status_code == 400 and r.json()["code"] == "BAD_PASSWORD"
+        guest = client.post(f"/api/rooms/{a['roomCode']}/join",
+                            json={"nickname": "小明", "password": "8888"}).json()
+
+        seats = client.get(f"/api/rooms/{a['roomCode']}/seats").json()
+        assert seats["hasPassword"] is True
+        assert {p["nickname"] for p in seats["players"]} == {"房主", "小明"}
+
+        # 座位接管：错密码拒；成功后旧令牌作废、新令牌可连
+        r = client.post(f"/api/rooms/{a['roomCode']}/takeover",
+                        json={"playerId": guest["playerId"], "password": "0000"})
+        assert r.status_code == 400 and r.json()["code"] == "BAD_PASSWORD"
+        taken = client.post(f"/api/rooms/{a['roomCode']}/takeover",
+                            json={"playerId": guest["playerId"], "password": "8888"}).json()
+        assert taken["playerId"] == guest["playerId"]
+        assert taken["playerToken"] != guest["playerToken"]
+        with client.websocket_connect(f"/ws?token={taken['playerToken']}") as w:
+            assert w.receive_json()["you"] == guest["playerId"]
+        with pytest.raises(WebSocketDisconnect):
+            with client.websocket_connect(f"/ws?token={guest['playerToken']}"):
+                pass
+
+        # 删除：未结束房间需房主令牌或密码；无密码房只认房主令牌
+        r = client.request("DELETE", f"/api/rooms/{a['roomCode']}", json={})
+        assert r.status_code == 400 and r.json()["code"] == "FORBIDDEN"
+        r = client.request("DELETE", f"/api/rooms/{a['roomCode']}",
+                           json={"password": "8888"})
+        assert r.json() == {"ok": True}
+        r = client.request("DELETE", f"/api/rooms/{b['roomCode']}",
+                           json={"password": "随便"})
+        assert r.status_code == 400
+        r = client.request("DELETE", f"/api/rooms/{b['roomCode']}",
+                           json={"token": b["playerToken"]})
+        assert r.json() == {"ok": True}
+        left = {x["code"] for x in client.get("/api/rooms").json()}
+        assert a["roomCode"] not in left and b["roomCode"] not in left
+        r = client.get(f"/api/rooms/{a['roomCode']}/seats")
+        assert r.status_code == 400 and r.json()["code"] == "NO_ROOM"
 
 
 def test_host_revert():

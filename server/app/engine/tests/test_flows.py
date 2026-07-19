@@ -6,6 +6,13 @@ from ..errors import EngineError
 from ..models import Phase, RealEstate, RoomStatus, StockHolding, OwnedBusiness
 
 
+def _cycle(duo, pid="A"):
+    """结束当前回合并轮转回 pid（回合内停留格/结算日标志复位）。"""
+    duo.act(duo.state.current_player_id, "END_TURN")
+    while duo.state.current_player_id != pid:
+        duo.act(duo.state.current_player_id, "END_TURN")
+
+
 # ---------- 开局发钱（§4） ----------
 
 def test_setup_grants(duo):
@@ -175,6 +182,7 @@ def test_charity_countdown(duo):
 
 def test_unemployment(duo):
     duo.act("A", "CHARITY")
+    _cycle(duo)                                      # 停留格每回合一次，转一圈再失业
     duo.act("A", "TAKE_LOAN", amount=9000)           # 补足支付总支出的现金
     a = duo.player("A")
     total_exp = F.total_expenses(a)                  # 9,650 + 900 利息
@@ -364,6 +372,7 @@ def test_ft_business_and_income_victory(duo):
     a = duo.player("A")
     assert a.fasttrack.current_income == 1_000_000 + 14000
     assert duo.state.status == RoomStatus.PLAYING
+    _cycle(duo)
     # 掷骰格：俄罗斯石油 ≥4 成功 +75,000 → 累计 ≥ +50,000 胜利
     duo.act("A", "FT_BUY_BUSINESS", squareId="ft-b-russia-oil", diceRoll=5)
     assert duo.state.status == RoomStatus.FINISHED
@@ -377,6 +386,7 @@ def test_ft_dice_business_failure_keeps_square_open(duo):
     assert a.cash == 1_000_000 - 150000              # 钱已付
     assert a.fasttrack.businesses == []              # 未获得现金流
     assert "ft-b-goldmine" not in duo.state.ft_sold_squares    # 成功前保持开放
+    _cycle(duo)
     duo.act("A", "FT_BUY_BUSINESS", squareId="ft-b-goldmine", diceRoll=3)
     assert duo.player("A").fasttrack.current_income == 1_050_000
     assert "ft-b-goldmine" in duo.state.ft_sold_squares
@@ -402,18 +412,18 @@ def test_ft_business_exclusive(duo):
 
 def test_ft_dream_double_bump_twice_then_buy(duo):
     _enter_ft(duo, "A")                              # A 的梦想 safari，B 的梦想 jet(250,000)
-    duo.act("A", "FT_PAYDAY")                        # 再领一笔，现金 2,000,000
     duo.act("A", "FT_DOUBLE_DREAM", squareId="ft-d-jet")
-    assert duo.player("A").cash == 2_000_000 - 250000
+    assert duo.player("A").cash == 1_000_000 - 250000
+    _cycle(duo)
+    duo.act("A", "FT_PAYDAY")                        # 再领一笔，现金 1,750,000
     duo.act("A", "FT_DOUBLE_DREAM", squareId="ft-d-jet")
-    assert duo.player("A").cash == 2_000_000 - 250000 - 500000  # 第二次按加价后价格
+    assert duo.player("A").cash == 1_750_000 - 500000  # 第二次按加价后价格
     assert duo.state.dream_price_bumps["ft-d-jet"] == 2
     duo.act("A", "END_TURN")
     _enter_ft(duo, "B")
-    duo.act("B", "FT_PAYDAY")
-    # B 购买自己梦想须按累加价 750,000
+    # B 购买自己梦想须按累加价 750,000（进场首笔收款 1,000,000）
     duo.act("B", "FT_BUY_DREAM", squareId="ft-d-jet")
-    assert duo.player("B").cash == 2_000_000 - 750000
+    assert duo.player("B").cash == 1_000_000 - 750000
     assert duo.state.status == RoomStatus.FINISHED
     assert duo.state.winner_id == "B"
 
@@ -430,11 +440,14 @@ def test_ft_cash_hits_and_charity(duo, lib):
     _enter_ft(duo, "A")
     duo.act("A", "FT_TAX_AUDIT")
     assert duo.player("A").cash == 500_000           # 半额
+    _cycle(duo)
     duo.act("A", "FT_CHARITY")
     a = duo.player("A")
     assert a.cash == 400_000 and a.fasttrack.charity_forever
+    _cycle(duo)
     duo.act("A", "FT_LAWSUIT")
     assert duo.player("A").cash == 200_000
+    _cycle(duo)
     duo.act("A", "FT_DIVORCE")
     assert duo.player("A").cash == 0
 
@@ -445,4 +458,76 @@ def test_children_cap(duo):
     for expect in (1, 2, 3, 3):                      # 第 4 次无效果
         duo.act("A", "ADD_CHILD")
         assert duo.player("A").child_count == expect
+        _cycle(duo)                                  # 每回合只能停一格
     assert F.child_expense(duo.player("A")) == 640 * 3
+
+
+# ---------- 回合防呆：每回合一格 / 一次结算（§5 防误操作） ----------
+
+def test_draw_twice_same_turn_blocked(duo):
+    duo.act("A", "DRAW_CARD", cardId="sd-house-3b2b-01")
+    duo.act("A", "CARD_DECISION", decision="pass")
+    with pytest.raises(EngineError) as ei:
+        duo.act("A", "DRAW_CARD", cardId="dd-boat")
+    assert ei.value.code == "SQUARE_USED"
+    # 结束回合后标志复位，下一玩家可正常抽卡
+    duo.act("A", "END_TURN")
+    duo.act("B", "DRAW_CARD", cardId="sd-house-3b2b-01")
+    duo.act("B", "CARD_DECISION", decision="pass")
+
+
+def test_payday_once_per_turn(duo):
+    duo.act("A", "PAYDAY", times=3)                  # 经过多次用次数一并结算
+    assert duo.player("A").cash == 3950 + 3550 * 3
+    with pytest.raises(EngineError) as ei:
+        duo.act("A", "PAYDAY")
+    assert ei.value.code == "PAYDAY_DONE"
+    # 结算日与停留格互不占用：同回合仍可声明停留格
+    duo.act("A", "DRAW_CARD", cardId="sd-house-3b2b-01")
+    duo.act("A", "CARD_DECISION", decision="pass")
+
+
+def test_square_events_mutually_exclusive(duo):
+    duo.act("A", "ADD_CHILD")
+    for action in ("CHARITY", "UNEMPLOYMENT", "DRAW_CARD"):
+        with pytest.raises(EngineError) as ei:
+            duo.act("A", action, cardId="dd-boat")
+        assert ei.value.code == "SQUARE_USED"
+    duo.act("A", "END_TURN")
+    assert not duo.state.turn_square_used
+
+
+def test_ft_actions_require_own_turn(duo):
+    _enter_ft(duo, "A")
+    duo.act("A", "END_TURN")                         # 轮到 B（老鼠赛跑）
+    with pytest.raises(EngineError) as ei:
+        duo.act("A", "FT_PAYDAY")
+    assert ei.value.code == "NOT_YOUR_TURN"
+    with pytest.raises(EngineError) as ei:
+        duo.act("A", "FT_BUY_BUSINESS", squareId="ft-b-inn")
+    assert ei.value.code == "NOT_YOUR_TURN"
+
+
+def test_ft_payday_once_per_turn(duo):
+    _enter_ft(duo, "A")                              # 内含一次 FT_PAYDAY
+    with pytest.raises(EngineError) as ei:
+        duo.act("A", "FT_PAYDAY")
+    assert ei.value.code == "PAYDAY_DONE"
+
+
+def test_ft_square_once_per_turn(duo):
+    _enter_ft(duo, "A")
+    duo.act("A", "FT_BUY_BUSINESS", squareId="ft-b-inn")
+    with pytest.raises(EngineError) as ei:
+        duo.act("A", "FT_TAX_AUDIT")
+    assert ei.value.code == "SQUARE_USED"
+
+
+def test_turn_flags_survive_replay(duo):
+    duo.act("A", "PAYDAY")
+    duo.act("A", "ADD_CHILD")
+    st = duo.replay()
+    assert st.turn_square_used and st.turn_payday_used
+    duo.act("A", "END_TURN")
+    st = duo.replay()
+    assert not st.turn_square_used and not st.turn_payday_used

@@ -64,20 +64,55 @@ class CreateRoomBody(BaseModel):
     name: str = "现金流对局"
     nickname: str = Field(min_length=1, max_length=20)
     maxPlayers: int = Field(default=6, ge=2, le=6)
+    password: str | None = Field(default=None, max_length=32)
 
 
 @app.post("/api/rooms")
 async def create_room(body: CreateRoomBody):
-    return await app.state.manager.create_room(body.name, body.nickname, body.maxPlayers)
+    return await app.state.manager.create_room(
+        body.name, body.nickname, body.maxPlayers, body.password or None)
+
+
+@app.get("/api/rooms")
+async def list_rooms():
+    return app.state.manager.list_rooms()
 
 
 class JoinBody(BaseModel):
     nickname: str = Field(min_length=1, max_length=20)
+    password: str | None = Field(default=None, max_length=32)
 
 
 @app.post("/api/rooms/{code}/join")
 async def join_room(code: str, body: JoinBody):
-    return await app.state.manager.join_room(code.upper(), body.nickname)
+    return await app.state.manager.join_room(code.upper(), body.nickname, body.password)
+
+
+@app.get("/api/rooms/{code}/seats")
+async def room_seats(code: str):
+    return app.state.manager.seats(code.upper())
+
+
+class TakeoverBody(BaseModel):
+    playerId: str
+    password: str | None = Field(default=None, max_length=32)
+
+
+@app.post("/api/rooms/{code}/takeover")
+async def takeover(code: str, body: TakeoverBody):
+    return await app.state.manager.takeover(code.upper(), body.playerId, body.password)
+
+
+class DeleteRoomBody(BaseModel):
+    token: str | None = None
+    password: str | None = Field(default=None, max_length=32)
+
+
+@app.delete("/api/rooms/{code}")
+async def delete_room(code: str, body: DeleteRoomBody | None = None):
+    body = body or DeleteRoomBody()
+    await app.state.manager.delete_room(code.upper(), body.token, body.password)
+    return {"ok": True}
 
 
 @app.get("/api/cards")

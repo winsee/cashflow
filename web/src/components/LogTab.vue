@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { confirmAction } from '../confirm'
 import { fmt, useGame } from '../store'
 import type { LogEntry } from '../types'
 
 const game = useGame()
 const rows = ref<LogEntry[]>([])
 const filter = ref('')
+const isHost = computed(() => game.me?.isHost ?? false)
+
+// 大厅/系统性事件撤销会破坏对局结构，不提供入口；其余交给服务端重放校验兜底
+const NO_REVERT = new Set(['PLAYER_JOINED', 'TURN_ORDER_SET', 'GAME_STARTED', 'HOST_REVERTED', 'GAME_ENDED'])
+
+function revertable(e: LogEntry): boolean {
+  return isHost.value && !e.revoked && !NO_REVERT.has(e.type)
+}
 
 const LABELS: Record<string, string> = {
   PLAYER_JOINED: '加入房间', PROFESSION_SELECTED: '选择职业', DREAM_SELECTED: '选择梦想',
@@ -22,6 +31,7 @@ const LABELS: Record<string, string> = {
   ENTERED_FASTTRACK: '进入快车道', FT_PAYDAY: '现金流量日', FT_BUSINESS_BOUGHT: '快车道投资',
   FT_DREAM_BOUGHT: '买下梦想', FT_DREAM_DOUBLED: '梦想加价', FT_CHARITY_DONATED: '快车道慈善',
   FT_CASH_HIT: '现金损失', HOST_REVERTED: '房主撤销', HOST_ADJUSTED: '房主调账',
+  GAME_ENDED: '结束对局', PLAYER_REMOVED: '移除玩家',
 }
 
 function amountOf(e: LogEntry): string {
@@ -40,6 +50,20 @@ function detailOf(e: LogEntry): string {
 async function refresh() { rows.value = (await game.fetchLog()).reverse() }
 onMounted(refresh)
 watch(() => game.seq, refresh)
+
+async function revert(e: LogEntry) {
+  const ok = await confirmAction({
+    title: `撤销 #${e.seq}「${LABELS[e.type] ?? e.type}」？`,
+    lines: [`${e.actor ?? '系统'}${detailOf(e) ? ' · ' + detailOf(e) : ''}${amountOf(e) ? ' · ' + amountOf(e) : ''}`,
+            '撤销后全员账目立即重算，记录保留划线痕迹',
+            '若有后续操作依赖此事件，需先撤销那些操作'],
+    danger: true,
+  })
+  if (ok && await game.act('HOST_REVERT', { eventSeq: e.seq, reason: '房主修正' })) {
+    game.flash(`已撤销 #${e.seq}`)
+    await refresh()
+  }
+}
 </script>
 
 <template>
@@ -55,7 +79,10 @@ watch(() => game.seq, refresh)
         </div>
         <div class="num">{{ amountOf(e) }}</div>
       </div>
-      <div class="muted">#{{ e.seq }} · {{ e.at }}<span v-if="e.revoked">（已撤销）</span></div>
+      <div class="row between">
+        <div class="muted">#{{ e.seq }} · {{ e.at }}<span v-if="e.revoked">（已撤销）</span></div>
+        <button v-if="revertable(e)" class="small ghost" @click="revert(e)">撤销</button>
+      </div>
     </div>
   </div>
 </template>

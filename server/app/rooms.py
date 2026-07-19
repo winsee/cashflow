@@ -18,7 +18,7 @@ from .data_loader import CardLibrary
 from .engine import engine as E
 from .engine import formulas as F
 from .engine.errors import EngineError
-from .engine.models import RoomState
+from .engine.models import RoomState, RoomStatus
 from .store.db import Database
 
 
@@ -27,11 +27,14 @@ def _hash_token(token: str) -> str:
 
 
 class RoomSession:
-    def __init__(self, room_id: str, code: str, db: Database, lib: CardLibrary):
+    def __init__(self, room_id: str, code: str, db: Database, lib: CardLibrary,
+                 password_hash: str | None = None, created_at: str = ""):
         self.room_id = room_id
         self.code = code
         self.db = db
         self.lib = lib
+        self.password_hash = password_hash   # 只存服务端，绝不进 RoomState/广播
+        self.created_at = created_at
         self.state = RoomState()
         self.seq = 0
         self.lock = asyncio.Lock()
@@ -139,6 +142,8 @@ class RoomSession:
             "turnOrder": s.turn_order,
             "turnIndex": s.turn_index,
             "turnCount": s.turn_count,
+            "turnSquareUsed": s.turn_square_used,
+            "turnPaydayUsed": s.turn_payday_used,
             "currentPlayerId": s.current_player_id,
             "activeCard": s.active_card.model_dump() if s.active_card else None,
             "prompts": [p.model_dump() for p in s.prompts],
@@ -167,6 +172,24 @@ class RoomSession:
     def detach(self, player_id: str, ws: WebSocket) -> None:
         self.sockets.get(player_id, set()).discard(ws)
 
+    def check_password(self, password: str | None) -> bool:
+        """无密码房间恒通过；有密码房间要求明文匹配。"""
+        if self.password_hash is None:
+            return True
+        return password is not None and _hash_token(password) == self.password_hash
+
+    async def close_sockets(self, player_id: str | None = None, code: int = 4000) -> None:
+        """断开指定玩家（或全部）的连接：座位接管/房间删除时用。"""
+        targets = ([self.sockets.get(player_id, set())] if player_id
+                   else list(self.sockets.values()))
+        for conns in targets:
+            for ws in list(conns):
+                try:
+                    await ws.close(code=code)
+                except Exception:
+                    pass
+            conns.clear()
+
     def log_rows(self) -> list[dict]:
         rows = self.db.events_for_room(self.room_id, include_revoked=True)
         nick = {pid: p.nickname for pid, p in self.state.players.items()}
@@ -191,26 +214,105 @@ class RoomManager:
 
     def restore_all(self) -> None:
         for row in self.db.all_rooms():
-            sess = RoomSession(row["id"], row["code"], self.db, self.lib)
+            if row["status"] == "CLOSED":
+                continue     # 房主已结束的对局不再恢复
+            sess = RoomSession(row["id"], row["code"], self.db, self.lib,
+                               password_hash=row["password_hash"],
+                               created_at=row["created_at"] or "")
             sess.restore()
             self.rooms[row["code"]] = sess
 
     async def create_room(self, name: str, host_nickname: str,
-                          max_players: int = 6) -> dict:
+                          max_players: int = 6,
+                          password: str | None = None) -> dict:
         code = self._gen_code()
         room_id = uuid.uuid4().hex
-        self.db.create_room(room_id, code, name, {"max_players": max_players})
-        sess = RoomSession(room_id, code, self.db, self.lib)
+        pw_hash = _hash_token(password) if password else None
+        self.db.create_room(room_id, code, name, {"max_players": max_players}, pw_hash)
+        row = self.db.find_room_by_code(code)
+        sess = RoomSession(room_id, code, self.db, self.lib,
+                           password_hash=pw_hash,
+                           created_at=row["created_at"] or "")
         sess.state.settings.max_players = max_players
         sess.state.settings.name = name
         self.rooms[code] = sess
         host_id, token = await self._join(sess, host_nickname, is_host=True)
         return {"roomCode": code, "playerId": host_id, "playerToken": token}
 
-    async def join_room(self, code: str, nickname: str) -> dict:
+    async def join_room(self, code: str, nickname: str,
+                        password: str | None = None) -> dict:
         sess = self.get(code)
+        if not sess.check_password(password):
+            raise EngineError("BAD_PASSWORD", "房间密码错误")
         player_id, token = await self._join(sess, nickname, is_host=False)
         return {"roomCode": code, "playerId": player_id, "playerToken": token}
+
+    def list_rooms(self) -> list[dict]:
+        """大厅列表：按创建时间倒序。"""
+        out = []
+        for sess in self.rooms.values():
+            s = sess.state
+            out.append({
+                "code": sess.code,
+                "name": s.settings.name,
+                "status": s.status.value,
+                "playerCount": len(s.players),
+                "maxPlayers": s.settings.max_players,
+                "hasPassword": sess.password_hash is not None,
+                "createdAt": sess.created_at,
+            })
+        out.sort(key=lambda r: r["createdAt"], reverse=True)
+        return out
+
+    def seats(self, code: str) -> dict:
+        """加入页/接管选座用的房间概要（不泄露令牌等敏感信息）。"""
+        sess = self.get(code)
+        s = sess.state
+        return {
+            "code": sess.code,
+            "name": s.settings.name,
+            "status": s.status.value,
+            "hasPassword": sess.password_hash is not None,
+            "maxPlayers": s.settings.max_players,
+            "players": [{"id": p.id, "nickname": p.nickname, "isHost": p.is_host,
+                         "professionTitle": p.profession_title}
+                        for p in s.players.values()],
+        }
+
+    async def takeover(self, code: str, player_id: str,
+                       password: str | None = None) -> dict:
+        """凭房间密码接管已有座位（换设备恢复身份）：重发令牌，旧令牌作废。
+
+        不产生引擎事件——身份是传输层概念，游戏状态不变。
+        """
+        sess = self.get(code)
+        if not sess.check_password(password):
+            raise EngineError("BAD_PASSWORD", "房间密码错误")
+        if player_id not in sess.state.players:
+            raise EngineError("NO_PLAYER", "该座位不存在")
+        token = secrets.token_urlsafe(24)
+        self.db.update_player_token(player_id, _hash_token(token))
+        await sess.close_sockets(player_id)   # 原设备立即断线，冒领当场暴露
+        return {"roomCode": code, "playerId": player_id, "playerToken": token}
+
+    async def delete_room(self, code: str, token: str | None = None,
+                          password: str | None = None) -> None:
+        """删除房间：FINISHED/CLOSED 任何人可删；否则需房主令牌或房间密码。"""
+        sess = self.get(code)
+        if sess.state.status not in (RoomStatus.FINISHED, RoomStatus.CLOSED):
+            allowed = False
+            if token:
+                row = self.db.find_player_by_token(_hash_token(token))
+                if row and row["room_id"] == sess.room_id and row["is_host"]:
+                    allowed = True
+            if not allowed and sess.password_hash is not None \
+                    and sess.check_password(password):
+                allowed = True
+            if not allowed:
+                raise EngineError("FORBIDDEN", "只有房主或输入房间密码才能删除进行中的房间")
+        await sess.close_sockets()
+        self.rooms.pop(code, None)
+        self.db.delete_room(sess.room_id)
 
     async def _join(self, sess: RoomSession, nickname: str, is_host: bool):
         player_id = uuid.uuid4().hex[:12]

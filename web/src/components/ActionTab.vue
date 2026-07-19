@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue'
+import { keyNumbers } from '../cardinfo'
+import { confirmAction } from '../confirm'
 import { fmt, useGame } from '../store'
 import type { CardDto } from '../types'
 import CardPicker from './CardPicker.vue'
@@ -18,9 +20,15 @@ const pickerDeck = ref<string | null>(null)
 const activeCardInfo = ref<CardDto | null>(null)
 
 async function onPicked(card: CardDto) {
+  const nums = keyNumbers(card)
+  const ok = await confirmAction({
+    title: `抽卡：「${card.title}」？`,
+    lines: [DECKS[card.deck] ?? card.deck, ...(nums ? [nums] : []),
+            '每回合只能抽一次，请核对与实体卡一致'],
+  })
+  if (!ok) return                       // 留在选卡列表，可重选
   pickerDeck.value = null
-  const ok = await game.act('DRAW_CARD', { cardId: card.id })
-  if (ok) activeCardInfo.value = card
+  if (await game.act('DRAW_CARD', { cardId: card.id })) activeCardInfo.value = card
 }
 
 const ac = computed(() => st.value.activeCard)
@@ -73,9 +81,195 @@ const bankruptable = computed(() =>
   me.value && me.value.derived.monthlyCashflow < 0 &&
   me.value.cash + me.value.derived.monthlyCashflow < 0)
 
+// ---- 卡内资金决策：确认弹窗 + 成功提示 ----
+
+async function decideBuy() {
+  const c = activeCardInfo.value!
+  const ok = await confirmAction({
+    title: `买入「${c.title}」？`,
+    lines: [`首付 ${fmt(c.data.downPayment)}`, `月现金流 +${fmt(c.data.cashflow)}`],
+  })
+  if (ok && await game.act('CARD_DECISION', { decision: 'buy' })) {
+    game.flash(`已买入，支付首付 ${fmt(c.data.downPayment)}`)
+    activeCardInfo.value = null
+  }
+}
+
+async function decidePass(stockWindow = false) {
+  const ok = await confirmAction({
+    title: stockWindow ? '结束股票报价？' : '放弃这次机会？',
+    lines: stockWindow
+      ? ['全员按今日价卖出的窗口将一并关闭']
+      : ['机会卡将作废（本回合不能再抽卡）'],
+  })
+  if (ok && await game.act('CARD_DECISION', { decision: 'pass' })) activeCardInfo.value = null
+}
+
+async function stockBuy() {
+  const d = activeCardInfo.value!.data
+  const qty = stockQty.value
+  const ok = await confirmAction({
+    title: `买入 ${d.symbol} ×${qty}？`,
+    lines: [`${fmt(d.price)}/股 × ${qty} = ${fmt(d.price * qty)}`],
+  })
+  if (ok && await game.act('STOCK_BUY', { qty }))
+    game.flash(`已买入 ${d.symbol} ×${qty}，支付 ${fmt(d.price * qty)}`)
+}
+
+async function stockSell() {
+  const d = activeCardInfo.value?.data
+  const qty = stockQty.value
+  const ok = await confirmAction({
+    title: `卖出 ${d?.symbol ?? '股票'} ×${qty}？`,
+    lines: d?.price != null ? [`${fmt(d.price)}/股 × ${qty} = ${fmt(d.price * qty)}`] : [],
+  })
+  if (ok && await game.act('STOCK_SELL', { qty }))
+    game.flash(`已卖出 ×${qty}` + (d?.price != null ? `，得 ${fmt(d.price * qty)}` : ''))
+}
+
+async function doodadPay(method: 'pay' | 'credit') {
+  const d = activeCardInfo.value!.data
+  const ok = await confirmAction(method === 'credit'
+    ? { title: '信用卡支付？', lines: [`信用卡负债 +${fmt(d.amount)}`, `每月还款 +${fmt(d.creditMonthly)}`] }
+    : { title: `现金支付 ${fmt(d.amount)}？` })
+  if (ok && await game.act('CARD_DECISION', { decision: method })) {
+    game.flash(method === 'credit' ? '已记入信用卡' : `已支付 ${fmt(d.amount)}`)
+    activeCardInfo.value = null
+  }
+}
+
+// ---- 资金/不可逆操作：确认弹窗 + 成功提示 ----
+
+const paydayTimes = ref(1)
+
+async function payday() {
+  const cf = me.value!.derived.monthlyCashflow
+  const t = paydayTimes.value
+  const ok = await confirmAction({
+    title: `结算银行结算日 ×${t}？`,
+    lines: [`月现金流 ${fmt(cf)} × ${t} = ${fmt(cf * t)}`, '经过多次请先在右侧选择次数一并结算'],
+    warning: cf < 0 ? '月现金流为负，将从现金中扣除' : undefined,
+  })
+  if (ok && await game.act('PAYDAY', { times: t }))
+    game.flash(`已结算银行结算日 ×${t}，现金${cf >= 0 ? ' +' : ' '}${fmt(cf * t)}`)
+}
+
+async function takeLoan() {
+  const amt = loanAmount.value
+  const interest = Math.floor(amt / 10)
+  const cfAfter = me.value!.derived.monthlyCashflow - interest
+  const ok = await confirmAction({
+    title: `向银行贷款 ${fmt(amt)}？`,
+    lines: [`每月利息 +${fmt(interest)}（月息 10%）`, `贷后月现金流 ${fmt(cfAfter)}`],
+    warning: cfAfter < 0 ? '贷款后月现金流将为负！' : undefined,
+  })
+  if (ok && await game.act('TAKE_LOAN', { amount: amt })) game.flash(`已贷款 ${fmt(amt)}`)
+}
+
+async function repayLoan() {
+  const amt = Math.min(loanAmount.value, me.value!.liabilities.bank_loan)
+  const ok = await confirmAction({
+    title: `偿还银行贷款 ${fmt(amt)}？`,
+    lines: [`每月利息 −${fmt(Math.floor(amt / 10))}`],
+  })
+  if (ok && await game.act('REPAY_LOAN', { amount: amt })) game.flash(`已还款 ${fmt(amt)}`)
+}
+
+async function payOffDebt(o: { id: string; label: string; amount: number }) {
+  const ok = await confirmAction({
+    title: `一次性清偿「${o.label}」？`,
+    lines: [`支付 ${fmt(o.amount)}，删除该负债及对应月支出`],
+  })
+  if (ok && await game.act('PAY_OFF_DEBT', { liabilityId: o.id })) game.flash(`已清偿 ${o.label}`)
+}
+
+async function charity() {
+  const amount = Math.round(me.value!.derived.totalIncome / 10)
+  const ok = await confirmAction({
+    title: '慈善捐款？',
+    lines: [`捐出总收入 10% = ${fmt(amount)}`, '此后 3 轮可选掷 1 或 2 粒骰子'],
+  })
+  if (ok && await game.act('CHARITY')) game.flash(`已捐款 ${fmt(amount)}`)
+}
+
+async function addChild() {
+  const p = me.value!
+  const ok = await confirmAction({
+    title: '生孩子？',
+    lines: p.childCount >= 3
+      ? ['已有 3 个孩子，此格无效果（仍计为本回合停留格）']
+      : [`每月孩子支出 +${fmt(p.perChildExpense)}（不可逆）`],
+  })
+  if (ok && await game.act('ADD_CHILD')) game.flash('已记录孩子事件')
+}
+
+async function unemployment() {
+  const amount = me.value!.derived.totalExpenses
+  const ok = await confirmAction({
+    title: '失业？',
+    lines: [`支付一次总支出 ${fmt(amount)}`, '并停赛 2 轮，慈善状态清零'],
+    danger: true,
+  })
+  if (ok && await game.act('UNEMPLOYMENT')) game.flash(`已支付 ${fmt(amount)}，停赛 2 轮`)
+}
+
+async function enterFasttrack() {
+  const ok = await confirmAction({
+    title: '进入快车道？',
+    lines: [`当前现金 ${fmt(me.value!.cash)} 将交回银行（说明书规则）`,
+            '非工资收入 ×100 换算为现金流量日收入'],
+    danger: true,
+  })
+  if (ok && await game.act('ENTER_FASTTRACK')) game.flash('🏎️ 已进入快车道！')
+}
+
+async function bankruptcySell(name: string, assetId: string, proceeds?: number) {
+  const ok = await confirmAction({
+    title: `把「${name}」卖给银行？`,
+    lines: [proceeds !== undefined ? `按规则可得 ${fmt(proceeds)}（首期付款 50%）` : '股票按买入成本 50% 回收'],
+    danger: true,
+  })
+  if (ok && await game.act('BANKRUPTCY_SELL_ASSET', { assetId })) game.flash(`已变卖 ${name}`)
+}
+
+async function bankruptcyRepay() {
+  const amt = Math.min(repayAmount.value, me.value!.liabilities.bank_loan)
+  const ok = await confirmAction({
+    title: `偿还银行贷款 ${fmt(amt)}？`,
+    lines: [`每月利息 −${fmt(Math.floor(amt / 10))}`],
+  })
+  if (ok && await game.act('REPAY_LOAN', { amount: amt })) game.flash(`已还款 ${fmt(amt)}`)
+}
+
+async function startBankruptcy() {
+  const ok = await confirmAction({
+    title: '进入破产流程？',
+    lines: ['将按首期付款 50% 向银行变卖资产，直至月现金流转正'],
+    danger: true,
+  })
+  if (ok) await game.act('BANKRUPTCY_START')
+}
+
 async function endTurn() {
+  if (!st.value.turnSquareUsed && !st.value.turnPaydayUsed) {
+    const ok = await confirmAction({
+      title: '结束回合？',
+      lines: ['本回合尚未记录任何棋盘事件',
+              '若本轮经过/停在银行结算日，请先点「银行结算日」结算'],
+    })
+    if (!ok) return
+  }
   activeCardInfo.value = null
   await game.act('END_TURN')
+}
+
+async function hostEndTurn() {
+  const who = game.currentPlayer?.nickname ?? '当前玩家'
+  const ok = await confirmAction({
+    title: `代 ${who} 结束回合？`,
+    lines: ['用于玩家临时离开时推进对局', '其未结算的卡牌将作废；误点可在「日志」中撤销'],
+  })
+  if (ok && await game.act('HOST_END_TURN')) game.flash(`已代 ${who} 结束回合`)
 }
 </script>
 
@@ -91,6 +285,7 @@ async function endTurn() {
           <div class="muted" v-if="me.skipTurns > 0">⏸️ 停赛中：还需跳过 {{ me.skipTurns }} 轮</div>
         </div>
         <button v-if="myTurn && !me.inBankruptcy" @click="endTurn">结束回合</button>
+        <button v-else-if="me.isHost && !myTurn" class="ghost small" @click="hostEndTurn">⏭ 代TA结束回合</button>
       </div>
     </div>
 
@@ -100,15 +295,15 @@ async function endTurn() {
       <p class="muted">按规则以首期付款的 50% 将资产逐项卖给银行，直至月现金流转正；然后点「完成清算」。（说明书第5页）</p>
       <div v-for="a in [...me.realEstates, ...me.businesses]" :key="a.id" class="row between" style="padding:6px 0">
         <span>{{ a.name }}（可得 {{ fmt(Math.floor(a.down_payment / 2)) }}）</span>
-        <button class="small warn" @click="game.act('BANKRUPTCY_SELL_ASSET', { assetId: a.id })">卖给银行</button>
+        <button class="small warn" @click="bankruptcySell(a.name, a.id, Math.floor(a.down_payment / 2))">卖给银行</button>
       </div>
       <div v-for="sym in [...new Set(me.stocks.map(s => s.symbol))]" :key="sym" class="row between" style="padding:6px 0">
         <span>股票 {{ sym }}</span>
-        <button class="small warn" @click="game.act('BANKRUPTCY_SELL_ASSET', { assetId: 'stock:' + sym })">半价卖出</button>
+        <button class="small warn" @click="bankruptcySell('股票 ' + sym, 'stock:' + sym)">半价卖出</button>
       </div>
       <div class="row" style="margin-top:8px">
         <input type="number" v-model.number="repayAmount" step="1000" min="1000" />
-        <button class="small" @click="game.act('REPAY_LOAN', { amount: repayAmount })">还银行贷款</button>
+        <button class="small" :disabled="!me.liabilities.bank_loan" @click="bankruptcyRepay">还银行贷款</button>
       </div>
       <button class="block warn" @click="game.act('BANKRUPTCY_RESOLVE')">完成清算</button>
     </div>
@@ -126,8 +321,8 @@ async function endTurn() {
           <p>首付 {{ fmt(activeCardInfo.data.downPayment) }} · 成本 {{ fmt(activeCardInfo.data.cost) }}
             · 月现金流 +{{ fmt(activeCardInfo.data.cashflow) }}</p>
           <div class="row wrap">
-            <button @click="game.act('CARD_DECISION', { decision: 'buy' }).then(ok => ok && (activeCardInfo = null))">买入</button>
-            <button class="ghost" @click="game.act('CARD_DECISION', { decision: 'pass' }).then(ok => ok && (activeCardInfo = null))">放弃</button>
+            <button @click="decideBuy">买入</button>
+            <button class="ghost" @click="decidePass()">放弃</button>
             <button class="gold" @click="showResell = !showResell">转卖给玩家</button>
           </div>
           <div v-if="showResell" class="card inner">
@@ -149,10 +344,10 @@ async function endTurn() {
             <span class="muted">区间 {{ fmt(activeCardInfo.data.priceRange?.[0]) }}–{{ fmt(activeCardInfo.data.priceRange?.[1]) }}</span></p>
           <div class="row">
             <input type="number" v-model.number="stockQty" min="1" />
-            <button @click="game.act('STOCK_BUY', { qty: stockQty })">买入</button>
+            <button @click="stockBuy">买入</button>
           </div>
           <p class="muted">其他玩家此刻可按今日价卖出持仓（他们的手机上会显示卖出入口）</p>
-          <button class="ghost block" @click="game.act('CARD_DECISION', { decision: 'pass' }).then(ok => ok && (activeCardInfo = null))">不买了/结束报价</button>
+          <button class="ghost block" @click="decidePass(true)">不买了/结束报价</button>
         </template>
 
         <template v-else-if="ac.subtype === 'STOCK_EVENT'">
@@ -163,8 +358,8 @@ async function endTurn() {
         <template v-else-if="ac.subtype === 'CREDIT_OPTION'">
           <p>金额 {{ fmt(activeCardInfo.data.amount) }}，可选信用卡支付（月供 +{{ fmt(activeCardInfo.data.creditMonthly) }}）</p>
           <div class="row">
-            <button @click="game.act('CARD_DECISION', { decision: 'pay' }).then(ok => ok && (activeCardInfo = null))">现金支付</button>
-            <button class="gold" @click="game.act('CARD_DECISION', { decision: 'credit' }).then(ok => ok && (activeCardInfo = null))">信用卡支付</button>
+            <button @click="doodadPay('pay')">现金支付</button>
+            <button class="gold" @click="doodadPay('credit')">信用卡支付</button>
           </div>
         </template>
 
@@ -180,7 +375,7 @@ async function endTurn() {
         <p class="muted">{{ game.currentPlayer?.nickname }} 抽到股票报价，你可按今日价格卖出该股持仓</p>
         <div class="row">
           <input type="number" v-model.number="stockQty" min="1" />
-          <button @click="game.act('STOCK_SELL', { qty: stockQty })">卖出</button>
+          <button @click="stockSell">卖出</button>
         </div>
       </div>
 
@@ -189,22 +384,32 @@ async function endTurn() {
         <h2>抽卡（停在对应格后）</h2>
         <div class="row wrap">
           <button v-for="(name, deck) in DECKS" :key="deck" class="ghost"
-                  :disabled="!!ac && !ac.resolved" @click="pickerDeck = deck as string">{{ name }}</button>
+                  :disabled="(!!ac && !ac.resolved) || st.turnSquareUsed"
+                  @click="pickerDeck = deck as string">{{ name }}</button>
         </div>
         <h2 style="margin-top:12px">棋盘格事件</h2>
+        <p v-if="st.turnSquareUsed" class="muted">✅ 本回合已声明停留格事件（每回合只停一格；误录请房主在「日志」中撤销）</p>
+        <div class="row" style="margin-bottom:6px">
+          <button class="ghost" :disabled="st.turnPaydayUsed" @click="payday">
+            {{ st.turnPaydayUsed ? '💰 银行结算日（已结算）' : '💰 银行结算日' }}
+          </button>
+          <select v-model.number="paydayTimes" :disabled="st.turnPaydayUsed"
+                  style="width:110px" title="本轮经过/停留次数">
+            <option v-for="n in 3" :key="n" :value="n">×{{ n }} 次</option>
+          </select>
+        </div>
         <div class="row wrap">
-          <button class="ghost" @click="game.act('PAYDAY')">💰 银行结算日</button>
-          <button class="ghost" @click="game.act('ADD_CHILD')">👶 生孩子</button>
-          <button class="ghost" @click="game.act('CHARITY')">💝 慈善（总收入10%）</button>
-          <button class="ghost" @click="game.act('UNEMPLOYMENT')">📉 失业（付总支出停2轮）</button>
+          <button class="ghost" :disabled="st.turnSquareUsed" @click="addChild">👶 生孩子</button>
+          <button class="ghost" :disabled="st.turnSquareUsed" @click="charity">💝 慈善（总收入10%）</button>
+          <button class="ghost" :disabled="st.turnSquareUsed" @click="unemployment">📉 失业（付总支出停2轮）</button>
         </div>
         <div v-if="me.derived.canEnterFasttrack" style="margin-top:12px">
-          <button class="block gold" @click="game.act('ENTER_FASTTRACK')">
+          <button class="block gold" @click="enterFasttrack">
             🏎️ 进入快车道（现金交回银行，财产换算 ×100）
           </button>
         </div>
         <div v-if="bankruptable" style="margin-top:8px">
-          <button class="block warn" @click="game.act('BANKRUPTCY_START')">🆘 进入破产流程</button>
+          <button class="block warn" @click="startBankruptcy">🆘 进入破产流程</button>
         </div>
       </div>
 
@@ -213,17 +418,15 @@ async function endTurn() {
         <h2>🏦 银行</h2>
         <div class="row">
           <input type="number" v-model.number="loanAmount" step="1000" min="1000" />
-          <button class="small" @click="game.act('TAKE_LOAN', { amount: loanAmount })">贷款</button>
-          <button class="small ghost" :disabled="!me.liabilities.bank_loan"
-                  @click="game.act('REPAY_LOAN', { amount: Math.min(loanAmount, me.liabilities.bank_loan) })">还款</button>
+          <button class="small" @click="takeLoan">贷款</button>
+          <button class="small ghost" :disabled="!me.liabilities.bank_loan" @click="repayLoan">还款</button>
         </div>
         <p class="muted">千元整数倍，月息 10%（每借 $1,000 月付 $100）</p>
         <template v-if="myTurn && payoffOptions.length">
           <div class="section-title">一次性清偿负债（本回合）</div>
           <div v-for="o in payoffOptions" :key="o.id" class="row between" style="padding:4px 0">
             <span>{{ o.label }} {{ fmt(o.amount) }}</span>
-            <button class="small ghost" :disabled="me.cash < o.amount"
-                    @click="game.act('PAY_OFF_DEBT', { liabilityId: o.id })">清偿</button>
+            <button class="small ghost" :disabled="me.cash < o.amount" @click="payOffDebt(o)">清偿</button>
           </div>
         </template>
       </div>

@@ -15,6 +15,7 @@ class RoomStatus(StrEnum):
     SETUP = "SETUP"
     PLAYING = "PLAYING"
     FINISHED = "FINISHED"
+    CLOSED = "CLOSED"        # 房主主动结束对局，房间不再恢复
 
 
 class Phase(StrEnum):
@@ -150,6 +151,8 @@ class RoomState(BaseModel):
     turn_order: list[str] = Field(default_factory=list)
     turn_index: int = 0
     turn_count: int = 1          # 第几轮（回到首位玩家 +1）
+    turn_square_used: bool = False   # 本回合已声明停留格事件（每回合只停一格）
+    turn_payday_used: bool = False   # 本回合已结算银行结算日/现金流量日
     active_card: ActiveCard | None = None
     prompts: list[Prompt] = Field(default_factory=list)
     ft_sold_squares: list[str] = Field(default_factory=list)   # 已被买断的快车道绿格

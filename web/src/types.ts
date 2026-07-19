@@ -53,12 +53,14 @@ export interface Prompt {
 
 export interface RoomStateDto {
   roomCode: string
-  status: 'LOBBY' | 'SETUP' | 'PLAYING' | 'FINISHED'
+  status: RoomStatus
   settings: { max_players: number; name: string }
   players: Player[]
   turnOrder: string[]
   turnIndex: number
   turnCount: number
+  turnSquareUsed: boolean
+  turnPaydayUsed: boolean
   currentPlayerId: string | null
   activeCard: { card_id: string; deck: string; subtype: string; drawer_id: string; resolved: boolean } | null
   prompts: Prompt[]
@@ -82,4 +84,25 @@ export interface LogEntry {
   payload: Record<string, any>
   at: string
   revoked: boolean
+}
+
+export type RoomStatus = 'LOBBY' | 'SETUP' | 'PLAYING' | 'FINISHED' | 'CLOSED'
+
+export interface RoomListItem {
+  code: string
+  name: string
+  status: RoomStatus
+  playerCount: number
+  maxPlayers: number
+  hasPassword: boolean
+  createdAt: string
+}
+
+export interface RoomSeats {
+  code: string
+  name: string
+  status: RoomStatus
+  hasPassword: boolean
+  maxPlayers: number
+  players: { id: string; nickname: string; isHost: boolean; professionTitle: string }[]
 }

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import type { CardDto, LogEntry, Player, Prompt, RoomStateDto } from './types'
+import type { CardDto, LogEntry, Player, Prompt, RoomListItem, RoomSeats, RoomStateDto } from './types'
 
 interface Session {
   roomCode: string
@@ -31,9 +31,12 @@ export const useGame = defineStore('game', {
     seq: 0,
     connected: false,
     lastError: '' as string,
+    notice: '' as string,
     ws: null as WebSocket | null,
     pendingResolvers: new Map<string, (ok: boolean) => void>(),
+    pendingTypes: {} as Record<string, boolean>,
     reconnectTimer: 0 as any,
+    noticeTimer: 0 as any,
   }),
   getters: {
     me(): Player | null {
@@ -64,25 +67,55 @@ export const useGame = defineStore('game', {
       this.ws?.close()
       this.ws = null
     },
-    async createRoom(nickname: string, name = '现金流对局') {
+    async createRoom(nickname: string, name = '现金流对局', password = '', maxPlayers = 6) {
       const r = await fetch('/api/rooms', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname, name }),
+        body: JSON.stringify({ nickname, name, maxPlayers, password: password || null }),
       })
       if (!r.ok) throw new Error((await r.json()).message ?? '创建失败')
       const d = await r.json()
       this.saveSession({ roomCode: d.roomCode, playerId: d.playerId, playerToken: d.playerToken })
       this.connect()
     },
-    async joinRoom(code: string, nickname: string) {
+    async joinRoom(code: string, nickname: string, password = '') {
       const r = await fetch(`/api/rooms/${code}/join`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname }),
+        body: JSON.stringify({ nickname, password: password || null }),
       })
       if (!r.ok) throw new Error((await r.json()).message ?? '加入失败')
       const d = await r.json()
       this.saveSession({ roomCode: d.roomCode, playerId: d.playerId, playerToken: d.playerToken })
       this.connect()
+    },
+    /** 座位接管（换设备恢复身份）：凭房间密码认领已有座位，旧令牌作废 */
+    async takeover(code: string, playerId: string, password = '') {
+      const r = await fetch(`/api/rooms/${code}/takeover`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId, password: password || null }),
+      })
+      if (!r.ok) throw new Error((await r.json()).message ?? '接管失败')
+      const d = await r.json()
+      this.saveSession({ roomCode: d.roomCode, playerId: d.playerId, playerToken: d.playerToken })
+      this.connect()
+    },
+    async fetchRooms(): Promise<RoomListItem[]> {
+      const r = await fetch('/api/rooms')
+      if (!r.ok) throw new Error('获取房间列表失败')
+      return r.json()
+    },
+    async fetchSeats(code: string): Promise<RoomSeats> {
+      const r = await fetch(`/api/rooms/${code}/seats`)
+      if (!r.ok) throw new Error((await r.json()).message ?? '房间不存在')
+      return r.json()
+    },
+    /** 删除房间：已结束房间直接删；否则需房主令牌或房间密码 */
+    async deleteRoom(code: string, opts: { token?: string; password?: string } = {}) {
+      const r = await fetch(`/api/rooms/${code}`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(opts),
+      })
+      if (!r.ok) throw new Error((await r.json()).message ?? '删除失败')
+      if (this.session?.roomCode === code) this.clearSession()
     },
     connect() {
       if (!this.session || this.ws) return
@@ -113,7 +146,14 @@ export const useGame = defineStore('game', {
         }
       }
     },
-    /** 发送行动；返回是否被服务器接受（错误会展示在 lastError） */
+    /** 成功提示（绿色 toast，3 秒自动消失） */
+    flash(msg: string) {
+      this.notice = msg
+      clearTimeout(this.noticeTimer)
+      this.noticeTimer = setTimeout(() => { this.notice = '' }, 3000)
+    },
+    /** 发送行动；返回是否被服务器接受（错误会展示在 lastError）。
+     *  同类型行动在途时忽略后续点击，防止双击造成两笔贷款/结算。 */
     act(type: string, payload: Record<string, any> = {}): Promise<boolean> {
       return new Promise((resolve) => {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
@@ -121,15 +161,22 @@ export const useGame = defineStore('game', {
           resolve(false)
           return
         }
+        if (this.pendingTypes[type]) {
+          resolve(false)
+          return
+        }
+        this.pendingTypes[type] = true
         const actionId = uuid()
         this.pendingResolvers.set(actionId, (ok) => {
           this.pendingResolvers.delete(actionId)
+          delete this.pendingTypes[type]
           resolve(ok)
         })
         try {
           this.ws.send(JSON.stringify({ actionId, type, payload }))
         } catch (e) {
           this.pendingResolvers.delete(actionId)
+          delete this.pendingTypes[type]
           this.lastError = '发送失败，请重试'
           resolve(false)
           return
@@ -138,6 +185,7 @@ export const useGame = defineStore('game', {
         setTimeout(() => {
           if (this.pendingResolvers.has(actionId)) {
             this.pendingResolvers.delete(actionId)
+            delete this.pendingTypes[type]
             resolve(true)
           }
         }, 5000)
@@ -161,6 +209,14 @@ export const useGame = defineStore('game', {
     },
   },
 })
+
+export function loadNickname(): string {
+  try { return localStorage.getItem('cashflow.nickname') ?? '' } catch { return '' }
+}
+
+export function saveNickname(n: string) {
+  try { localStorage.setItem('cashflow.nickname', n) } catch { /* 隐私模式下忽略 */ }
+}
 
 export function fmt(n: number | undefined | null): string {
   if (n === undefined || n === null) return '0'

@@ -81,16 +81,26 @@ def test_replay_equals_final_state_long_flow(lib):
     g.act("A", "END_TURN")
     g.act("B", "DRAW_CARD", cardId="dd-tv")
     g.act("B", "CARD_DECISION", decision="credit")
-    g.act("B", "CHARITY")
     g.act("B", "END_TURN")
     g.act("A", "DRAW_CARD", cardId="mk-evt-inflation")
     g.act("A", "REPAY_LOAN", amount=1000)
     g.act("A", "END_TURN")
+    g.act("B", "CHARITY")                    # 每回合只停一格：慈善放到 B 的下一回合
+    g.act("B", "END_TURN")
     replayed = E.replay(g.events)
     assert replayed.model_dump() == g.state.model_dump()
     # 派生值与状态自洽：重放态计算出的现金流与直接态一致
     for pid in ("A", "B"):
         assert F.monthly_cashflow(replayed.players[pid]) == F.monthly_cashflow(g.state.players[pid])
+
+
+def test_host_reverted_event_is_noop(lib):
+    """HOST_REVERTED 审计事件必须可重放且不改状态（否则撤销过的房间无法重放/恢复）。"""
+    g = _setup_duo(lib)
+    before = g.state.model_dump()
+    after = E.apply(g.state, {"type": "HOST_REVERTED",
+                              "payload": {"event_seq": 3, "reason": "测试"}})
+    assert after.model_dump() == before
 
 
 def test_revoked_event_replay(lib):

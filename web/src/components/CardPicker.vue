@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { keyNumbers } from '../cardinfo'
 import { useGame } from '../store'
 import type { CardDto } from '../types'
 
@@ -16,18 +17,6 @@ async function search() {
   cards.value = await game.fetchCards(props.deck, q.value)
 }
 onMounted(search)
-
-function keyNumbers(c: CardDto): string {
-  const d = c.data
-  const parts: string[] = []
-  if (d.cost != null) parts.push(`成本 $${d.cost.toLocaleString()}`)
-  if (d.downPayment != null) parts.push(`首付 $${d.downPayment.toLocaleString()}`)
-  if (d.cashflow != null) parts.push(`现金流 +$${d.cashflow.toLocaleString()}`)
-  if (d.price != null) parts.push(`今日价 $${d.price.toLocaleString()}`)
-  if (d.amount != null) parts.push(`$${d.amount.toLocaleString()}`)
-  if (d.monthly != null) parts.push(`月供 $${d.monthly.toLocaleString()}`)
-  return parts.join(' · ')
-}
 
 /** 拍照识别（FR-9）：本期识别链返回空候选 → 停留在手动检索 */
 async function onPhoto(e: Event) {
