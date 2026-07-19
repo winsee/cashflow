@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { fmt, useGame } from '../store'
+import type { Player } from '../types'
 
+const props = defineProps<{ player?: Player }>()
 const game = useGame()
-const me = computed(() => game.me)
+const me = computed(() => props.player ?? game.me)
 const d = computed(() => me.value?.derived)
 
 const ftProgress = computed(() => {

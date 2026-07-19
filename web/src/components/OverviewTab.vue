@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { confirmAction } from '../confirm'
 import { fmt, useGame } from '../store'
 import type { Player } from '../types'
+import StatementTab from './StatementTab.vue'
 
 const game = useGame()
 const router = useRouter()
 const st = computed(() => game.state!)
 const isHost = computed(() => game.me?.isHost ?? false)
+
+const detailPlayer = ref<Player | null>(null)
 
 async function removePlayer(p: Player) {
   const ok = await confirmAction({
@@ -48,7 +51,9 @@ async function leaveGame() {
 <template>
   <div v-if="st">
     <div v-for="p in st.players" :key="p.id" class="card"
-         :style="p.id === st.currentPlayerId ? 'border-color:var(--brand)' : ''">
+         style="cursor:pointer"
+         :style="p.id === st.currentPlayerId ? 'border-color:var(--brand)' : ''"
+         @click="detailPlayer = p">
       <div class="row between">
         <div>
           <b>{{ p.nickname }}</b>
@@ -85,9 +90,10 @@ async function leaveGame() {
         <span v-for="s in p.stocks" :key="s.symbol + s.cost_per_share">📈{{ s.symbol }}×{{ s.shares }} </span>
       </div>
 
-      <div v-if="isHost && p.id !== game.me?.id && p.phase !== 'OUT' && st.status === 'PLAYING'"
-           class="row" style="margin-top:6px;justify-content:flex-end">
-        <button class="small ghost warn" @click="removePlayer(p)">移除玩家</button>
+      <div class="row between" style="margin-top:6px;align-items:center">
+        <span class="muted" style="font-size:12px">📋 查看记录卡 ›</span>
+        <button v-if="isHost && p.id !== game.me?.id && p.phase !== 'OUT' && st.status === 'PLAYING'"
+                class="small ghost warn" @click.stop="removePlayer(p)">移除玩家</button>
       </div>
     </div>
 
@@ -106,6 +112,16 @@ async function leaveGame() {
       <h2>房主操作</h2>
       <p class="muted">结束对局后所有玩家自动返回首页；重开一局请重新创建房间。</p>
       <button class="block warn" @click="endGame">🛑 结束对局</button>
+    </div>
+
+    <div v-if="detailPlayer" class="modal-mask" @click.self="detailPlayer = null">
+      <div class="modal">
+        <div class="row between" style="margin-bottom:8px;align-items:center">
+          <h2 style="margin:0">{{ detailPlayer.nickname }} 的记录卡</h2>
+          <button class="small ghost" @click="detailPlayer = null">关闭</button>
+        </div>
+        <StatementTab :player="detailPlayer" />
+      </div>
     </div>
   </div>
 </template>

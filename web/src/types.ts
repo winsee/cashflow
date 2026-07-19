@@ -62,7 +62,11 @@ export interface RoomStateDto {
   turnSquareUsed: boolean
   turnPaydayUsed: boolean
   currentPlayerId: string | null
-  activeCard: { card_id: string; deck: string; subtype: string; drawer_id: string; resolved: boolean } | null
+  activeCard: {
+    card_id: string; deck: string; subtype: string; drawer_id: string; resolved: boolean
+    /** 强制卡结算预览（服务端计算：应付金额/说明/是否条件豁免），机会卡等为 null */
+    settlePreview?: { due: number; note: string; waived: boolean } | null
+  } | null
   prompts: Prompt[]
   ftSoldSquares: string[]
   dreamPriceBumps: Record<string, number>
@@ -79,6 +83,7 @@ export interface CardDto {
 
 export interface LogEntry {
   seq: number
+  actorId: string | null
   actor: string | null
   type: string
   payload: Record<string, any>

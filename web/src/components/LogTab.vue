@@ -10,10 +10,24 @@ const filter = ref('')
 const isHost = computed(() => game.me?.isHost ?? false)
 
 // 大厅/系统性事件撤销会破坏对局结构，不提供入口；其余交给服务端重放校验兜底
-const NO_REVERT = new Set(['PLAYER_JOINED', 'TURN_ORDER_SET', 'GAME_STARTED', 'HOST_REVERTED', 'GAME_ENDED'])
+const NO_REVERT = new Set(['PLAYER_JOINED', 'TURN_ORDER_SET', 'GAME_STARTED', 'HOST_REVERTED', 'PLAYER_CORRECTED', 'GAME_ENDED'])
+
+// FR-29 本人更正：卡牌入账类事件本人可自行撤销后重新选卡（与服务端 CORRECTABLE_TYPES 一致）
+const CORRECTABLE = new Set([
+  'CARD_DRAWN', 'CARD_RESOLVED', 'CARD_PASSED',
+  'ASSET_BOUGHT', 'DOODAD_PAID', 'INSTALLMENT_ADDED',
+  'LOSS_PAID', 'EXPENSE_EVENT_PAID',
+  'STOCK_BOUGHT', 'STOCK_SOLD', 'SHARES_ADJUSTED',
+  'MARKET_SOLD', 'MARKET_DECLINED',
+])
 
 function revertable(e: LogEntry): boolean {
   return isHost.value && !e.revoked && !NO_REVERT.has(e.type)
+}
+
+function correctable(e: LogEntry): boolean {
+  return !isHost.value && !e.revoked && CORRECTABLE.has(e.type)
+      && e.actorId === game.session?.playerId
 }
 
 const LABELS: Record<string, string> = {
@@ -30,7 +44,7 @@ const LABELS: Record<string, string> = {
   BANKRUPTCY_STARTED: '进入破产', BANKRUPTCY_ASSET_SOLD: '破产变卖', BANKRUPTCY_RESOLVED: '破产清算完成',
   ENTERED_FASTTRACK: '进入快车道', FT_PAYDAY: '现金流量日', FT_BUSINESS_BOUGHT: '快车道投资',
   FT_DREAM_BOUGHT: '买下梦想', FT_DREAM_DOUBLED: '梦想加价', FT_CHARITY_DONATED: '快车道慈善',
-  FT_CASH_HIT: '现金损失', HOST_REVERTED: '房主撤销', HOST_ADJUSTED: '房主调账',
+  FT_CASH_HIT: '现金损失', HOST_REVERTED: '房主撤销', PLAYER_CORRECTED: '本人更正', HOST_ADJUSTED: '房主调账',
   GAME_ENDED: '结束对局', PLAYER_REMOVED: '移除玩家', PLAYER_LEFT: '玩家退出',
 }
 
@@ -44,7 +58,9 @@ function amountOf(e: LogEntry): string {
 
 function detailOf(e: LogEntry): string {
   const p = e.payload
-  return p.title ?? p.name ?? p.symbol ?? p.reason ?? p.liability_name ?? ''
+  const base = p.title ?? p.name ?? p.symbol ?? p.reason ?? p.liability_name ?? ''
+  if (!p.note) return base
+  return base ? `${base}（${p.note}）` : p.note   // 如「参加婚礼（无孩子，无需支付）」
 }
 
 async function refresh() { rows.value = (await game.fetchLog()).reverse() }
@@ -61,6 +77,20 @@ async function revert(e: LogEntry) {
   })
   if (ok && await game.act('HOST_REVERT', { eventSeq: e.seq, reason: '房主修正' })) {
     game.flash(`已撤销 #${e.seq}`)
+    await refresh()
+  }
+}
+
+async function correct(e: LogEntry) {
+  const ok = await confirmAction({
+    title: `更正 #${e.seq}「${LABELS[e.type] ?? e.type}」？`,
+    lines: [`${detailOf(e) ? detailOf(e) + ' · ' : ''}${amountOf(e)}`,
+            '选错卡时用：撤销这笔入账后，重新抽卡选对的卡',
+            '全员账目立即重算，记录保留划线痕迹'],
+    danger: true,
+  })
+  if (ok && await game.act('PLAYER_CORRECT', { eventSeq: e.seq, reason: '选错卡更正' })) {
+    game.flash(`已更正 #${e.seq}，请重新选卡入账`)
     await refresh()
   }
 }
@@ -82,6 +112,7 @@ async function revert(e: LogEntry) {
       <div class="row between">
         <div class="muted">#{{ e.seq }} · {{ e.at }}<span v-if="e.revoked">（已撤销）</span></div>
         <button v-if="revertable(e)" class="small ghost" @click="revert(e)">撤销</button>
+        <button v-else-if="correctable(e)" class="small ghost" @click="correct(e)">更正</button>
       </div>
     </div>
   </div>

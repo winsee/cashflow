@@ -1,5 +1,7 @@
 # 房主笔记本一键启动：docker compose -f deploy/compose.yaml up -d
-# 玩家手机访问 http://<房主局域网IP>:8000（拍照用系统相机方案，无需 HTTPS）
+# 玩家手机访问 http://<房主局域网IP>:8000（系统相机拍照，零配置）
+# 扫描识别（实时取景）：手机先开 http://<IP>:8000/trust 一次性信任证书，
+# 之后改用 https://<IP>:8443 访问即可出现扫描框
 services:
   cashflow:
     build:
@@ -7,6 +9,7 @@ services:
       dockerfile: deploy/Dockerfile
     ports:
       - "8000:8000"
+      - "8443:8443"
     volumes:
       - cashflow-data:/data
       # 说明书扫描页已内置于镜像（server/manual_pages/ 随仓库交付）；

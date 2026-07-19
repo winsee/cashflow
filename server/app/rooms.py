@@ -9,6 +9,7 @@ import asyncio
 import hashlib
 import json
 import secrets
+import time
 import uuid
 from typing import Any
 
@@ -40,6 +41,7 @@ class RoomSession:
         self.lock = asyncio.Lock()
         self.sockets: dict[str, set[WebSocket]] = {}   # player_id -> conns
         self.manager: RoomManager | None = None   # 房主独自退出时需要从管理器里摘除自己
+        self.last_activity = time.time()          # 24h 无活动自动归档（design/03 §7.2）
 
     # ---------- 恢复 ----------
 
@@ -55,13 +57,15 @@ class RoomSession:
 
     async def handle_action(self, actor_id: str | None, action_id: str | None,
                             action_type: str, payload: dict) -> list[dict]:
+        self.last_activity = time.time()
         async with self.lock:
             if action_id:
                 cached = self.db.dedupe_get(self.room_id, action_id)
                 if cached:
                     return json.loads(cached["result"])
-            if action_type == "HOST_REVERT":
-                events = self._host_revert(actor_id, payload)
+            if action_type in ("HOST_REVERT", "PLAYER_CORRECT"):
+                events = self._revert(actor_id, payload,
+                                      as_host=action_type == "HOST_REVERT")
             else:
                 events = E.decide(self.state, actor_id, action_type, payload, self.lib)
                 for ev in events:
@@ -93,16 +97,34 @@ class RoomSession:
             await self.broadcast_state(last_events=events)
             return events
 
-    def _host_revert(self, actor_id: str, payload: dict) -> list[dict]:
-        host = self.state.players.get(actor_id)
-        if host is None or not host.is_host:
+    # FR-29：本人可自我更正的事件类型 = 卡牌入账类（选错卡的后果都落在这些事件上）
+    CORRECTABLE_TYPES = frozenset({
+        "CARD_DRAWN", "CARD_RESOLVED", "CARD_PASSED",
+        "ASSET_BOUGHT", "DOODAD_PAID", "INSTALLMENT_ADDED",
+        "LOSS_PAID", "EXPENSE_EVENT_PAID",
+        "STOCK_BOUGHT", "STOCK_SOLD", "SHARES_ADJUSTED",
+        "MARKET_SOLD", "MARKET_DECLINED",
+    })
+
+    def _revert(self, actor_id: str, payload: dict, as_host: bool) -> list[dict]:
+        actor = self.state.players.get(actor_id)
+        if actor is None:
+            raise EngineError("NOT_IN_ROOM", "你不在本房间")
+        if as_host and not actor.is_host:
             raise EngineError("NOT_HOST", "只有房主能撤销事件")
         target_seq = int(payload["eventSeq"])
         # 先试重放：撤销后事件流必须仍然可应用，否则拒绝
         rows = self.db.events_for_room(self.room_id)
-        remaining = [r for r in rows if r["seq"] != target_seq]
-        if len(remaining) == len(rows):
+        target = next((r for r in rows if r["seq"] == target_seq), None)
+        if target is None:
             raise EngineError("NO_EVENT", "目标事件不存在或已被撤销")
+        if not as_host:
+            # 本人更正（FR-29）：只能撤自己的卡牌入账事件
+            if target["actor_player_id"] != actor_id:
+                raise EngineError("NOT_YOURS", "只能更正自己的操作，或请房主撤销")
+            if target["type"] not in self.CORRECTABLE_TYPES:
+                raise EngineError("NOT_CORRECTABLE", "该类事件不支持本人更正，请房主撤销")
+        remaining = [r for r in rows if r["seq"] != target_seq]
         try:
             state = RoomState()
             for r in remaining:
@@ -110,7 +132,7 @@ class RoomSession:
         except Exception:
             raise EngineError("REVERT_CONFLICT",
                               "撤销该事件会使后续事件无法成立，请先撤销依赖它的事件") from None
-        ev = {"type": "HOST_REVERTED",
+        ev = {"type": "HOST_REVERTED" if as_host else "PLAYER_CORRECTED",
               "payload": {"event_seq": target_seq, "reason": str(payload.get("reason", ""))}}
         self.seq += 1
         rid = self.db.append_event(self.room_id, self.seq, actor_id, ev["type"], ev["payload"])
@@ -168,7 +190,9 @@ class RoomSession:
             "turnSquareUsed": s.turn_square_used,
             "turnPaydayUsed": s.turn_payday_used,
             "currentPlayerId": s.current_player_id,
-            "activeCard": s.active_card.model_dump() if s.active_card else None,
+            "activeCard": ({**s.active_card.model_dump(),
+                            "settlePreview": E.settlement_preview(s, self.lib)}
+                           if s.active_card else None),
             "prompts": [p.model_dump() for p in s.prompts],
             "ftSoldSquares": s.ft_sold_squares,
             "dreamPriceBumps": s.dream_price_bumps,
@@ -187,6 +211,7 @@ class RoomSession:
                     conns.discard(ws)
 
     async def attach(self, player_id: str, ws: WebSocket) -> None:
+        self.last_activity = time.time()
         self.sockets.setdefault(player_id, set()).add(ws)
         snap = {"type": "snapshot", "seq": self.seq, "you": player_id,
                 "state": self.serialize()}
@@ -227,6 +252,7 @@ class RoomSession:
             payload = json.loads(r["payload"])
             out.append({
                 "seq": r["seq"],
+                "actorId": r["actor_player_id"],
                 "actor": nick.get(r["actor_player_id"],
                                   payload.get("nickname", r["actor_player_id"])),
                 "type": r["type"],
@@ -245,14 +271,32 @@ class RoomManager:
 
     def restore_all(self) -> None:
         for row in self.db.all_rooms():
-            if row["status"] == "CLOSED":
-                continue     # 房主已结束的对局不再恢复
+            if row["status"] in ("CLOSED", "ARCHIVED"):
+                continue     # 已结束/已归档的对局不再恢复（事件流保留在库中可查）
             sess = RoomSession(row["id"], row["code"], self.db, self.lib,
                                password_hash=row["password_hash"],
                                created_at=row["created_at"] or "")
             sess.manager = self
             sess.restore()
             self.rooms[row["code"]] = sess
+
+    ARCHIVE_TTL_S = 24 * 3600
+
+    async def archive_idle(self, ttl_s: float | None = None,
+                           now: float | None = None) -> list[str]:
+        """24h 无活动的房间自动归档（design/03 §7.2）：断连、出内存、DB 标记；
+        事件流保留可查，但不再可加入/恢复。返回被归档的房间码。"""
+        ttl_s = self.ARCHIVE_TTL_S if ttl_s is None else ttl_s
+        now = time.time() if now is None else now
+        archived = []
+        for code, sess in list(self.rooms.items()):
+            if now - sess.last_activity < ttl_s:
+                continue
+            await sess.close_sockets(code=4002)
+            self.db.set_room_status(sess.room_id, "ARCHIVED")
+            self.rooms.pop(code, None)
+            archived.append(code)
+        return archived
 
     async def create_room(self, name: str, host_nickname: str,
                           max_players: int = 6,

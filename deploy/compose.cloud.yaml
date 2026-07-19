@@ -1,0 +1,21 @@
+# 云主机部署（design/03 §7.2）：docker compose -f deploy/compose.cloud.yaml up -d
+# 与局域网同一镜像；把 CASHFLOW_EXTRA_HOSTS 换成你的域名或公网 IP，
+# 使自签证书 SAN 覆盖云地址（手机仍按 /trust 页一次性信任根证书）。
+# 房间 24h 无活动自动归档；玩家访问 http://<域名或IP>:8000，
+# 扫描识别用 https://<域名或IP>:8443。
+services:
+  cashflow:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+    environment:
+      CASHFLOW_EXTRA_HOSTS: "${CASHFLOW_EXTRA_HOSTS:-}"   # 例：cashflow.example.com 或 1.2.3.4
+    volumes:
+      - cashflow-data:/data
+    restart: unless-stopped
+
+volumes:
+  cashflow-data:

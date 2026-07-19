@@ -11,6 +11,9 @@ server/cashflow.db*
 *.db-shm
 server/uvicorn.*.log
 
+# 自签 HTTPS 证书（含私钥，启动时由 app/certs.py 自动生成，勿入库）
+server/certs/
+
 # 前端
 web/node_modules/
 web/dist/

@@ -90,7 +90,9 @@ def test_full_room_flow():
         r = client.post(f"/api/rooms/{code}/recognize",
                         files={"image": ("x.jpg", b"fake", "image/jpeg")},
                         data={"deckHint": "SMALL_DEAL"})
-        assert r.json() == {"candidates": [], "engine": "manual"}
+        d = r.json()
+        assert d["candidates"] == [] and d["engine"] == "manual"
+        assert "recognitionId" in d   # FR-28：识别统计关联 id
 
 
 def test_lobby_password_takeover_delete():
@@ -176,3 +178,32 @@ def test_host_revert():
         log = client.get(f"/api/rooms/{code}/log").json()
         reverted = [e for e in log if e["type"] == "LOAN_TAKEN"]
         assert reverted and reverted[0]["revoked"] is True
+
+
+def test_forced_card_settle_preview():
+    """强制卡结算预览随状态下发；条件豁免时事件带卡名与原因（供日志展示）。"""
+    with TestClient(app) as client:
+        host = client.post("/api/rooms", json={"nickname": "房主"}).json()
+        code = host["roomCode"]
+        guest = client.post(f"/api/rooms/{code}/join", json={"nickname": "小明"}).json()
+        with client.websocket_connect(f"/ws?token={host['playerToken']}") as wa, \
+             client.websocket_connect(f"/ws?token={guest['playerToken']}") as wb:
+            wa.receive_json(); wb.receive_json()
+            _act(wa, "SELECT_PROFESSION", professionId="prof-doctor"); wb.receive_json()
+            _act(wb, "SELECT_PROFESSION", professionId="prof-manager"); wa.receive_json()
+            _act(wa, "SELECT_DREAM", dreamId="ft-d-safari"); wb.receive_json()
+            _act(wb, "SELECT_DREAM", dreamId="ft-d-jet"); wa.receive_json()
+            _act(wa, "SET_TURN_ORDER", order=[host["playerId"], guest["playerId"]]); wb.receive_json()
+            _act(wa, "START_GAME"); wb.receive_json()
+
+            # 无孩子抽「参加婚礼」：预览显示豁免，结算后现金不变
+            st = _act(wa, "DRAW_CARD", cardId="dd-wedding"); wb.receive_json()
+            assert st["state"]["activeCard"]["settlePreview"] == {
+                "due": 0, "note": "无孩子，无需支付", "waived": True}
+            st = _act(wa, "CARD_DECISION", decision="pay"); wb.receive_json()
+            me = next(p for p in st["state"]["players"] if p["id"] == host["playerId"])
+            assert me["cash"] == 3950
+        paid = [e for e in client.get(f"/api/rooms/{code}/log").json()
+                if e["type"] == "DOODAD_PAID"]
+        assert paid[0]["payload"]["title"] == "参加婚礼"
+        assert paid[0]["payload"]["note"] == "无孩子，无需支付"

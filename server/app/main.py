@@ -1,14 +1,16 @@
 """FastAPI 入口：REST + WebSocket + 静态资源（design/03 §4、§5）。"""
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -26,16 +28,42 @@ MANUAL_DIR = Path(os.environ.get("CASHFLOW_MANUAL_DIR",
                                  Path(__file__).resolve().parent.parent / "manual_pages"))
 
 
+def cert_dir() -> Path:
+    return Path(os.environ.get("CASHFLOW_CERT_DIR",
+                               str(Path(DB_PATH).parent / "certs")))
+
+
+async def _archive_loop(manager: RoomManager) -> None:
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            await manager.archive_idle()
+        except Exception:
+            pass   # 归档失败不影响服务，下个整点重试
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    lib = load_library()
-    db = Database(DB_PATH)
-    manager = RoomManager(db, lib)
-    manager.restore_all()
-    app.state.lib = lib
-    app.state.manager = manager
-    app.state.recognizer = default_chain()
+    # serve.py 会在同一进程/同一事件循环起 HTTP+HTTPS 两个 server，
+    # lifespan 因此会进入两次——初始化必须幂等，否则会出现两套 RoomManager。
+    if getattr(app.state, "manager", None) is None:
+        lib = load_library()
+        db = Database(DB_PATH)
+        manager = RoomManager(db, lib)
+        manager.restore_all()
+        app.state.lib = lib
+        app.state.manager = manager
+        app.state.recognizer = default_chain()
+        for eng in app.state.recognizer.engines:
+            if getattr(eng, "name", "") == "local":
+                # 后台预热模型：首帧扫描不至于撞上加载耗时而超时降级
+                asyncio.get_running_loop().run_in_executor(None, eng.warm)
+        app.state.archive_task = asyncio.create_task(_archive_loop(manager))
     yield
+    task = getattr(app.state, "archive_task", None)
+    if task is not None:
+        task.cancel()
+        app.state.archive_task = None
 
 
 app = FastAPI(title="现金流游戏辅助工具", lifespan=lifespan)
@@ -156,8 +184,31 @@ async def recognize(code: str, image: UploadFile = File(...),
     """识别接口（FR-26/27）：返回 Top-3 候选；空候选 = 转手动选卡。"""
     sess = app.state.manager.get(code.upper())
     data = await image.read()
+    t0 = time.monotonic()
     cands, engine = await app.state.recognizer.recognize(data, deckHint, app.state.lib)
-    return {"candidates": [vars(c) for c in cands[:3]], "engine": engine}
+    duration_ms = int((time.monotonic() - t0) * 1000)
+    top = cands[:3]
+    stat_id = app.state.manager.db.add_recog_stat(
+        sess.room_id, deckHint, engine, duration_ms, [c.card_id for c in top])
+    return {"candidates": [vars(c) for c in top], "engine": engine,
+            "recognitionId": stat_id, "durationMs": duration_ms}
+
+
+class ChosenBody(BaseModel):
+    cardId: str
+
+
+@app.post("/api/recognize/{stat_id}/chosen")
+async def recognize_chosen(stat_id: int, body: ChosenBody):
+    """FR-28：玩家确认选卡后回填命中情况（fire-and-forget，不影响入账）。"""
+    app.state.manager.db.set_recog_chosen(stat_id, body.cardId)
+    return {"ok": True}
+
+
+@app.get("/api/stats/recognition")
+async def recognition_stats():
+    """FR-28：按引擎聚合的识别统计（次数 / Top-3 命中率 / 平均耗时）。"""
+    return app.state.manager.db.recog_summary()
 
 
 # ---------------- 说明书（FR-31） ----------------
@@ -177,6 +228,57 @@ async def manual_page(name: str):
     if not path.exists():
         raise HTTPException(404)
     return FileResponse(path)
+
+
+# ---------------- 自签证书信任引导（design/03 §7.1，扫描框需 HTTPS） ----------------
+
+@app.get("/ca.crt")
+async def download_ca():
+    path = cert_dir() / "ca.crt"
+    if not path.exists():
+        raise HTTPException(404, "证书未生成（请用 serve.py / Docker 方式启动）")
+    return FileResponse(path, media_type="application/x-x509-ca-cert",
+                        filename="cashflow-ca.crt")
+
+
+_TRUST_HTML = """<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>开启扫描识别（信任证书）</title>
+<style>
+ body{font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:24px auto;
+      padding:0 16px;line-height:1.7;color:#222}
+ h1{font-size:20px} h2{font-size:16px;margin-top:24px}
+ .btn{display:inline-block;background:#2f855a;color:#fff;padding:10px 18px;
+      border-radius:8px;text-decoration:none;margin:8px 0}
+ li{margin:6px 0} .muted{color:#777;font-size:13px}
+</style></head><body>
+<h1>📷 开启扫描识别（一次性设置）</h1>
+<p>扫描框需要浏览器调起摄像头，而浏览器要求 HTTPS。本工具使用房主电脑
+自动生成的<b>本地根证书</b>，每台手机信任一次即可，之后一直有效。</p>
+<a class="btn" href="/ca.crt">① 下载根证书 cashflow-ca.crt</a>
+<h2>② iPhone / iPad（Safari）</h2>
+<ol>
+<li>下载后弹出「已下载描述文件」→ 打开「设置」，顶部点「已下载描述文件」→ 安装；</li>
+<li>再进「设置 → 通用 → 关于本机 → 证书信任设置」，打开对
+「Cashflow Companion 本地根证书」的完全信任开关。</li>
+</ol>
+<h2>② 安卓（Chrome）</h2>
+<ol>
+<li>下载后进「设置 → 安全 → 更多安全设置 → 加密与凭据 → 安装证书 → CA 证书」，
+选择下载的 cashflow-ca.crt（各品牌路径略有差异，可在设置里搜「证书」）。</li>
+</ol>
+<h2>③ 用 HTTPS 地址重新进入房间</h2>
+<p>把地址栏里的 <b>http://…:8000</b> 换成 <b>https://…:8443</b>（IP 不变）打开，
+选卡时就会出现扫描框。</p>
+<p class="muted">不想装证书也没关系：继续用 http 地址，选卡时点「📷 拍照」走系统相机，
+功能完全一样，只是少了实时取景。本证书仅本工具局域网使用，不影响其他网站。</p>
+</body></html>"""
+
+
+@app.get("/trust")
+async def trust_guide():
+    return HTMLResponse(_TRUST_HTML)
 
 
 # ---------------- WebSocket ----------------

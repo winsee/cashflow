@@ -35,6 +35,14 @@ CREATE TABLE IF NOT EXISTS room_state(
   room_id TEXT PRIMARY KEY REFERENCES room(id),
   seq INTEGER NOT NULL, state TEXT NOT NULL,
   updated_at TEXT DEFAULT (datetime('now')));
+
+CREATE TABLE IF NOT EXISTS recog_stat(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  room_id TEXT, deck TEXT, engine TEXT NOT NULL,
+  duration_ms INTEGER NOT NULL, n_candidates INTEGER NOT NULL,
+  candidates TEXT NOT NULL DEFAULT '[]',
+  chosen_card_id TEXT, hit INTEGER,
+  created_at TEXT DEFAULT (datetime('now')));
 """
 
 
@@ -153,6 +161,47 @@ class Database:
             "INSERT OR IGNORE INTO action_dedupe(room_id, action_id, result) VALUES(?,?,?)",
             (room_id, action_id, result))
         self.conn.commit()
+
+    # ---- 识别统计（FR-28） ----
+
+    def add_recog_stat(self, room_id: str | None, deck: str | None, engine: str,
+                       duration_ms: int, candidate_ids: list[str]) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO recog_stat(room_id, deck, engine, duration_ms, n_candidates, candidates) "
+            "VALUES(?,?,?,?,?,?)",
+            (room_id, deck, engine, duration_ms, len(candidate_ids),
+             json.dumps(candidate_ids)))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def set_recog_chosen(self, stat_id: int, card_id: str) -> None:
+        """玩家最终确认了哪张卡：命中 = 该卡在候选 Top-3 内。"""
+        row = self.conn.execute(
+            "SELECT candidates FROM recog_stat WHERE id=?", (stat_id,)).fetchone()
+        if row is None:
+            return
+        hit = int(card_id in json.loads(row["candidates"]))
+        self.conn.execute(
+            "UPDATE recog_stat SET chosen_card_id=?, hit=? WHERE id=?",
+            (card_id, hit, stat_id))
+        self.conn.commit()
+
+    def recog_summary(self) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT engine, COUNT(*) AS total, AVG(duration_ms) AS avg_ms, "
+            "SUM(CASE WHEN chosen_card_id IS NOT NULL THEN 1 ELSE 0 END) AS confirmed, "
+            "SUM(CASE WHEN hit=1 THEN 1 ELSE 0 END) AS hits "
+            "FROM recog_stat GROUP BY engine").fetchall()
+        out = []
+        for r in rows:
+            confirmed = r["confirmed"] or 0
+            out.append({
+                "engine": r["engine"], "total": r["total"],
+                "avgMs": round(r["avg_ms"] or 0),
+                "confirmed": confirmed, "hits": r["hits"] or 0,
+                "hitRate": round((r["hits"] or 0) / confirmed, 4) if confirmed else None,
+            })
+        return out
 
     def save_snapshot(self, room_id: str, seq: int, state_json: str) -> None:
         self.conn.execute(

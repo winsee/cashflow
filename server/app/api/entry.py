@@ -13,10 +13,12 @@
 """
 from __future__ import annotations
 
+import asyncio
 import json
+import re
 from pathlib import Path
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, File, Form, Query, Request, UploadFile
 from pydantic import BaseModel
 
 from .. import data_loader
@@ -24,6 +26,7 @@ from ..data_loader import (
     CARD_FILES, Card, DataValidationError,
     _business_validate_card, _check_deck_duplicates, _validate_schema,
 )
+from ..recognize.prefill import merge_rows, parse_fields
 
 router = APIRouter(prefix="/api/entry")
 
@@ -172,6 +175,44 @@ async def clear_deck(deck: str):
     _check_deck(deck)
     _save_file(_entry_file(deck), [])
     return {"ok": True}
+
+
+# ---------------- OCR 预填（design/04 §6） ----------------
+
+@router.post("/ocr")
+async def entry_ocr(request: Request, image: UploadFile = File(...),
+                    deck: str = Form(""), subtype: str = Form("")):
+    """拍卡 → 自动解析出表单字段（标签→数值配对），另附文本行/金额芯片兜底。
+
+    OCR 带坐标出碎块 → merge_rows 聚回物理行 → parse_fields 按 subtype 别名表
+    抽字段（design/04 §6）。本地 OCR 未安装/未启用时返回 available=False，
+    前端隐藏预填入口即可。
+    """
+    empty = {"lines": [], "amounts": [], "title": None, "subtype": subtype, "fields": {}}
+    chain = request.app.state.recognizer
+    local = next((e for e in chain.engines if getattr(e, "name", "") == "local"), None)
+    if local is None:
+        return {"available": False, **empty}
+    data = await image.read()
+    loop = asyncio.get_running_loop()
+    try:
+        items = await asyncio.wait_for(
+            loop.run_in_executor(None, local.extract_items, data), timeout=15)
+    except Exception:
+        return {"available": True, **empty}
+    lines = merge_rows(items)
+    parsed = parse_fields(lines, deck, subtype)
+    # 金额候选：去千分位后的数字串，按出现顺序去重
+    amounts: list[int] = []
+    for ln in lines:
+        for m in re.findall(r"\d[\d,，]*\d|\d", ln):
+            try:
+                n = int(m.replace(",", "").replace("，", ""))
+            except ValueError:
+                continue
+            if n >= 10 and n not in amounts:
+                amounts.append(n)
+    return {"available": True, "lines": lines, "amounts": amounts, **parsed}
 
 
 # ---------------- 发布到运行时库 ----------------

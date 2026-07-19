@@ -11,6 +11,66 @@ const editing = ref(false)
 const form = ref<Record<string, any>>({})
 const msg = ref('')
 
+// OCR 预填（design/04 §6）：拍卡 → 文本行/金额点选填入表单；OCR 未装则隐藏入口
+const ocrInput = ref<HTMLInputElement>()
+const ocrBusy = ref(false)
+const ocrLines = ref<string[]>([])
+const ocrAmounts = ref<number[]>([])
+
+async function onOcrPhoto(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  ;(e.target as HTMLInputElement).value = ''
+  if (!file) return
+  ocrBusy.value = true
+  try {
+    const fd = new FormData()
+    fd.append('image', file)
+    fd.append('deck', deck.value)
+    fd.append('subtype', String(form.value.subtype ?? ''))
+    const r = await fetch('/api/entry/ocr', { method: 'POST', body: fd })
+    const d = await r.json()
+    if (!d.available) { msg.value = '❌ 服务器未安装本地 OCR，无法预填'; return }
+    ocrLines.value = d.lines
+    ocrAmounts.value = d.amounts
+    if (!d.lines.length) { msg.value = '未识别到文字，换个角度/光线再拍'; return }
+    autoFill(d)
+  } finally { ocrBusy.value = false }
+}
+
+/** 解析结果自动入表单：只填空字段，不覆盖已填内容；芯片保留兜底修正 */
+function autoFill(d: { title?: string | null; subtype?: string; fields?: Record<string, number | string> }) {
+  const fieldsFilled = (FIELDS[subtype.value] ?? [])
+    .some(([key]) => form.value[key] !== '' && form.value[key] !== undefined)
+  if (d.subtype && d.subtype !== form.value.subtype
+      && SUBTYPES[deck.value].includes(d.subtype) && !fieldsFilled) {
+    form.value.subtype = d.subtype
+  }
+  let n = 0
+  if (d.title && !form.value.title) { form.value.title = d.title; n++ }
+  for (const [key] of FIELDS[subtype.value] ?? []) {
+    const v = d.fields?.[key]
+    if (v === undefined || v === null || v === '') continue
+    if (form.value[key] === '' || form.value[key] === undefined) {
+      form.value[key] = String(v)
+      n++
+    }
+  }
+  msg.value = n
+    ? `✅ 已自动填入 ${n} 项，请逐项核对`
+    : '未能自动解析出字段，点下方识别块手动填'
+}
+
+/** 点文本行：标题为空则填标题，否则追加进关键词 */
+function useLine(line: string) {
+  if (!form.value.title) form.value.title = line
+  else appendKeyword(line)
+}
+
+function appendKeyword(text: string) {
+  const cur = String(form.value.keywords ?? '').trim()
+  form.value.keywords = cur ? `${cur}, ${text}` : text
+}
+
 async function refresh() {
   cards.value = await (await fetch(`/api/entry/cards?deck=${deck.value}`)).json()
   stats.value = await (await fetch('/api/entry/stats')).json()
@@ -54,6 +114,8 @@ function switchDeck(d: string) {
 function newCard() {
   if (!confirmDiscard()) return
   form.value = { id: '', title: '', subtype: SUBTYPES[deck.value][0], keywords: '' }
+  ocrLines.value = []
+  ocrAmounts.value = []
   editing.value = true
 }
 
@@ -192,6 +254,23 @@ async function publish() {
     <div v-if="editing" class="card" style="border-color:var(--gold)">
       <p v-if="form.id" class="muted">编辑中：{{ form.id }}（id 由系统生成，不可改）</p>
       <p v-else class="muted">新卡 id 将由系统自动生成</p>
+      <div class="row" style="margin-bottom:6px">
+        <button class="small ghost" :disabled="ocrBusy" @click="ocrInput?.click()">
+          {{ ocrBusy ? '识别中…' : '📷 拍卡预填' }}
+        </button>
+        <input ref="ocrInput" type="file" accept="image/*" capture="environment"
+               style="display:none" @change="onOcrPhoto" />
+      </div>
+      <div v-if="ocrLines.length" class="card" style="padding:8px">
+        <p class="muted">点文本行填标题（已有标题则进关键词）；点金额进关键词：</p>
+        <div class="row wrap">
+          <button v-for="(l, i) in ocrLines" :key="'l' + i" class="small ghost" @click="useLine(l)">{{ l }}</button>
+        </div>
+        <div class="row wrap" v-if="ocrAmounts.length" style="margin-top:4px">
+          <button v-for="a in ocrAmounts" :key="'a' + a" class="small gold"
+                  @click="appendKeyword(a.toLocaleString('en-US'))">{{ a.toLocaleString('en-US') }}</button>
+        </div>
+      </div>
       <label>标题（简短，不抄整段卡面文案）</label>
       <input v-model="form.title" />
       <label>子类型</label>

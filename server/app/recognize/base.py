@@ -1,11 +1,12 @@
 """识别适配层（design/03 §8、FR-26/30）。
 
-本期实现 ManualRecognizer（返回空候选 → 前端转手动检索）；
-LocalOCRRecognizer（PaddleOCR）在 M3 接入；CloudRecognizer 仅预留接口。
-降级链默认：Local → Manual（M3 前实际只有 Manual）。
+已实现：LocalOCRRecognizer（服务器本地 PaddleOCR，依赖装了才启用）、
+ManualRecognizer（返回空候选 → 前端转手动检索）；CloudRecognizer 仅预留接口。
+降级链默认：Local → Manual；`CASHFLOW_OCR=off` 可禁用本地 OCR。
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -55,4 +56,10 @@ class RecognizerChain:
 
 
 def default_chain() -> RecognizerChain:
-    return RecognizerChain([ManualRecognizer()])
+    engines: list[CardRecognizer] = []
+    if os.environ.get("CASHFLOW_OCR", "auto") != "off":
+        from . import local_ocr
+        if local_ocr.available():
+            engines.append(local_ocr.LocalOCRRecognizer())
+    engines.append(ManualRecognizer())
+    return RecognizerChain(engines)

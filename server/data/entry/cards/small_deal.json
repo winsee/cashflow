@@ -70,5 +70,75 @@
       "承租人",
       "500"
     ]
+  },
+  {
+    "id": "sd-001",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "待售公寓—2室1厅",
+    "data": {
+      "assetType": "2室1厅",
+      "cost": 40000,
+      "downPayment": 4000,
+      "mortgage": 36000,
+      "cashflow": 140,
+      "roiPct": 42,
+      "priceRange": [
+        45000,
+        65000
+      ]
+    },
+    "ocr_keywords": []
+  },
+  {
+    "id": "sd-002",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "共同基金 GRO4US基金",
+    "data": {
+      "symbol": "GRO4US",
+      "price": 20,
+      "dividendPerShare": 0,
+      "priceRange": [
+        10,
+        30
+      ]
+    },
+    "ocr_keywords": []
+  },
+  {
+    "id": "sd-003",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票 -MYT4U电子公司",
+    "data": {
+      "symbol": "MYT4U",
+      "price": 30,
+      "dividendPerShare": 0,
+      "priceRange": [
+        5,
+        30
+      ]
+    },
+    "ocr_keywords": []
+  },
+  {
+    "id": "sd-004",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "待售公寓 2室1厅",
+    "data": {
+      "assetType": "2室1厅",
+      "cost": 40000,
+      "downPayment": 5000,
+      "mortgage": 35000,
+      "cashflow": 220,
+      "roiPct": 53,
+      "priceRange": [
+        45000,
+        65000
+      ]
+    },
+    "ocr_keywords": []
   }
 ]

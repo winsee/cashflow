@@ -298,22 +298,25 @@ def _d_card_decision(state, actor_id, p, lib) -> list[Event]:
                     ratio_num=num, ratio_den=den)]
 
     if ac.subtype == "LOSS_EVENT":
-        amount = d["amount"] if _condition_met(player, d.get("condition")) else 0
+        amount, note = _conditional_amount(player, d)
         _require_cash(player, amount)
-        return [_ev("LOSS_PAID", player_id=player.id, card_id=card.id, amount=amount)]
+        return [_ev("LOSS_PAID", player_id=player.id, card_id=card.id, amount=amount,
+                    title=card.title, **({"note": note} if amount == 0 and note else {}))]
 
     if ac.subtype == "EXPENSE_EVENT":
         units = sum(1 for a in player.real_estates if a.asset_type == d["targetAssetType"])
         amount = units * d["amountPerUnit"]
         _require_cash(player, amount)
         return [_ev("EXPENSE_EVENT_PAID", player_id=player.id, card_id=card.id,
-                    amount=amount, units=units)]
+                    amount=amount, units=units, title=card.title,
+                    **({"note": "无相关房产，无需支付"} if units == 0 else {}))]
 
     if ac.subtype == "CASH":
-        amount = d["amount"] if _condition_met(player, d.get("condition")) else 0
+        amount, note = _conditional_amount(player, d)
         _require_cash(player, amount)
         return [_ev("DOODAD_PAID", player_id=player.id, card_id=card.id,
-                    amount=amount, method="cash")]
+                    amount=amount, method="cash", title=card.title,
+                    **({"note": note} if amount == 0 and note else {}))]
 
     if ac.subtype == "CREDIT_OPTION":
         if decision == "credit":
@@ -322,14 +325,14 @@ def _d_card_decision(state, actor_id, p, lib) -> list[Event]:
                         credit_monthly=d["creditMonthly"], title=card.title)]
         _require_cash(player, d["amount"])
         return [_ev("DOODAD_PAID", player_id=player.id, card_id=card.id,
-                    amount=d["amount"], method="cash")]
+                    amount=d["amount"], method="cash", title=card.title)]
 
     if ac.subtype == "INSTALLMENT":
         _require_cash(player, d["downPayment"])
         return [_ev("INSTALLMENT_ADDED", player_id=player.id, card_id=card.id,
                     down_payment=d["downPayment"], liability=d["liability"],
                     liability_name=d["liabilityName"], monthly=d["monthly"],
-                    liability_id=_new_id())]
+                    liability_id=_new_id(), title=card.title)]
 
     raise EngineError("BAD_CARD", f"未支持的卡类型: {ac.subtype}")
 
@@ -342,6 +345,60 @@ def _condition_met(p: PlayerState, condition: str | None) -> bool:
     if condition == "hasRentalProperty":
         return len(p.real_estates) > 0
     raise EngineError("BAD_CONDITION", f"未知条件: {condition}")
+
+
+_CONDITION_NOTES = {
+    # condition -> (需付说明, 豁免说明)
+    "hasChildren": ("有孩子才需支付", "无孩子，无需支付"),
+    "hasRentalProperty": ("有出租房产才需支付", "无出租房产，无需支付"),
+}
+
+
+def _conditional_amount(p: PlayerState, d: dict) -> tuple[int, str]:
+    """条件卡（CASH/LOSS_EVENT）应付金额与中文说明；决策与预览共用，避免两处逻辑漂移。"""
+    cond = d.get("condition")
+    if not cond:
+        return d["amount"], ""
+    require_note, waived_note = _CONDITION_NOTES.get(
+        cond, (f"满足条件（{cond}）才需支付", f"未满足条件（{cond}），无需支付"))
+    if _condition_met(p, cond):
+        return d["amount"], require_note
+    return 0, waived_note
+
+
+def settlement_preview(state: RoomState, lib: CardLibrary) -> dict[str, Any] | None:
+    """当前未结算强制卡的应付金额与说明，仅供前端展示；权威结算仍在 decide/apply。"""
+    ac = state.active_card
+    if ac is None or ac.resolved:
+        return None
+    player = state.players.get(ac.drawer_id)
+    if player is None:
+        return None
+    try:
+        d = lib.get(ac.card_id).data
+        if ac.subtype in ("CASH", "LOSS_EVENT"):
+            due, note = _conditional_amount(player, d)
+            return {"due": due, "note": note,
+                    "waived": due == 0 and bool(d.get("condition"))}
+        if ac.subtype == "EXPENSE_EVENT":
+            units = sum(1 for a in player.real_estates
+                        if a.asset_type == d["targetAssetType"])
+            due = units * d["amountPerUnit"]
+            note = (f"相关房产 {units} 处 × ${d['amountPerUnit']:,}" if units
+                    else "无相关房产，无需支付")
+            return {"due": due, "note": note, "waived": units == 0}
+        if ac.subtype == "CREDIT_OPTION":
+            return {"due": d["amount"],
+                    "note": f"可改用信用卡支付（月供 +${d['creditMonthly']:,}）",
+                    "waived": False}
+        if ac.subtype == "INSTALLMENT":
+            return {"due": d["downPayment"],
+                    "note": (f"分期：{d['liabilityName']}负债 +${d['liability']:,}，"
+                             f"月供 +${d['monthly']:,}"),
+                    "waived": False}
+    except (EngineError, KeyError):
+        return None   # 预览失败不阻塞广播，结算时 decide 仍会给出明确报错
+    return None       # 机会卡/股票等有独立交互面板，无需预览
 
 
 def _asset_bought_event(player_id: str, card) -> Event:
@@ -1262,6 +1319,11 @@ def _a_host_reverted(s: RoomState, p) -> None:
     pass
 
 
+def _a_player_corrected(s: RoomState, p) -> None:
+    # FR-29 本人更正的审计事件，同 HOST_REVERTED 不改状态。
+    pass
+
+
 def _a_game_ended(s: RoomState, p) -> None:
     s.status = RoomStatus.CLOSED
     s.prompts = []
@@ -1354,6 +1416,7 @@ _APPLIERS = {
     "FT_CASH_HIT": _a_ft_cash_hit,
     "HOST_ADJUSTED": _a_host_adjusted,
     "HOST_REVERTED": _a_host_reverted,
+    "PLAYER_CORRECTED": _a_player_corrected,
     "GAME_ENDED": _a_game_ended,
     "PLAYER_REMOVED": _a_player_removed,
     "PLAYER_LEFT": _a_player_left,

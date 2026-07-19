@@ -1,6 +1,7 @@
 """§13.2 流程用例（design/02）。医生=A（房主），经理=B，见 conftest.duo。"""
 import pytest
 
+from .. import engine as E
 from .. import formulas as F
 from ..errors import EngineError
 from ..models import Phase, RealEstate, RoomStatus, StockHolding, OwnedBusiness
@@ -153,8 +154,47 @@ def test_doodad_credit_option(duo):
 
 def test_doodad_conditional_cash_no_children(duo):
     duo.act("A", "DRAW_CARD", cardId="dd-wedding")
-    duo.act("A", "CARD_DECISION", decision="pay")
+    pv = E.settlement_preview(duo.state, duo.lib)
+    assert pv == {"due": 0, "note": "无孩子，无需支付", "waived": True}
+    evs = duo.act("A", "CARD_DECISION", decision="pay")
     assert duo.player("A").cash == 3950              # 无孩子不付
+    assert evs[0]["payload"]["title"] == "参加婚礼"   # 日志需能显示卡名与豁免原因
+    assert evs[0]["payload"]["note"] == "无孩子，无需支付"
+    assert E.settlement_preview(duo.state, duo.lib) is None   # 已结算不再有预览
+
+
+def test_doodad_conditional_cash_with_children(duo):
+    duo.act("A", "ADD_CHILD")
+    _cycle(duo)
+    duo.act("A", "DRAW_CARD", cardId="dd-wedding")
+    pv = E.settlement_preview(duo.state, duo.lib)
+    assert pv["due"] == 2000 and not pv["waived"]
+    evs = duo.act("A", "CARD_DECISION", decision="pay")
+    assert duo.player("A").cash == 3950 - 2000       # 有孩子须付
+    assert "note" not in evs[0]["payload"]           # 正常支付不带豁免说明
+
+
+def test_settlement_preview_by_subtype(duo):
+    # 分期卡：预览首付 + 负债/月供说明
+    duo.act("A", "DRAW_CARD", cardId="dd-boat")
+    pv = E.settlement_preview(duo.state, duo.lib)
+    assert pv["due"] == 1000 and "17,000" in pv["note"] and not pv["waived"]
+    duo.act("A", "CARD_DECISION", decision="pay")
+    _cycle(duo)
+    # 维修卡：无相关房产 → 豁免；持有后按处数计
+    duo.act("A", "DRAW_CARD", cardId="bd-evt-sewer")
+    assert E.settlement_preview(duo.state, duo.lib) == {
+        "due": 0, "note": "无相关房产，无需支付", "waived": True}
+    duo.player("A").real_estates.append(RealEstate(
+        id="re1", card_id="x", asset_type="8室公寓", name="8室公寓",
+        cost=220000, down_payment=20000, mortgage=200000, cashflow=1700))
+    pv = E.settlement_preview(duo.state, duo.lib)
+    assert pv["due"] == 2000 and not pv["waived"]
+    duo.act("A", "CARD_DECISION", decision="pay")
+    _cycle(duo)
+    # 机会卡有独立交互面板：无预览
+    duo.act("A", "DRAW_CARD", cardId="sd-house-3b2b-01")
+    assert E.settlement_preview(duo.state, duo.lib) is None
 
 
 def test_forced_card_blocks_end_turn(duo):

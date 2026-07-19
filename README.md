@@ -7,8 +7,8 @@
 - ✅ **M0** 卡牌库 schema + 数据文件（`server/data/`，含 14 张种子卡 + 快车道全部格子）+ 网页录入工具（`/#/entry`）与核对工具（`/#/entry/review`）
 - ✅ **M1** 房间/开局/回合/手动选卡 + 全部老鼠赛跑记账 + 总览 + 日志（不用 OCR 可完整玩）
 - ✅ **M2 引擎部分** 快车道/破产/交易确认/房主撤销改账（含前端面板）
-- ⬜ **M3** OCR（识别接口已预留，`ManualPick` 兜底已可用）
-- ⬜ **M4** 云部署 / HTTPS（Docker 文件已备，见 `deploy/`）
+- ✅ **M3** OCR 扫描识别：本地 PaddleOCR + 封闭集匹配（选卡界面出现**扫描框**实时取景连续识别；未装 OCR 或识别失败自动降级系统相机拍照/手动检索）+ 识别统计（`/api/stats/recognition`）+ 本人更正（日志页「更正」按钮）+ 录入工具拍卡预填
+- ✅ **M4** 双端口交付（HTTP 8000 零配置 + HTTPS 8443 自签证书扫描用，`/trust` 页一次性信任引导）+ 云部署 compose + 房间 24h 无活动自动归档
 
 规则引擎按 design/02 全量测试驱动：`server/app/engine/tests`（41 项：说明书三组数值回归、全部流程用例、随机行动重放属性测试）。
 
@@ -22,8 +22,11 @@
 
 ```powershell
 # 后端（端口 8000；首次先建 venv：uv venv --python 3.12 .venv && uv pip install -e .[dev]）
+# 本地 OCR（可选）：uv pip install -e .[ocr]，未安装时识别自动降级为手动选卡
 cd server
 .venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+# 或 HTTP+HTTPS 双端口（扫描框需要 HTTPS）：
+.venv\Scripts\python.exe -m app.serve
 
 # 前端热更新开发（可选，端口 5173，已配置代理到 8000）
 cd web
@@ -41,8 +44,24 @@ cd server
 ## Docker（交付形态）
 
 ```powershell
+# 局域网（房主笔记本）：玩家手机访问 http://<局域网IP>:8000
 docker compose -f deploy/compose.yaml up -d
+
+# 云主机：先设置证书要覆盖的域名/公网 IP，玩家异地可玩
+$env:CASHFLOW_EXTRA_HOSTS = "你的域名或公网IP"
+docker compose -f deploy/compose.cloud.yaml up -d
 ```
+
+镜像默认内置本地 OCR 与模型（离线可用，约 2GB）；不需要 OCR 时
+`docker build --build-arg WITH_OCR=0` 得到精简镜像。云端房间 24h 无活动自动归档
+（事件流保留在数据库中，可导出查账，但不再可加入）。
+
+## 扫描识别（M3）
+
+- 选卡时点「📷 扫描」出现取景框，对准卡面自动连续识别，点候选即入账；数值一律取自卡库，识别只定位「是哪张卡」
+- 浏览器要求 HTTPS 才能开摄像头：手机先访问 `http://<IP>:8000/trust` 按引导一次性信任根证书，之后改用 `https://<IP>:8443` 即可；不装证书则用「📷 拍照」（系统相机）或手动检索，功能等价
+- 识别效果统计：`GET /api/stats/recognition`（各引擎次数 / Top-3 命中率 / 平均耗时）
+- 入账后发现选错卡：日志页对自己的卡牌入账条目点「更正」撤销重录（FR-29，全程留痕）
 
 ## 目录
 

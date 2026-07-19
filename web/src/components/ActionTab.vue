@@ -127,6 +127,49 @@ async function stockSell() {
     game.flash(`已卖出 ×${qty}` + (d?.price != null ? `，得 ${fmt(d.price * qty)}` : ''))
 }
 
+// 选错卡反悔：撤销这次抽卡（FR-29 本人更正），随后重新打开同牌堆选卡列表
+async function undoDraw() {
+  const cur = ac.value!
+  const title = activeCardInfo.value?.title ?? cur.card_id
+  const ok = await confirmAction({
+    title: `撤销抽卡「${title}」？`,
+    lines: ['将撤销这次抽卡，可重新选卡', '全员账目立即重算，日志保留划线痕迹'],
+    danger: true,
+  })
+  if (!ok) return
+  const log = await game.fetchLog()
+  const drawn = [...log].reverse().find(e =>
+    e.type === 'CARD_DRAWN' && !e.revoked
+    && e.actorId === game.session?.playerId && e.payload.card_id === cur.card_id)
+  if (!drawn) { game.flash('未找到抽卡记录，请在「日志」中处理'); return }
+  const deck = cur.deck
+  if (await game.act('PLAYER_CORRECT', { eventSeq: drawn.seq, reason: '选错卡重选' })) {
+    activeCardInfo.value = null
+    pickerDeck.value = deck
+    game.flash('已撤销，请重新选卡')
+  }
+}
+
+// 强制卡（额外支出/损失/维修等）：金额与豁免说明由服务端 settlePreview 下发，前端不做规则判断
+const settlePreview = computed(() => ac.value?.settlePreview ?? null)
+
+async function forcedSettle() {
+  const c = activeCardInfo.value!
+  const pv = settlePreview.value
+  const shortfall = pv && !pv.waived ? pv.due - (me.value?.cash ?? 0) : 0
+  const ok = await confirmAction({
+    title: pv
+      ? (pv.waived ? `结算「${c.title}」（无需支付）？` : `支付 ${fmt(pv.due)} 结算「${c.title}」？`)
+      : `结算「${c.title}」？`,
+    lines: pv?.note ? [pv.note] : [],
+    warning: shortfall > 0 ? `现金不足，还差 ${fmt(shortfall)}，请先在「银行」贷款` : undefined,
+  })
+  if (ok && await game.act('CARD_DECISION', { decision: 'pay' })) {
+    game.flash(pv ? (pv.waived ? `「${c.title}」已结算，无需支付` : `已支付 ${fmt(pv.due)}`) : '已结算')
+    activeCardInfo.value = null
+  }
+}
+
 async function doodadPay(method: 'pay' | 'credit') {
   const d = activeCardInfo.value!.data
   const ok = await confirmAction(method === 'credit'
@@ -364,9 +407,19 @@ async function hostEndTurn() {
         </template>
 
         <template v-else>
-          <p class="muted">强制结算（现金不足请先贷款）</p>
-          <button class="block" @click="game.act('CARD_DECISION', { decision: 'pay' }).then(ok => ok && (activeCardInfo = null))">结算</button>
+          <p v-if="settlePreview">
+            应付 {{ fmt(settlePreview.due) }}
+            <span class="muted" v-if="settlePreview.note">· {{ settlePreview.note }}</span>
+          </p>
+          <p class="muted">
+            强制卡：结算后才能结束回合<template v-if="settlePreview && !settlePreview.waived && me.cash < settlePreview.due">；现金不足，请先在下方「银行」贷款</template>
+          </p>
+          <button class="block" @click="forcedSettle">
+            {{ settlePreview ? (settlePreview.waived ? '确认（无需支付）' : `支付 ${fmt(settlePreview.due)}`) : '结算' }}
+          </button>
         </template>
+
+        <button class="ghost small" style="margin-top:10px" @click="undoDraw">↩️ 选错卡？撤销重选</button>
       </div>
 
       <!-- 股票卖出窗口（非抽卡人） -->

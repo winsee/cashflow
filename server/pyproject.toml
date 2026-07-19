@@ -10,6 +10,7 @@ dependencies = [
     "jsonschema>=4.22",
     "qrcode>=7.4",
     "python-multipart>=0.0.9",
+    "cryptography>=42",
 ]
 
 [project.optional-dependencies]
@@ -17,6 +18,14 @@ dev = [
     "pytest>=8.2",
     "hypothesis>=6.100",
     "httpx>=0.27",
+]
+# 本地 OCR（M3，FR-26/30）：不装也能跑，识别链自动降级为手动选卡。
+# paddlepaddle 锁 <3.1：3.1+ 在 Windows CPU 开 mkldnn 触发
+# ConvertPirAttribute2RuntimeAttribute NotImplementedError（关 mkldnn 则慢 6 倍）。
+ocr = [
+    "paddleocr>=3.0",
+    "paddlepaddle>=3.0,<3.1",
+    "rapidfuzz>=3.6",
 ]
 
 [tool.pytest.ini_options]
