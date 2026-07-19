@@ -36,13 +36,12 @@ const STATUS_LABEL: Record<string, string> = {
 
 // ---------- 创建房间 ----------
 
-const showCreate = ref(false)
 const roomName = ref('现金流对局')
 const roomPassword = ref('')
 const maxPlayers = ref(6)
 
 async function create() {
-  if (!nickname.value.trim()) return
+  if (!roomName.value.trim() || !nickname.value.trim()) return
   busy.value = true
   try {
     await game.createRoom(nickname.value.trim(), roomName.value.trim() || '现金流对局',
@@ -71,9 +70,7 @@ async function tapRoom(room: RoomListItem) {
     router.push(room.status === 'LOBBY' || room.status === 'SETUP' ? '/room' : '/play')
     return
   }
-  if (room.status === 'LOBBY') {
-    if (!nickname.value.trim()) { game.lastError = '请先填写昵称'; return }
-    if (!room.hasPassword) { await doJoin(room, ''); return }
+  if (room.status === 'LOBBY' || room.status === 'SETUP') {
     password.value = ''
     dialog.value = { mode: 'join', room }
   } else {
@@ -167,30 +164,25 @@ function submitDialog() {
       <p>已有对局会话：房间 <b>{{ game.session.roomCode }}</b></p>
       <div class="row">
         <button class="grow" @click="game.connect(); router.push(game.state?.status === 'PLAYING' ? '/play' : '/room')">继续对局</button>
-        <button class="ghost" @click="game.clearSession()">退出</button>
+        <button class="ghost" @click="game.clearSession()">清除本机记录</button>
       </div>
     </div>
 
     <div class="card">
-      <label>你的昵称</label>
+      <h2>创建房间</h2>
+      <label>房间名</label>
+      <input v-model="roomName" maxlength="20" placeholder="例如：周末局" />
+      <label>房间密码（可选，防止别人随意加入）</label>
+      <input v-model="roomPassword" maxlength="16" placeholder="留空则任何人可加入" />
+      <label>人数上限</label>
+      <select v-model.number="maxPlayers">
+        <option v-for="n in [2,3,4,5,6]" :key="n" :value="n">{{ n }} 人</option>
+      </select>
+      <label>你的昵称（作为房主）</label>
       <input v-model="nickname" maxlength="12" placeholder="例如：老王" />
-
-      <button v-if="!showCreate" class="block" :disabled="!nickname.trim()"
-              @click="showCreate = true">＋ 创建房间</button>
-      <template v-else>
-        <label>房间名</label>
-        <input v-model="roomName" maxlength="20" />
-        <label>房间密码（可选，防止别人随意加入）</label>
-        <input v-model="roomPassword" maxlength="16" placeholder="留空则任何人可加入" />
-        <label>人数上限</label>
-        <select v-model.number="maxPlayers">
-          <option v-for="n in [2,3,4,5,6]" :key="n" :value="n">{{ n }} 人</option>
-        </select>
-        <div class="row" style="margin-top:10px">
-          <button class="grow" :disabled="busy || !nickname.trim()" @click="create">创建并进入</button>
-          <button class="ghost" @click="showCreate = false">收起</button>
-        </div>
-      </template>
+      <button class="block" style="margin-top:10px"
+              :disabled="busy || !roomName.trim() || !nickname.trim()"
+              @click="create">创建房间</button>
     </div>
 
     <div class="row between">
@@ -228,9 +220,13 @@ function submitDialog() {
       <div class="modal">
         <template v-if="dialog.mode === 'join'">
           <h2>加入 {{ dialog.room.name }}</h2>
-          <label>房间密码</label>
-          <input v-model="password" maxlength="16" placeholder="向房主索取"
-                 @keyup.enter="submitDialog" />
+          <label>你的昵称</label>
+          <input v-model="nickname" maxlength="12" placeholder="例如：老王" />
+          <template v-if="dialog.room.hasPassword">
+            <label>房间密码</label>
+            <input v-model="password" maxlength="16" placeholder="向房主索取"
+                   @keyup.enter="submitDialog" />
+          </template>
         </template>
         <template v-else-if="dialog.mode === 'takeover'">
           <h2>接管座位 · {{ dialog.room.name }}</h2>
@@ -259,6 +255,7 @@ function submitDialog() {
         <div class="row" style="margin-top:12px">
           <button class="grow" :class="{ warn: dialog.mode === 'delete' }"
                   :disabled="busy
+                    || (dialog.mode === 'join' && !nickname.trim())
                     || (dialog.mode === 'takeover' && !dialog.seatId)
                     || (dialog.mode !== 'takeover' && dialog.room.hasPassword && !password)
                     || (dialog.mode === 'delete' && !dialog.room.hasPassword)"

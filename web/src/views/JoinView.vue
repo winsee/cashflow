@@ -54,7 +54,7 @@ async function takeover() {
       <button class="block ghost" @click="router.replace('/')">返回大厅</button>
     </div>
 
-    <div class="card" v-else-if="seats && seats.status !== 'LOBBY'">
+    <div class="card" v-else-if="seats && seats.status !== 'LOBBY' && seats.status !== 'SETUP'">
       <p class="muted">对局已开始，新玩家无法加入；换了设备的玩家可选自己的座位恢复身份（原设备将下线）。</p>
       <div v-for="p in seats.players" :key="p.id" class="list-item row between"
            :style="seatId === p.id ? 'background:var(--panel2)' : ''"

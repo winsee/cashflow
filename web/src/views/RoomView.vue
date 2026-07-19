@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { confirmAction } from '../confirm'
 import { useGame } from '../store'
 import type { CardDto } from '../types'
 
 const game = useGame()
+const router = useRouter()
 const professions = ref<CardDto[]>([])
 const dreams = ref<{ id: string; name: string; price: number }[]>([])
 const order = ref<string[]>([])
@@ -47,6 +50,22 @@ async function saveOrder() {
 async function start() {
   await saveOrder()
   await game.act('START_GAME')
+}
+
+async function leaveGame() {
+  const lines = !isHost.value
+    ? ['退出后将释放名额，不能自行恢复该座位。', '如误退出，需由房主在日志中撤销退出记录。']
+    : players.value.length > 1
+      ? ['退出后房主将自动转让给下一位加入的玩家。', '如误退出，需由新房主在日志中撤销退出记录。']
+      : ['房间里没有其他人，退出后房间将直接解散，不能恢复。']
+  const ok = await confirmAction({
+    title: '退出房间？',
+    lines,
+    warning: '此操作会清除本机对局身份。',
+    danger: true,
+    okText: '退出对局',
+  })
+  if (ok && await game.leaveGame()) router.replace('/')
 }
 
 function nickOf(id: string | null): string {
@@ -152,6 +171,7 @@ async function copyUrl() {
       开始对局（自动发钱）
     </button>
     <p v-else class="muted" style="text-align:center">等待房主开始对局…</p>
+    <button class="block ghost warn" @click="leaveGame">退出对局</button>
   </div>
   <div class="page no-tabbar" v-else>
     <p class="muted">连接中…</p>

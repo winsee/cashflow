@@ -9,6 +9,7 @@ server/.venv/
 server/cashflow.db*
 *.db-wal
 *.db-shm
+server/uvicorn.*.log
 
 # 前端
 web/node_modules/

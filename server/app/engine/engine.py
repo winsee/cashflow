@@ -95,7 +95,7 @@ def decide(state: RoomState, actor_id: str | None, action_type: str,
 # ---------- 大厅 / 开局（design/02 §4） ----------
 
 def _d_join(state: RoomState, actor_id, p, lib) -> list[Event]:
-    if state.status != RoomStatus.LOBBY:
+    if state.status not in (RoomStatus.LOBBY, RoomStatus.SETUP):
         raise EngineError("GAME_STARTED", "对局已开始，无法加入")
     if len(state.players) >= state.settings.max_players:
         raise EngineError("ROOM_FULL", "房间已满")
@@ -738,6 +738,24 @@ def _d_host_remove_player(state, actor_id, p, lib) -> list[Event]:
     return [_ev("PLAYER_REMOVED", player_id=target.id)]
 
 
+def _d_leave_game(state, actor_id, p, lib) -> list[Event]:
+    if state.status not in (RoomStatus.LOBBY, RoomStatus.SETUP,
+                            RoomStatus.PLAYING, RoomStatus.FINISHED):
+        raise EngineError("NOT_LEAVABLE", "对局已关闭，无需退出")
+    player = _get_player(state, actor_id)
+    if player.phase == Phase.OUT:
+        raise EngineError("ALREADY_LEFT", "你已退出对局")
+    new_host_id = None
+    if player.is_host:
+        if state.status not in (RoomStatus.LOBBY, RoomStatus.SETUP):
+            raise EngineError("HOST_CANNOT_LEAVE", "对局已开始，房主不能单独退出，请结束对局")
+        others = [pl for pl in state.players.values() if pl.id != player.id]
+        if others:
+            new_host_id = min(others, key=lambda pl: pl.seat).id
+    return [_ev("PLAYER_LEFT", player_id=player.id, nickname=player.nickname,
+                new_host_id=new_host_id)]
+
+
 def _d_host_end_turn(state, actor_id, p, lib) -> list[Event]:
     # 当前玩家临时离开时房主强制推进；未结算的强制卡随回合结束一并作废
     _require_host(state, actor_id, "代结束回合")
@@ -784,6 +802,7 @@ _HANDLERS = {
     "HOST_ADJUST": _d_host_adjust,
     "END_GAME": _d_end_game,
     "HOST_REMOVE_PLAYER": _d_host_remove_player,
+    "LEAVE_GAME": _d_leave_game,
     "HOST_END_TURN": _d_host_end_turn,
 }
 
@@ -800,6 +819,11 @@ def apply(state: RoomState, event: Event) -> RoomState:
 
 
 def _a_player_joined(s: RoomState, p) -> None:
+    # 准备阶段补位会使已排好的顺序失效；回到大厅让房主重新确认顺序。
+    if s.status == RoomStatus.SETUP:
+        s.turn_order = []
+        s.turn_index = 0
+        s.status = RoomStatus.LOBBY
     s.players[p["player_id"]] = PlayerState(
         id=p["player_id"], nickname=p["nickname"], is_host=p["is_host"], seat=p["seat"])
 
@@ -1244,8 +1268,8 @@ def _a_game_ended(s: RoomState, p) -> None:
     s.active_card = None
 
 
-def _a_player_removed(s: RoomState, p) -> None:
-    pl = s.players[p["player_id"]]
+def _mark_player_out(s: RoomState, player_id: str) -> None:
+    pl = s.players[player_id]
     was_current = s.current_player_id == pl.id
     pl.phase = Phase.OUT
     pl.in_bankruptcy = False
@@ -1261,6 +1285,25 @@ def _a_player_removed(s: RoomState, p) -> None:
     if len(alive) == 1 and s.status == RoomStatus.PLAYING:
         s.status = RoomStatus.FINISHED
         s.winner_id = alive[0].id
+
+
+def _a_player_removed(s: RoomState, p) -> None:
+    _mark_player_out(s, p["player_id"])
+
+
+def _a_player_left(s: RoomState, p) -> None:
+    player_id = p["player_id"]
+    if s.status in (RoomStatus.LOBBY, RoomStatus.SETUP):
+        # 未开局不保留空座位：释放名额、职业和梦想占用。
+        s.players.pop(player_id)
+        s.turn_order = [pid for pid in s.turn_order if pid != player_id]
+        if s.turn_index >= len(s.turn_order):
+            s.turn_index = 0
+        new_host_id = p.get("new_host_id")
+        if new_host_id:
+            s.players[new_host_id].is_host = True
+        return
+    _mark_player_out(s, player_id)
 
 
 _APPLIERS = {
@@ -1313,6 +1356,7 @@ _APPLIERS = {
     "HOST_REVERTED": _a_host_reverted,
     "GAME_ENDED": _a_game_ended,
     "PLAYER_REMOVED": _a_player_removed,
+    "PLAYER_LEFT": _a_player_left,
 }
 
 

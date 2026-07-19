@@ -31,7 +31,7 @@ const LABELS: Record<string, string> = {
   ENTERED_FASTTRACK: '进入快车道', FT_PAYDAY: '现金流量日', FT_BUSINESS_BOUGHT: '快车道投资',
   FT_DREAM_BOUGHT: '买下梦想', FT_DREAM_DOUBLED: '梦想加价', FT_CHARITY_DONATED: '快车道慈善',
   FT_CASH_HIT: '现金损失', HOST_REVERTED: '房主撤销', HOST_ADJUSTED: '房主调账',
-  GAME_ENDED: '结束对局', PLAYER_REMOVED: '移除玩家',
+  GAME_ENDED: '结束对局', PLAYER_REMOVED: '移除玩家', PLAYER_LEFT: '玩家退出',
 }
 
 function amountOf(e: LogEntry): string {

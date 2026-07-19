@@ -117,6 +117,12 @@ export const useGame = defineStore('game', {
       if (!r.ok) throw new Error((await r.json()).message ?? '删除失败')
       if (this.session?.roomCode === code) this.clearSession()
     },
+    /** 普通玩家主动退出：服务端会记录退出、废弃令牌；本机随后清除会话。 */
+    async leaveGame(): Promise<boolean> {
+      const ok = await this.act('LEAVE_GAME')
+      if (ok) this.clearSession()
+      return ok
+    },
     connect() {
       if (!this.session || this.ws) return
       const proto = location.protocol === 'https:' ? 'wss' : 'ws'

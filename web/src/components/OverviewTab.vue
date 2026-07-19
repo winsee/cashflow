@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { confirmAction } from '../confirm'
 import { fmt, useGame } from '../store'
 import type { Player } from '../types'
 
 const game = useGame()
+const router = useRouter()
 const st = computed(() => game.state!)
 const isHost = computed(() => game.me?.isHost ?? false)
 
@@ -29,6 +31,17 @@ async function endGame() {
     okText: '结束对局',
   })
   if (ok) await game.act('END_GAME')
+}
+
+async function leaveGame() {
+  const ok = await confirmAction({
+    title: '退出对局？',
+    lines: ['你的回合将被永久跳过，不能自行恢复该座位。', '如误退出，需由房主在日志中撤销退出记录。'],
+    warning: '此操作会清除本机对局身份。',
+    danger: true,
+    okText: '退出对局',
+  })
+  if (ok && await game.leaveGame()) router.replace('/')
 }
 </script>
 
@@ -81,6 +94,12 @@ async function endGame() {
     <div v-if="st.winnerId" class="card" style="border-color:var(--gold);text-align:center">
       <h1>🏆 {{ st.players.find(p => p.id === st.winnerId)?.nickname }} 获胜！</h1>
       <p class="muted">对局结束，可在「日志」中回顾全程账目</p>
+    </div>
+
+    <div v-if="!isHost" class="card" style="border-color:var(--red)">
+      <h2>退出对局</h2>
+      <p class="muted">退出后不能自行接管该座位；误退出请联系房主在日志中撤销。</p>
+      <button class="block warn" @click="leaveGame">退出对局</button>
     </div>
 
     <div v-if="isHost" class="card" style="border-color:var(--red)">

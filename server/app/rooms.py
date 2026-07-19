@@ -18,7 +18,7 @@ from .data_loader import CardLibrary
 from .engine import engine as E
 from .engine import formulas as F
 from .engine.errors import EngineError
-from .engine.models import RoomState, RoomStatus
+from .engine.models import Phase, RoomState, RoomStatus
 from .store.db import Database
 
 
@@ -39,6 +39,7 @@ class RoomSession:
         self.seq = 0
         self.lock = asyncio.Lock()
         self.sockets: dict[str, set[WebSocket]] = {}   # player_id -> conns
+        self.manager: RoomManager | None = None   # 房主独自退出时需要从管理器里摘除自己
 
     # ---------- 恢复 ----------
 
@@ -68,9 +69,27 @@ class RoomSession:
                     self.db.append_event(self.room_id, self.seq, actor_id,
                                          ev["type"], ev["payload"])
                     self.state = E.apply(self.state, ev)
+                    if ev["type"] == "PLAYER_LEFT":
+                        # 主动退出后废弃原令牌；即使旧 WebSocket 尚未关闭，也无法重连。
+                        self.db.update_player_token(
+                            ev["payload"]["player_id"],
+                            _hash_token(secrets.token_urlsafe(24)))
+                        new_host_id = ev["payload"].get("new_host_id")
+                        if new_host_id:
+                            self.db.set_player_host(new_host_id, True)
             self._after_change()
             if action_id:
                 self.db.dedupe_put(self.room_id, action_id, json.dumps(events, ensure_ascii=False))
+            if self.state.status in (RoomStatus.LOBBY, RoomStatus.SETUP) and not self.state.players:
+                # 大厅/准备阶段的最后一人（此时必为房主）离开：视为解散房间，与 RoomManager.delete_room 一致。
+                # 排除发起者自己的连接：main.py 还要在这条连接上回发 ack，
+                # 若在此处一并关闭，客户端收不到 ack，只能靠前端 5s 兜底超时才跳转大厅。
+                # 客户端收到 ack 后会自行 clearSession() 关闭连接，服务端无需代劳。
+                await self.close_sockets(exclude_player_id=actor_id)
+                if self.manager is not None:
+                    self.manager.rooms.pop(self.code, None)
+                self.db.delete_room(self.room_id)
+                return events
             await self.broadcast_state(last_events=events)
             return events
 
@@ -97,6 +116,10 @@ class RoomSession:
         rid = self.db.append_event(self.room_id, self.seq, actor_id, ev["type"], ev["payload"])
         self.db.revoke_event(self.room_id, target_seq, rid)
         self.state = state           # HOST_REVERTED 本身不改状态，仅留审计痕迹
+        # 撤销可能撤掉了一次房主转让：把 DB 侧的 is_host 重新对齐到重放后的状态，
+        # 否则被撤销转让的旧房主令牌仍会被 delete_room 当作房主凭证。
+        for pid, pl in self.state.players.items():
+            self.db.set_player_host(pid, pl.is_host)
         return [ev]
 
     def _after_change(self) -> None:
@@ -178,10 +201,16 @@ class RoomSession:
             return True
         return password is not None and _hash_token(password) == self.password_hash
 
-    async def close_sockets(self, player_id: str | None = None, code: int = 4000) -> None:
-        """断开指定玩家（或全部）的连接：座位接管/房间删除时用。"""
-        targets = ([self.sockets.get(player_id, set())] if player_id
-                   else list(self.sockets.values()))
+    async def close_sockets(self, player_id: str | None = None, code: int = 4000,
+                            exclude_player_id: str | None = None) -> None:
+        """断开指定玩家（或全部）的连接：座位接管/房间删除时用。
+
+        exclude_player_id：保留该玩家自己的连接不主动关闭（例如它还等着收 ack）。
+        """
+        if player_id:
+            targets = [self.sockets.get(player_id, set())]
+        else:
+            targets = [conns for pid, conns in self.sockets.items() if pid != exclude_player_id]
         for conns in targets:
             for ws in list(conns):
                 try:
@@ -195,11 +224,13 @@ class RoomSession:
         nick = {pid: p.nickname for pid, p in self.state.players.items()}
         out = []
         for r in rows:
+            payload = json.loads(r["payload"])
             out.append({
                 "seq": r["seq"],
-                "actor": nick.get(r["actor_player_id"], r["actor_player_id"]),
+                "actor": nick.get(r["actor_player_id"],
+                                  payload.get("nickname", r["actor_player_id"])),
                 "type": r["type"],
-                "payload": json.loads(r["payload"]),
+                "payload": payload,
                 "at": r["created_at"],
                 "revoked": r["revoked_by"] is not None,
             })
@@ -219,6 +250,7 @@ class RoomManager:
             sess = RoomSession(row["id"], row["code"], self.db, self.lib,
                                password_hash=row["password_hash"],
                                created_at=row["created_at"] or "")
+            sess.manager = self
             sess.restore()
             self.rooms[row["code"]] = sess
 
@@ -233,6 +265,7 @@ class RoomManager:
         sess = RoomSession(room_id, code, self.db, self.lib,
                            password_hash=pw_hash,
                            created_at=row["created_at"] or "")
+        sess.manager = self
         sess.state.settings.max_players = max_players
         sess.state.settings.name = name
         self.rooms[code] = sess
@@ -288,8 +321,11 @@ class RoomManager:
         sess = self.get(code)
         if not sess.check_password(password):
             raise EngineError("BAD_PASSWORD", "房间密码错误")
-        if player_id not in sess.state.players:
+        player = sess.state.players.get(player_id)
+        if player is None:
             raise EngineError("NO_PLAYER", "该座位不存在")
+        if player.phase == Phase.OUT:
+            raise EngineError("PLAYER_OUT", "该玩家已退出，不能接管座位")
         token = secrets.token_urlsafe(24)
         self.db.update_player_token(player_id, _hash_token(token))
         await sess.close_sockets(player_id)   # 原设备立即断线，冒领当场暴露

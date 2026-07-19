@@ -173,6 +173,7 @@ async function publish() {
       <div class="row">
         <button class="small ghost" @click="$router.push('/entry/review')">🔍 核对</button>
         <button class="small ghost" @click="$router.back()">返回</button>
+        <button class="small ghost" @click="$router.push('/')">🏠 大厅</button>
       </div>
     </div>
     <p class="muted">录入库为纯数据记录（server/data/entry/），随录随存；

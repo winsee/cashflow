@@ -106,6 +106,12 @@ class Database:
             "UPDATE player SET token_hash=? WHERE id=?", (token_hash, player_id))
         self.conn.commit()
 
+    def set_player_host(self, player_id: str, is_host: bool) -> None:
+        """房主离开大厅后转让房主：同步 DB 侧的 is_host（delete_room 的权限判断依赖它）。"""
+        self.conn.execute(
+            "UPDATE player SET is_host=? WHERE id=?", (int(is_host), player_id))
+        self.conn.commit()
+
     # ---- events ----
 
     def append_event(self, room_id: str, seq: int, actor: str | None,
