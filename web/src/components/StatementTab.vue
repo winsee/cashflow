@@ -45,27 +45,31 @@ const ftProgress = computed(() => {
       <h2>损益表</h2>
       <div class="section-title">收入</div>
       <table class="fin">
-        <tr><td>工资</td><td>{{ fmt(me.salary) }}</td></tr>
-        <tr><td>利息</td><td>{{ fmt(me.interestIncome) }}</td></tr>
-        <tr><td>股利</td><td>{{ fmt(d.dividendIncome) }}</td></tr>
-        <tr v-for="r in me.realEstates" :key="r.id"><td>🏠 {{ r.name }}</td><td>{{ fmt(r.cashflow) }}</td></tr>
-        <tr v-for="b in me.businesses" :key="b.id"><td>🏢 {{ b.name }}</td><td>{{ fmt(b.cashflow) }}</td></tr>
-        <tr class="total"><td>总收入（非工资 {{ fmt(d.passiveIncome) }}）</td><td>{{ fmt(d.totalIncome) }}</td></tr>
+        <tbody>
+          <tr><td>工资</td><td>{{ fmt(me.salary) }}</td></tr>
+          <tr><td>利息</td><td>{{ fmt(me.interestIncome) }}</td></tr>
+          <tr><td>股利</td><td>{{ fmt(d.dividendIncome) }}</td></tr>
+          <tr v-for="r in me.realEstates" :key="r.id"><td>🏠 {{ r.name }}</td><td>{{ fmt(r.cashflow) }}</td></tr>
+          <tr v-for="b in me.businesses" :key="b.id"><td>🏢 {{ b.name }}</td><td>{{ fmt(b.cashflow) }}</td></tr>
+          <tr class="total"><td>总收入（非工资 {{ fmt(d.passiveIncome) }}）</td><td>{{ fmt(d.totalIncome) }}</td></tr>
+        </tbody>
       </table>
 
       <div class="section-title">支出</div>
       <table class="fin">
-        <tr><td>税金</td><td>{{ fmt(me.taxes) }}</td></tr>
-        <tr><td>住房抵押贷款支出</td><td>{{ fmt(me.mortgagePayment) }}</td></tr>
-        <tr><td>教育贷款支出</td><td>{{ fmt(me.schoolLoanPayment) }}</td></tr>
-        <tr><td>购车贷款支出</td><td>{{ fmt(me.carLoanPayment) }}</td></tr>
-        <tr><td>信用卡支出</td><td>{{ fmt(me.creditCardPayment) }}</td></tr>
-        <tr><td>额外支出</td><td>{{ fmt(me.extraExpenses) }}</td></tr>
-        <tr><td>其他支出</td><td>{{ fmt(me.otherExpenses) }}</td></tr>
-        <tr><td>孩子支出（{{ me.childCount }} 个 × {{ fmt(me.perChildExpense) }}）</td><td>{{ fmt(d.childExpense) }}</td></tr>
-        <tr><td>银行贷款支出（10%/月）</td><td>{{ fmt(d.bankLoanExpense) }}</td></tr>
-        <tr v-for="l in me.extraLiabilities" :key="l.id"><td>{{ l.name }} 月供</td><td>{{ fmt(l.monthly) }}</td></tr>
-        <tr class="total"><td>总支出</td><td>{{ fmt(d.totalExpenses) }}</td></tr>
+        <tbody>
+          <tr><td>税金</td><td>{{ fmt(me.taxes) }}</td></tr>
+          <tr><td>住房抵押贷款支出</td><td>{{ fmt(me.mortgagePayment) }}</td></tr>
+          <tr><td>教育贷款支出</td><td>{{ fmt(me.schoolLoanPayment) }}</td></tr>
+          <tr><td>购车贷款支出</td><td>{{ fmt(me.carLoanPayment) }}</td></tr>
+          <tr><td>信用卡支出</td><td>{{ fmt(me.creditCardPayment) }}</td></tr>
+          <tr><td>额外支出</td><td>{{ fmt(me.extraExpenses) }}</td></tr>
+          <tr><td>其他支出</td><td>{{ fmt(me.otherExpenses) }}</td></tr>
+          <tr><td>孩子支出（{{ me.childCount }} 个 × {{ fmt(me.perChildExpense) }}）</td><td>{{ fmt(d.childExpense) }}</td></tr>
+          <tr><td>银行贷款支出（10%/月）</td><td>{{ fmt(d.bankLoanExpense) }}</td></tr>
+          <tr v-for="l in me.extraLiabilities" :key="l.id"><td>{{ l.name }} 月供</td><td>{{ fmt(l.monthly) }}</td></tr>
+          <tr class="total"><td>总支出</td><td>{{ fmt(d.totalExpenses) }}</td></tr>
+        </tbody>
       </table>
     </div>
 
@@ -73,31 +77,35 @@ const ftProgress = computed(() => {
       <h2>资产负债表</h2>
       <div class="section-title">资产</div>
       <table class="fin">
-        <tr v-for="s in me.stocks" :key="s.symbol + s.cost_per_share">
-          <td>📈 {{ s.symbol }} × {{ s.shares }}（成本 {{ fmt(s.cost_per_share) }}/股）</td>
-          <td>{{ fmt(s.shares * s.cost_per_share) }}</td>
-        </tr>
-        <tr v-for="r in me.realEstates" :key="r.id">
-          <td>🏠 {{ r.name }}（首期 {{ fmt(r.down_payment) }}）</td><td>{{ fmt(r.cost) }}</td>
-        </tr>
-        <tr v-for="b in me.businesses" :key="b.id">
-          <td>🏢 {{ b.name }}（首期 {{ fmt(b.down_payment) }}）</td><td>{{ fmt(b.cost) }}</td>
-        </tr>
-        <tr v-if="!me.stocks.length && !me.realEstates.length && !me.businesses.length">
-          <td class="muted" colspan="2">暂无资产</td>
-        </tr>
+        <tbody>
+          <tr v-for="s in me.stocks" :key="s.symbol + s.cost_per_share">
+            <td>📈 {{ s.symbol }} × {{ s.shares }}（成本 {{ fmt(s.cost_per_share) }}/股）</td>
+            <td>{{ fmt(s.shares * s.cost_per_share) }}</td>
+          </tr>
+          <tr v-for="r in me.realEstates" :key="r.id">
+            <td>🏠 {{ r.name }}（首期 {{ fmt(r.down_payment) }}）</td><td>{{ fmt(r.cost) }}</td>
+          </tr>
+          <tr v-for="b in me.businesses" :key="b.id">
+            <td>🏢 {{ b.name }}（首期 {{ fmt(b.down_payment) }}）</td><td>{{ fmt(b.cost) }}</td>
+          </tr>
+          <tr v-if="!me.stocks.length && !me.realEstates.length && !me.businesses.length">
+            <td class="muted" colspan="2">暂无资产</td>
+          </tr>
+        </tbody>
       </table>
 
       <div class="section-title">负债</div>
       <table class="fin">
-        <tr><td>住房抵押贷款</td><td>{{ fmt(me.liabilities.mortgage) }}</td></tr>
-        <tr><td>教育贷款</td><td>{{ fmt(me.liabilities.school_loan) }}</td></tr>
-        <tr><td>购车贷款</td><td>{{ fmt(me.liabilities.car_loan) }}</td></tr>
-        <tr><td>信用卡</td><td>{{ fmt(me.liabilities.credit_card) }}</td></tr>
-        <tr><td>额外负债</td><td>{{ fmt(me.liabilities.extra) }}</td></tr>
-        <tr v-for="r in me.realEstates" :key="r.id"><td>🏠 {{ r.name }} 抵押</td><td>{{ fmt(r.mortgage) }}</td></tr>
-        <tr v-for="l in me.extraLiabilities" :key="l.id"><td>{{ l.name }}</td><td>{{ fmt(l.amount) }}</td></tr>
-        <tr><td>银行贷款</td><td>{{ fmt(me.liabilities.bank_loan) }}</td></tr>
+        <tbody>
+          <tr><td>住房抵押贷款</td><td>{{ fmt(me.liabilities.mortgage) }}</td></tr>
+          <tr><td>教育贷款</td><td>{{ fmt(me.liabilities.school_loan) }}</td></tr>
+          <tr><td>购车贷款</td><td>{{ fmt(me.liabilities.car_loan) }}</td></tr>
+          <tr><td>信用卡</td><td>{{ fmt(me.liabilities.credit_card) }}</td></tr>
+          <tr><td>额外负债</td><td>{{ fmt(me.liabilities.extra) }}</td></tr>
+          <tr v-for="r in me.realEstates" :key="r.id"><td>🏠 {{ r.name }} 抵押</td><td>{{ fmt(r.mortgage) }}</td></tr>
+          <tr v-for="l in me.extraLiabilities" :key="l.id"><td>{{ l.name }}</td><td>{{ fmt(l.amount) }}</td></tr>
+          <tr><td>银行贷款</td><td>{{ fmt(me.liabilities.bank_loan) }}</td></tr>
+        </tbody>
       </table>
     </div>
   </div>

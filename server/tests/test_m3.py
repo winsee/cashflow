@@ -342,6 +342,26 @@ def test_parse_realestate_inline_pct_and_range():
     assert f["priceRange.1"] == 65000
 
 
+def test_parse_realestate_land():
+    # 土地卡卡面无"N室N厅"资产标注，assetType 统一识别为"土地"（售价不能确定，无价格区间）
+    rows = [
+        "20英亩土地待售",
+        "20英亩空地待售，已被规划为住宅区。",
+        "如果开发成商业区将是很好的投资机会。",
+        "可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为0%，售价不能确定。",
+        "成本：$20,000 抵押贷款：$0",
+        "首期支付：$20,000 月现金流：$0",
+    ]
+    f = parse_fields(rows, "BIG_DEAL", "REALESTATE")["fields"]
+    assert f["assetType"] == "土地"
+    assert f["cost"] == 20000
+    assert f["downPayment"] == 20000
+    assert f["mortgage"] == 0
+    assert f["cashflow"] == 0
+    assert "priceRange.0" not in f
+
+
 def test_parse_detects_stock_subtype_in_small_deal():
     rows = [
         "OK4U 基金",

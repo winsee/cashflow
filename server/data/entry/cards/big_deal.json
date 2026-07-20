@@ -25,5 +25,20 @@
       "amountPerUnit": 2000
     },
     "ocr_keywords": ["下水管", "2,000", "8室"]
+  },
+  {
+    "id": "bd-land-20acre",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "20英亩土地待售",
+    "data": {
+      "assetType": "土地",
+      "cost": 20000,
+      "downPayment": 20000,
+      "mortgage": 0,
+      "cashflow": 0,
+      "roiPct": 0
+    },
+    "ocr_keywords": ["20英亩", "土地", "住宅区", "20,000"]
   }
 ]

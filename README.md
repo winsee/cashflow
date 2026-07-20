@@ -21,11 +21,11 @@
 ## 本地开发运行
 
 ```powershell
-# 后端（端口 8000；首次先建 venv：uv venv --python 3.12 .venv && uv pip install -e .[dev]）
+# 后端（端口 8000，热重载：改动 app/ 下代码自动重启；首次先建 venv：uv venv --python 3.12 .venv && uv pip install -e .[dev]）
 # 本地 OCR（可选）：uv pip install -e .[ocr]，未安装时识别自动降级为手动选卡
 cd server
-.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-# 或 HTTP+HTTPS 双端口（扫描框需要 HTTPS）：
+.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app
+# 或 HTTP+HTTPS 双端口（扫描框需要 HTTPS，双端口启动器不支持热重载）：
 .venv\Scripts\python.exe -m app.serve
 
 # 前端热更新开发（可选，端口 5173，已配置代理到 8000）

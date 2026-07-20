@@ -223,6 +223,9 @@ def _parse_one(rows: list[str], subtype: str) -> dict:
         m = _ASSET_RE.search(joined)
         if m:
             fields.setdefault("assetType", re.sub(r"\s+", "", m.group()))
+        elif subtype == "REALESTATE" and re.search(r"英亩|土地|空地", joined):
+            # 土地卡（如"20英亩土地待售"）卡面无"N室N厅"资产标注，统一归为"土地"
+            fields.setdefault("assetType", "土地")
         m = _PCT_RE.search(joined)
         if m:
             v = float(m.group(1))
