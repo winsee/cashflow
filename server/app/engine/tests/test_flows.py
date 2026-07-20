@@ -121,6 +121,19 @@ def test_stock_buy_sell_window_and_merge(duo):
         duo.act("A", "STOCK_SELL", qty=1)
 
 
+def test_preferred_stock_dividend_into_passive_income(duo):
+    """优先股（每股月分红 $10）买入后，分红计入被动收入（§6.2）。"""
+    a = duo.player("A")
+    passive_before = F.passive_income(a)
+    duo.act("A", "DRAW_CARD", cardId="sd-005")
+    duo.act("A", "STOCK_BUY", qty=2)                 # 2 股 × $1,200 = $2,400
+    a = duo.player("A")
+    assert a.cash == 3950 - 2400
+    held = next(s for s in a.stocks if s.symbol == "2BIG")
+    assert held.shares == 2 and held.dividend_per_share == 10
+    assert F.passive_income(a) == passive_before + 2 * 10   # 每股月分红 $10
+
+
 def test_stock_merge_2_to_1(duo):
     duo.state.players["A"].stocks.append(StockHolding(symbol="MYT4U", shares=11, cost_per_share=10))
     duo.state.players["B"].stocks.append(StockHolding(symbol="MYT4U", shares=4, cost_per_share=20))

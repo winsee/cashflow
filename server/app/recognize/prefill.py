@@ -82,7 +82,7 @@ _ALIASES: dict[str, list[tuple[list[str], list[str]]]] = {
     ],
     "STOCK_OFFER": [
         (["今日价格", "今日价", "价格"], ["price"]),
-        (["每股红利", "每股股利", "股利", "红利"], ["dividendPerShare"]),
+        (["每股红利", "每股股利", "分红", "股息", "股利", "红利"], ["dividendPerShare"]),
         (["交易范围", "价格区间", "价格范围"], ["priceRange"]),
     ],
     "STOCK_EVENT": [],

@@ -364,3 +364,21 @@ def test_parse_no_fields_keeps_requested_subtype():
     d = parse_fields(["完全无关的一段文字"], "SMALL_DEAL", "LOSS_EVENT")
     assert d["subtype"] == "LOSS_EVENT"
     assert d["fields"] == {}
+
+
+def test_parse_preferred_stock_dividend_alias():
+    # 优先股卡面写"分红"（非"红利"），别名须命中并识别为每股月分红
+    rows = [
+        "优先股 2BIG电力公司",
+        "股票代码: 2BIG",
+        "今日价格: $1,200",
+        "分红: $10/月",
+        "投资收益率: 10%",
+        "价格范围 $1,200~$1,200",
+    ]
+    d = parse_fields(rows, "SMALL_DEAL", "STOCK_OFFER")
+    assert d["subtype"] == "STOCK_OFFER"
+    f = d["fields"]
+    assert f["symbol"] == "2BIG"
+    assert f["price"] == 1200
+    assert f["dividendPerShare"] == 10

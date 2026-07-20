@@ -140,5 +140,27 @@
       ]
     },
     "ocr_keywords": []
+  },
+  {
+    "id": "sd-005",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "优先股 -2BIG电力公司",
+    "data": {
+      "symbol": "2BIG",
+      "price": 1200,
+      "dividendPerShare": 10,
+      "priceRange": [
+        1200,
+        1200
+      ]
+    },
+    "ocr_keywords": [
+      "2BIG",
+      "优先股",
+      "1,200",
+      "分红",
+      "10"
+    ]
   }
 ]
