@@ -1,37 +1,1151 @@
 [
   {
-    "id": "dd-boat",
+    "id": "dd-001",
+    "key": "boat",
     "deck": "DOODAD",
     "subtype": "INSTALLMENT",
-    "title": "购买游艇",
+    "title": "购置新游艇",
+    "source": {
+      "sheetNo": 1,
+      "image": "docs/实体卡片/额外支出/1.jpg"
+    },
+    "raw": {
+      "title": "购置新游艇",
+      "body": [
+        "首期支付$1,000，到期支付$17,000"
+      ],
+      "fields": [],
+      "notes": [
+        "（增加$17,000游艇信贷负债，并增加一笔$340的游艇信贷利息支出）"
+      ]
+    },
     "data": {
       "downPayment": 1000,
       "liability": 17000,
       "liabilityName": "游艇信贷",
       "monthly": 340
     },
-    "ocr_keywords": ["游艇", "17,000", "340"]
+    "ocr_keywords": [
+      "购置新游艇",
+      "1,000",
+      "17,000",
+      "340"
+    ]
   },
   {
-    "id": "dd-wedding",
+    "id": "dd-002",
+    "key": "daughter-wedding",
     "deck": "DOODAD",
     "subtype": "CASH",
-    "title": "参加婚礼",
+    "title": "为女儿举行婚礼",
+    "source": {
+      "sheetNo": 2,
+      "image": "docs/实体卡片/额外支出/2.jpg"
+    },
+    "raw": {
+      "title": "为女儿举行婚礼",
+      "body": [
+        "支付$2,000"
+      ],
+      "fields": [],
+      "notes": [
+        "（如果你有孩子的话）"
+      ]
+    },
     "data": {
       "amount": 2000,
-      "condition": "hasChildren"
+      "payerCondition": "hasChildren"
     },
-    "ocr_keywords": ["婚礼", "2,000"]
+    "ocr_keywords": [
+      "为女儿举行婚礼",
+      "2,000",
+      "有孩子"
+    ]
   },
   {
-    "id": "dd-tv",
+    "id": "dd-003",
+    "key": "plasma-tv",
     "deck": "DOODAD",
     "subtype": "CREDIT_OPTION",
-    "title": "购买大屏幕彩电",
+    "title": "购买超大等离子彩电",
+    "source": {
+      "sheetNo": 3,
+      "image": "docs/实体卡片/额外支出/3.jpg"
+    },
+    "raw": {
+      "title": "购买超大等离子彩电",
+      "body": [
+        "支付$4,000"
+      ],
+      "fields": [],
+      "notes": [
+        "（你也可用信用卡支付，如果使用信用卡，需在信用卡负债项增加$4,000，同时信用卡月支出增加$120）"
+      ]
+    },
     "data": {
       "amount": 4000,
       "creditMonthly": 120
     },
-    "ocr_keywords": ["彩电", "4,000", "120"]
+    "ocr_keywords": [
+      "购买超大等离子彩电",
+      "4,000",
+      "120",
+      "信用卡"
+    ]
+  },
+  {
+    "id": "dd-004",
+    "key": "lottery",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "幸运彩票抽奖",
+    "source": {
+      "sheetNo": 4,
+      "image": "docs/实体卡片/额外支出/4.jpg"
+    },
+    "raw": {
+      "title": "幸运彩票抽奖",
+      "body": [
+        "支付$100"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 100
+    },
+    "ocr_keywords": [
+      "幸运彩票抽奖",
+      "100"
+    ]
+  },
+  {
+    "id": "dd-005",
+    "key": "car-ac-repair",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "汽车空调坏了",
+    "source": {
+      "sheetNo": 5,
+      "image": "docs/实体卡片/额外支出/5.jpg"
+    },
+    "raw": {
+      "title": "汽车空调坏了",
+      "body": [
+        "修理费",
+        "支付$700"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 700
+    },
+    "ocr_keywords": [
+      "汽车空调坏了",
+      "修理费",
+      "700"
+    ]
+  },
+  {
+    "id": "dd-006",
+    "key": "retraining",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "消除下岗危机",
+    "source": {
+      "sheetNo": 6,
+      "image": "docs/实体卡片/额外支出/6.jpg"
+    },
+    "raw": {
+      "title": "消除下岗危机",
+      "body": [
+        "返回学校“充电”，交纳学费和材料费",
+        "支付$220"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 220
+    },
+    "ocr_keywords": [
+      "消除下岗危机",
+      "充电",
+      "220"
+    ]
+  },
+  {
+    "id": "dd-007",
+    "key": "speakers",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "为立体声音响配一对新音箱",
+    "source": {
+      "sheetNo": 7,
+      "image": "docs/实体卡片/额外支出/7.jpg"
+    },
+    "raw": {
+      "title": "为立体声音响配一对新音箱",
+      "body": [
+        "支付$500"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 500
+    },
+    "ocr_keywords": [
+      "为立体声音响配一对新音箱",
+      "500"
+    ]
+  },
+  {
+    "id": "dd-008",
+    "key": "lunch-friend",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "和朋友共进午餐",
+    "source": {
+      "sheetNo": 8,
+      "image": "docs/实体卡片/额外支出/8.jpg"
+    },
+    "raw": {
+      "title": "和朋友共进午餐",
+      "body": [
+        "支付$40"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 40
+    },
+    "ocr_keywords": [
+      "和朋友共进午餐",
+      "40"
+    ]
+  },
+  {
+    "id": "dd-009",
+    "key": "new-clothes",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "购买新衣服",
+    "source": {
+      "sheetNo": 9,
+      "image": "docs/实体卡片/额外支出/9.jpg"
+    },
+    "raw": {
+      "title": "购买新衣服",
+      "body": [
+        "支付$250"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 250
+    },
+    "ocr_keywords": [
+      "购买新衣服",
+      "250"
+    ]
+  },
+  {
+    "id": "dd-010",
+    "key": "concert",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "听音乐会",
+    "source": {
+      "sheetNo": 10,
+      "image": "docs/实体卡片/额外支出/10.jpg"
+    },
+    "raw": {
+      "title": "听音乐会",
+      "body": [
+        "晚餐、门票及咖啡",
+        "支付$180"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 180
+    },
+    "ocr_keywords": [
+      "听音乐会",
+      "门票",
+      "180"
+    ]
+  },
+  {
+    "id": "dd-011",
+    "key": "ball-game",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "玩球类游戏",
+    "source": {
+      "sheetNo": 11,
+      "image": "docs/实体卡片/额外支出/11.jpg"
+    },
+    "raw": {
+      "title": "玩球类游戏",
+      "body": [
+        "支付$50"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 50
+    },
+    "ocr_keywords": [
+      "玩球类游戏",
+      "50"
+    ]
+  },
+  {
+    "id": "dd-012",
+    "key": "tax-audit",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "税务审计",
+    "source": {
+      "sheetNo": 12,
+      "image": "docs/实体卡片/额外支出/12.jpg"
+    },
+    "raw": {
+      "title": "税务审计",
+      "body": [
+        "需支付税务局$350"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 350
+    },
+    "ocr_keywords": [
+      "税务审计",
+      "税务局",
+      "350"
+    ]
+  },
+  {
+    "id": "dd-013",
+    "key": "sunglasses",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "购买新的沙滩墨镜",
+    "source": {
+      "sheetNo": 13,
+      "image": "docs/实体卡片/额外支出/13.jpg"
+    },
+    "raw": {
+      "title": "购买新的沙滩墨镜",
+      "body": [
+        "支付$75"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 75
+    },
+    "ocr_keywords": [
+      "购买新的沙滩墨镜",
+      "75"
+    ]
+  },
+  {
+    "id": "dd-014",
+    "key": "golf-balls",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "买新的高尔夫球",
+    "source": {
+      "sheetNo": 14,
+      "image": "docs/实体卡片/额外支出/14.jpg"
+    },
+    "raw": {
+      "title": "买新的高尔夫球",
+      "body": [
+        "支付$20"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 20
+    },
+    "ocr_keywords": [
+      "买新的高尔夫球",
+      "20"
+    ]
+  },
+  {
+    "id": "dd-015",
+    "key": "golf-rounds",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "打了两场高尔夫球",
+    "source": {
+      "sheetNo": 15,
+      "image": "docs/实体卡片/额外支出/15.jpg"
+    },
+    "raw": {
+      "title": "打了两场高尔夫球",
+      "body": [
+        "支付$100"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 100
+    },
+    "ocr_keywords": [
+      "打了两场高尔夫球",
+      "100"
+    ]
+  },
+  {
+    "id": "dd-016",
+    "key": "music-cd",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "购买新的音乐CD",
+    "source": {
+      "sheetNo": 16,
+      "image": "docs/实体卡片/额外支出/16.jpg"
+    },
+    "raw": {
+      "title": "购买新的音乐CD",
+      "body": [
+        "支付$100"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 100
+    },
+    "ocr_keywords": [
+      "购买新的音乐CD",
+      "100"
+    ]
+  },
+  {
+    "id": "dd-017",
+    "key": "shopping-watch",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "疯狂购物（手表）",
+    "source": {
+      "sheetNo": 17,
+      "image": "docs/实体卡片/额外支出/17.jpg"
+    },
+    "raw": {
+      "title": "疯狂购物",
+      "body": [
+        "又买了一块新手表",
+        "支付$150"
+      ],
+      "fields": [],
+      "notes": [
+        "（尽管你已有三块类似的手表）"
+      ]
+    },
+    "data": {
+      "amount": 150
+    },
+    "ocr_keywords": [
+      "疯狂购物",
+      "新手表",
+      "150"
+    ]
+  },
+  {
+    "id": "dd-018",
+    "key": "furniture-chair",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "购置家具",
+    "source": {
+      "sheetNo": 18,
+      "image": "docs/实体卡片/额外支出/18.jpg"
+    },
+    "raw": {
+      "title": "购置家具",
+      "body": [
+        "更换旧椅子",
+        "支付$300"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 300
+    },
+    "ocr_keywords": [
+      "购置家具",
+      "旧椅子",
+      "300"
+    ]
+  },
+  {
+    "id": "dd-019",
+    "key": "computer-virus",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "遭遇病毒袭击",
+    "source": {
+      "sheetNo": 19,
+      "image": "docs/实体卡片/额外支出/19.jpg"
+    },
+    "raw": {
+      "title": "遭遇病毒袭击",
+      "body": [
+        "你的电脑系统被完全破坏",
+        "购买系统恢复盘",
+        "支付$200"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 200
+    },
+    "ocr_keywords": [
+      "遭遇病毒袭击",
+      "系统恢复盘",
+      "200"
+    ]
+  },
+  {
+    "id": "dd-020",
+    "key": "fishing-rod",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "购买新的钓鱼竿",
+    "source": {
+      "sheetNo": 20,
+      "image": "docs/实体卡片/额外支出/20.jpg"
+    },
+    "raw": {
+      "title": "购买新的钓鱼竿",
+      "body": [
+        "支付$100"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 100
+    },
+    "ocr_keywords": [
+      "购买新的钓鱼竿",
+      "100"
+    ]
+  },
+  {
+    "id": "dd-021",
+    "key": "toys-per-child",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "为小孩买玩具（每个小孩$50）",
+    "source": {
+      "sheetNo": 21,
+      "image": "docs/实体卡片/额外支出/21.jpg"
+    },
+    "raw": {
+      "title": "为小孩买玩具",
+      "body": [
+        "为每个小孩花费$50"
+      ],
+      "fields": [],
+      "notes": [
+        "（如果你有孩子的话）"
+      ]
+    },
+    "data": {
+      "amountPerChild": 50,
+      "payerCondition": "hasChildren"
+    },
+    "ocr_keywords": [
+      "为小孩买玩具",
+      "每个小孩",
+      "50"
+    ]
+  },
+  {
+    "id": "dd-022",
+    "key": "tennis-racket",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "购买新的网球拍",
+    "source": {
+      "sheetNo": 22,
+      "image": "docs/实体卡片/额外支出/22.jpg"
+    },
+    "raw": {
+      "title": "购买新的网球拍",
+      "body": [
+        "支付$200"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 200
+    },
+    "ocr_keywords": [
+      "购买新的网球拍",
+      "200"
+    ]
+  },
+  {
+    "id": "dd-023",
+    "key": "dentist",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "看牙医",
+    "source": {
+      "sheetNo": 23,
+      "image": "docs/实体卡片/额外支出/23.jpg"
+    },
+    "raw": {
+      "title": "看牙医",
+      "body": [
+        "补牙",
+        "支付$100"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 100
+    },
+    "ocr_keywords": [
+      "看牙医",
+      "补牙",
+      "100"
+    ]
+  },
+  {
+    "id": "dd-024",
+    "key": "anniversary",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "结婚纪念日",
+    "source": {
+      "sheetNo": 24,
+      "image": "docs/实体卡片/额外支出/24.jpg"
+    },
+    "raw": {
+      "title": "结婚纪念日",
+      "body": [
+        "支付$200"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 200
+    },
+    "ocr_keywords": [
+      "结婚纪念日",
+      "200"
+    ]
+  },
+  {
+    "id": "dd-025",
+    "key": "restaurant-dinner",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "去饭店吃晚餐",
+    "source": {
+      "sheetNo": 25,
+      "image": "docs/实体卡片/额外支出/25.jpg"
+    },
+    "raw": {
+      "title": "去饭店吃晚餐",
+      "body": [
+        "支付$80"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 80
+    },
+    "ocr_keywords": [
+      "去饭店吃晚餐",
+      "80"
+    ]
+  },
+  {
+    "id": "dd-026",
+    "key": "coffee-machine",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "购买新的咖啡机",
+    "source": {
+      "sheetNo": 26,
+      "image": "docs/实体卡片/额外支出/26.jpg"
+    },
+    "raw": {
+      "title": "购买新的咖啡机",
+      "body": [
+        "支付$150"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 150
+    },
+    "ocr_keywords": [
+      "购买新的咖啡机",
+      "150"
+    ]
+  },
+  {
+    "id": "dd-027",
+    "key": "food-processor",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "购买食品加工机",
+    "source": {
+      "sheetNo": 27,
+      "image": "docs/实体卡片/额外支出/27.jpg"
+    },
+    "raw": {
+      "title": "购买食品加工机",
+      "body": [
+        "支付$150"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 150
+    },
+    "ocr_keywords": [
+      "购买食品加工机",
+      "150"
+    ]
+  },
+  {
+    "id": "dd-028",
+    "key": "air-show",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "参观航空展",
+    "source": {
+      "sheetNo": 28,
+      "image": "docs/实体卡片/额外支出/28.jpg"
+    },
+    "raw": {
+      "title": "参观航空展",
+      "body": [
+        "支付$120"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 120
+    },
+    "ocr_keywords": [
+      "参观航空展",
+      "120"
+    ]
+  },
+  {
+    "id": "dd-029",
+    "key": "fake-jewelry",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "购物（仿真珠宝）",
+    "source": {
+      "sheetNo": 29,
+      "image": "docs/实体卡片/额外支出/29.jpg"
+    },
+    "raw": {
+      "title": "购物",
+      "body": [
+        "购买做工精美的仿真珠宝",
+        "支付$350"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 350
+    },
+    "ocr_keywords": [
+      "购物",
+      "仿真珠宝",
+      "350"
+    ]
+  },
+  {
+    "id": "dd-030",
+    "key": "class-reunion",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "高中同学聚会",
+    "source": {
+      "sheetNo": 30,
+      "image": "docs/实体卡片/额外支出/30.jpg"
+    },
+    "raw": {
+      "title": "高中同学聚会",
+      "body": [
+        "支付$250"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 250
+    },
+    "ocr_keywords": [
+      "高中同学聚会",
+      "250"
+    ]
+  },
+  {
+    "id": "dd-031",
+    "key": "family-vacation",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "全家度假",
+    "source": {
+      "sheetNo": 31,
+      "image": "docs/实体卡片/额外支出/31.jpg"
+    },
+    "raw": {
+      "title": "全家度假",
+      "body": [
+        "支付$2,000"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 2000
+    },
+    "ocr_keywords": [
+      "全家度假",
+      "2,000"
+    ]
+  },
+  {
+    "id": "dd-032",
+    "key": "water-heater",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "电热水器漏水",
+    "source": {
+      "sheetNo": 32,
+      "image": "docs/实体卡片/额外支出/32.jpg"
+    },
+    "raw": {
+      "title": "电热水器漏水",
+      "body": [
+        "换一个新的热水器",
+        "支付$450"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 450
+    },
+    "ocr_keywords": [
+      "电热水器漏水",
+      "450"
+    ]
+  },
+  {
+    "id": "dd-033",
+    "key": "repaint-room",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "重新粉刷居室",
+    "source": {
+      "sheetNo": 33,
+      "image": "docs/实体卡片/额外支出/33.jpg"
+    },
+    "raw": {
+      "title": "重新粉刷居室",
+      "body": [
+        "支付$600"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 600
+    },
+    "ocr_keywords": [
+      "重新粉刷居室",
+      "600"
+    ]
+  },
+  {
+    "id": "dd-034",
+    "key": "bowling-ball",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "购买新的保龄球",
+    "source": {
+      "sheetNo": 34,
+      "image": "docs/实体卡片/额外支出/34.jpg"
+    },
+    "raw": {
+      "title": "购买新的保龄球",
+      "body": [
+        "支付$80"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 80
+    },
+    "ocr_keywords": [
+      "购买新的保龄球",
+      "80"
+    ]
+  },
+  {
+    "id": "dd-035",
+    "key": "son-tuition",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "儿子的大学学费",
+    "source": {
+      "sheetNo": 35,
+      "image": "docs/实体卡片/额外支出/35.jpg"
+    },
+    "raw": {
+      "title": "儿子的大学学费",
+      "body": [
+        "支付$1,500"
+      ],
+      "fields": [],
+      "notes": [
+        "（如果你有孩子的话）"
+      ]
+    },
+    "data": {
+      "amount": 1500,
+      "payerCondition": "hasChildren"
+    },
+    "ocr_keywords": [
+      "儿子的大学学费",
+      "1,500",
+      "有孩子"
+    ]
+  },
+  {
+    "id": "dd-036",
+    "key": "birthday-park",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "生日快乐（带孩子去游乐园）",
+    "source": {
+      "sheetNo": 36,
+      "image": "docs/实体卡片/额外支出/36.jpg"
+    },
+    "raw": {
+      "title": "生日快乐",
+      "body": [
+        "带孩子去游乐园",
+        "支付$100"
+      ],
+      "fields": [],
+      "notes": [
+        "（如果你有孩子的话）"
+      ]
+    },
+    "data": {
+      "amount": 100,
+      "payerCondition": "hasChildren"
+    },
+    "ocr_keywords": [
+      "生日快乐",
+      "游乐园",
+      "100",
+      "有孩子"
+    ]
+  },
+  {
+    "id": "dd-037",
+    "key": "parking-ticket",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "违章停车",
+    "source": {
+      "sheetNo": 37,
+      "image": "docs/实体卡片/额外支出/37.jpg"
+    },
+    "raw": {
+      "title": "违章停车",
+      "body": [
+        "罚款",
+        "支付$100"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 100
+    },
+    "ocr_keywords": [
+      "违章停车",
+      "罚款",
+      "100"
+    ]
+  },
+  {
+    "id": "dd-038",
+    "key": "child-braces",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "给孩子矫正牙齿",
+    "source": {
+      "sheetNo": 38,
+      "image": "docs/实体卡片/额外支出/38.jpg"
+    },
+    "raw": {
+      "title": "给孩子矫正牙齿",
+      "body": [
+        "支付$2,000"
+      ],
+      "fields": [],
+      "notes": [
+        "（如果你有孩子的话）"
+      ]
+    },
+    "data": {
+      "amount": 2000,
+      "payerCondition": "hasChildren"
+    },
+    "ocr_keywords": [
+      "给孩子矫正牙齿",
+      "2,000",
+      "有孩子"
+    ]
+  },
+  {
+    "id": "dd-039",
+    "key": "car-tires",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "更换汽车轮胎",
+    "source": {
+      "sheetNo": 39,
+      "image": "docs/实体卡片/额外支出/39.jpg"
+    },
+    "raw": {
+      "title": "更换汽车轮胎",
+      "body": [
+        "支付$300"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 300
+    },
+    "ocr_keywords": [
+      "更换汽车轮胎",
+      "300"
+    ]
+  },
+  {
+    "id": "dd-040",
+    "key": "coffee-friend",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "给自己和朋友各买一份咖啡",
+    "source": {
+      "sheetNo": 40,
+      "image": "docs/实体卡片/额外支出/40.jpg"
+    },
+    "raw": {
+      "title": "给自己和朋友各买一份咖啡",
+      "body": [
+        "支付$10"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 10
+    },
+    "ocr_keywords": [
+      "给自己和朋友各买一份咖啡",
+      "10"
+    ]
+  },
+  {
+    "id": "dd-041",
+    "key": "local-art",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "购买一位本地艺术家的画作",
+    "source": {
+      "sheetNo": 41,
+      "image": "docs/实体卡片/额外支出/41.jpg"
+    },
+    "raw": {
+      "title": "购买一位本地艺术家的画作",
+      "body": [
+        "支付$200"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 200
+    },
+    "ocr_keywords": [
+      "购买一位本地艺术家的画作",
+      "200"
+    ]
+  },
+  {
+    "id": "dd-042",
+    "key": "new-phone",
+    "deck": "DOODAD",
+    "subtype": "CASH",
+    "title": "购买新款手机",
+    "source": {
+      "sheetNo": 42,
+      "image": "docs/实体卡片/额外支出/42.jpg"
+    },
+    "raw": {
+      "title": "购买新款手机",
+      "body": [
+        "支付$500"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 500
+    },
+    "ocr_keywords": [
+      "购买新款手机",
+      "500"
+    ]
   }
 ]

@@ -1,9 +1,965 @@
 [
   {
-    "id": "prof-doctor",
+    "id": "prof-001",
+    "key": "police",
+    "deck": "PROFESSION",
+    "subtype": "PROFESSION",
+    "title": "警官",
+    "source": {
+      "sheetNo": 1,
+      "image": "docs/实体卡片/职业卡/1.jpg"
+    },
+    "raw": {
+      "title": "警官",
+      "subtitle": "您的职业",
+      "body": [
+        "请将所有数据（不包括0）抄到您的游戏卡上",
+        "目标：使您的非工资收入大于总支出"
+      ],
+      "groups": [
+        {
+          "name": "收入",
+          "rows": [
+            {
+              "label": "工资",
+              "value": "$3,000"
+            },
+            {
+              "label": "利息",
+              "value": "0"
+            },
+            {
+              "label": "股利",
+              "value": "0"
+            },
+            {
+              "label": "房地产",
+              "value": "0"
+            },
+            {
+              "label": "非工资收入",
+              "value": "0"
+            },
+            {
+              "label": "总收入",
+              "value": "$3,000"
+            }
+          ]
+        },
+        {
+          "name": "支出",
+          "rows": [
+            {
+              "label": "税金",
+              "value": "580"
+            },
+            {
+              "label": "住房抵押贷款/房租",
+              "value": "400"
+            },
+            {
+              "label": "教育贷款",
+              "value": "0"
+            },
+            {
+              "label": "购车贷款",
+              "value": "100"
+            },
+            {
+              "label": "信用卡支出",
+              "value": "60"
+            },
+            {
+              "label": "额外支出",
+              "value": "50"
+            },
+            {
+              "label": "其他支出",
+              "value": "690"
+            },
+            {
+              "label": "孩子支出",
+              "value": "0"
+            },
+            {
+              "label": "每个孩子支出",
+              "value": "$160"
+            },
+            {
+              "label": "总支出",
+              "value": "$1,880"
+            },
+            {
+              "label": "月现金流",
+              "value": "$1,120"
+            }
+          ]
+        },
+        {
+          "name": "资产",
+          "rows": [
+            {
+              "label": "储蓄",
+              "value": "$520"
+            }
+          ]
+        },
+        {
+          "name": "负债",
+          "rows": [
+            {
+              "label": "住房抵押贷款",
+              "value": "40,000"
+            },
+            {
+              "label": "教育贷款",
+              "value": "0"
+            },
+            {
+              "label": "购车贷款",
+              "value": "5,000"
+            },
+            {
+              "label": "信用卡",
+              "value": "2,000"
+            },
+            {
+              "label": "额外负债",
+              "value": "1,000"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "（非工资收入＝利息＋股利＋房地产/企业）",
+        "（注意：每个玩家开始游戏时孩子个数为0）"
+      ]
+    },
+    "data": {
+      "salary": 3000,
+      "taxes": 580,
+      "mortgagePayment": 400,
+      "schoolLoanPayment": 0,
+      "carLoanPayment": 100,
+      "creditCardPayment": 60,
+      "extraExpenses": 50,
+      "otherExpenses": 690,
+      "perChildExpense": 160,
+      "totalExpenses": 1880,
+      "monthlyCashflow": 1120,
+      "savings": 520,
+      "liabilities": {
+        "mortgage": 40000,
+        "schoolLoan": 0,
+        "carLoan": 5000,
+        "creditCard": 2000,
+        "extra": 1000
+      }
+    },
+    "ocr_keywords": [
+      "警官",
+      "3,000",
+      "1,880",
+      "1,120",
+      "520"
+    ]
+  },
+  {
+    "id": "prof-002",
+    "key": "nurse",
+    "deck": "PROFESSION",
+    "subtype": "PROFESSION",
+    "title": "护士",
+    "source": {
+      "sheetNo": 2,
+      "image": "docs/实体卡片/职业卡/2.jpg"
+    },
+    "raw": {
+      "title": "护士",
+      "subtitle": "您的职业",
+      "body": [
+        "请将所有数据（不包括0）抄到您的游戏卡上",
+        "目标：使您的非工资收入大于总支出"
+      ],
+      "groups": [
+        {
+          "name": "收入",
+          "rows": [
+            {
+              "label": "工资",
+              "value": "$3,100"
+            },
+            {
+              "label": "利息",
+              "value": "0"
+            },
+            {
+              "label": "股利",
+              "value": "0"
+            },
+            {
+              "label": "房地产",
+              "value": "0"
+            },
+            {
+              "label": "非工资收入",
+              "value": "0"
+            },
+            {
+              "label": "总收入",
+              "value": "$3,100"
+            }
+          ]
+        },
+        {
+          "name": "支出",
+          "rows": [
+            {
+              "label": "税金",
+              "value": "600"
+            },
+            {
+              "label": "住房抵押贷款/房租",
+              "value": "400"
+            },
+            {
+              "label": "教育贷款",
+              "value": "30"
+            },
+            {
+              "label": "购车贷款",
+              "value": "100"
+            },
+            {
+              "label": "信用卡支出",
+              "value": "90"
+            },
+            {
+              "label": "额外支出",
+              "value": "50"
+            },
+            {
+              "label": "其他支出",
+              "value": "710"
+            },
+            {
+              "label": "孩子支出",
+              "value": "0"
+            },
+            {
+              "label": "每个孩子支出",
+              "value": "$170"
+            },
+            {
+              "label": "总支出",
+              "value": "$1,980"
+            },
+            {
+              "label": "月现金流",
+              "value": "$1,120"
+            }
+          ]
+        },
+        {
+          "name": "资产",
+          "rows": [
+            {
+              "label": "储蓄",
+              "value": "$480"
+            }
+          ]
+        },
+        {
+          "name": "负债",
+          "rows": [
+            {
+              "label": "住房抵押贷款",
+              "value": "40,000"
+            },
+            {
+              "label": "教育贷款",
+              "value": "6,000"
+            },
+            {
+              "label": "购车贷款",
+              "value": "5,000"
+            },
+            {
+              "label": "信用卡",
+              "value": "3,000"
+            },
+            {
+              "label": "额外负债",
+              "value": "1,000"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "（非工资收入＝利息＋股利＋房地产/企业）",
+        "（注意：每个玩家开始游戏时孩子个数为0）"
+      ]
+    },
+    "data": {
+      "salary": 3100,
+      "taxes": 600,
+      "mortgagePayment": 400,
+      "schoolLoanPayment": 30,
+      "carLoanPayment": 100,
+      "creditCardPayment": 90,
+      "extraExpenses": 50,
+      "otherExpenses": 710,
+      "perChildExpense": 170,
+      "totalExpenses": 1980,
+      "monthlyCashflow": 1120,
+      "savings": 480,
+      "liabilities": {
+        "mortgage": 40000,
+        "schoolLoan": 6000,
+        "carLoan": 5000,
+        "creditCard": 3000,
+        "extra": 1000
+      }
+    },
+    "ocr_keywords": [
+      "护士",
+      "3,100",
+      "1,980",
+      "1,120",
+      "480"
+    ]
+  },
+  {
+    "id": "prof-003",
+    "key": "lawyer",
+    "deck": "PROFESSION",
+    "subtype": "PROFESSION",
+    "title": "律师",
+    "source": {
+      "sheetNo": 3,
+      "image": "docs/实体卡片/职业卡/3.jpg"
+    },
+    "raw": {
+      "title": "律师",
+      "subtitle": "您的职业",
+      "body": [
+        "请将所有数据（不包括0）抄到您的游戏卡上",
+        "目标：使您的非工资收入大于总支出"
+      ],
+      "groups": [
+        {
+          "name": "收入",
+          "rows": [
+            {
+              "label": "工资",
+              "value": "$7,500"
+            },
+            {
+              "label": "利息",
+              "value": "0"
+            },
+            {
+              "label": "股利",
+              "value": "0"
+            },
+            {
+              "label": "房地产",
+              "value": "0"
+            },
+            {
+              "label": "非工资收入",
+              "value": "0"
+            },
+            {
+              "label": "总收入",
+              "value": "$7,500"
+            }
+          ]
+        },
+        {
+          "name": "支出",
+          "rows": [
+            {
+              "label": "税金",
+              "value": "1,830"
+            },
+            {
+              "label": "住房抵押贷款/房租",
+              "value": "1,100"
+            },
+            {
+              "label": "教育贷款",
+              "value": "390"
+            },
+            {
+              "label": "购车贷款",
+              "value": "220"
+            },
+            {
+              "label": "信用卡支出",
+              "value": "180"
+            },
+            {
+              "label": "额外支出",
+              "value": "50"
+            },
+            {
+              "label": "其他支出",
+              "value": "1,650"
+            },
+            {
+              "label": "孩子支出",
+              "value": "0"
+            },
+            {
+              "label": "每个孩子支出",
+              "value": "$380"
+            },
+            {
+              "label": "总支出",
+              "value": "$5,420"
+            },
+            {
+              "label": "月现金流",
+              "value": "$2,080"
+            }
+          ]
+        },
+        {
+          "name": "资产",
+          "rows": [
+            {
+              "label": "储蓄",
+              "value": "$400"
+            }
+          ]
+        },
+        {
+          "name": "负债",
+          "rows": [
+            {
+              "label": "住房抵押贷款",
+              "value": "110,000"
+            },
+            {
+              "label": "教育贷款",
+              "value": "78,000"
+            },
+            {
+              "label": "购车贷款",
+              "value": "11,000"
+            },
+            {
+              "label": "信用卡",
+              "value": "6,000"
+            },
+            {
+              "label": "额外负债",
+              "value": "1,000"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "（非工资收入＝利息＋股利＋房地产/企业）",
+        "（注意：每个玩家开始游戏时孩子个数为0）"
+      ]
+    },
+    "data": {
+      "salary": 7500,
+      "taxes": 1830,
+      "mortgagePayment": 1100,
+      "schoolLoanPayment": 390,
+      "carLoanPayment": 220,
+      "creditCardPayment": 180,
+      "extraExpenses": 50,
+      "otherExpenses": 1650,
+      "perChildExpense": 380,
+      "totalExpenses": 5420,
+      "monthlyCashflow": 2080,
+      "savings": 400,
+      "liabilities": {
+        "mortgage": 110000,
+        "schoolLoan": 78000,
+        "carLoan": 11000,
+        "creditCard": 6000,
+        "extra": 1000
+      }
+    },
+    "ocr_keywords": [
+      "律师",
+      "7,500",
+      "5,420",
+      "2,080",
+      "78,000"
+    ]
+  },
+  {
+    "id": "prof-004",
+    "key": "truck-driver",
+    "deck": "PROFESSION",
+    "subtype": "PROFESSION",
+    "title": "卡车司机",
+    "source": {
+      "sheetNo": 4,
+      "image": "docs/实体卡片/职业卡/4.jpg"
+    },
+    "raw": {
+      "title": "卡车司机",
+      "subtitle": "您的职业",
+      "body": [
+        "请将所有数据（不包括0）抄到您的游戏卡上",
+        "目标：使您的非工资收入大于总支出"
+      ],
+      "groups": [
+        {
+          "name": "收入",
+          "rows": [
+            {
+              "label": "工资",
+              "value": "$2,500"
+            },
+            {
+              "label": "利息",
+              "value": "0"
+            },
+            {
+              "label": "股利",
+              "value": "0"
+            },
+            {
+              "label": "房地产",
+              "value": "0"
+            },
+            {
+              "label": "非工资收入",
+              "value": "0"
+            },
+            {
+              "label": "总收入",
+              "value": "$2,500"
+            }
+          ]
+        },
+        {
+          "name": "支出",
+          "rows": [
+            {
+              "label": "税金",
+              "value": "460"
+            },
+            {
+              "label": "住房抵押贷款/房租",
+              "value": "400"
+            },
+            {
+              "label": "教育贷款",
+              "value": "0"
+            },
+            {
+              "label": "购车贷款",
+              "value": "80"
+            },
+            {
+              "label": "信用卡支出",
+              "value": "60"
+            },
+            {
+              "label": "额外支出",
+              "value": "50"
+            },
+            {
+              "label": "其他支出",
+              "value": "570"
+            },
+            {
+              "label": "孩子支出",
+              "value": "0"
+            },
+            {
+              "label": "每个孩子支出",
+              "value": "$140"
+            },
+            {
+              "label": "总支出",
+              "value": "$1,620"
+            },
+            {
+              "label": "月现金流",
+              "value": "$880"
+            }
+          ]
+        },
+        {
+          "name": "资产",
+          "rows": [
+            {
+              "label": "储蓄",
+              "value": "$750"
+            }
+          ]
+        },
+        {
+          "name": "负债",
+          "rows": [
+            {
+              "label": "住房抵押贷款",
+              "value": "40,000"
+            },
+            {
+              "label": "教育贷款",
+              "value": "0"
+            },
+            {
+              "label": "购车贷款",
+              "value": "4,000"
+            },
+            {
+              "label": "信用卡",
+              "value": "2,000"
+            },
+            {
+              "label": "额外负债",
+              "value": "1,000"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "（非工资收入＝利息＋股利＋房地产/企业）",
+        "（注意：每个玩家开始游戏时孩子个数为0）"
+      ]
+    },
+    "data": {
+      "salary": 2500,
+      "taxes": 460,
+      "mortgagePayment": 400,
+      "schoolLoanPayment": 0,
+      "carLoanPayment": 80,
+      "creditCardPayment": 60,
+      "extraExpenses": 50,
+      "otherExpenses": 570,
+      "perChildExpense": 140,
+      "totalExpenses": 1620,
+      "monthlyCashflow": 880,
+      "savings": 750,
+      "liabilities": {
+        "mortgage": 40000,
+        "schoolLoan": 0,
+        "carLoan": 4000,
+        "creditCard": 2000,
+        "extra": 1000
+      }
+    },
+    "ocr_keywords": [
+      "卡车司机",
+      "2,500",
+      "1,620",
+      "880",
+      "750"
+    ]
+  },
+  {
+    "id": "prof-005",
+    "key": "janitor",
+    "deck": "PROFESSION",
+    "subtype": "PROFESSION",
+    "title": "门卫",
+    "source": {
+      "sheetNo": 5,
+      "image": "docs/实体卡片/职业卡/5.jpg"
+    },
+    "raw": {
+      "title": "门卫",
+      "subtitle": "您的职业",
+      "body": [
+        "请将所有数据（不包括0）抄到您的游戏卡上",
+        "目标：使您的非工资收入大于总支出"
+      ],
+      "groups": [
+        {
+          "name": "收入",
+          "rows": [
+            {
+              "label": "工资",
+              "value": "$1,600"
+            },
+            {
+              "label": "利息",
+              "value": "0"
+            },
+            {
+              "label": "股利",
+              "value": "0"
+            },
+            {
+              "label": "房地产",
+              "value": "0"
+            },
+            {
+              "label": "非工资收入",
+              "value": "0"
+            },
+            {
+              "label": "总收入",
+              "value": "$1,600"
+            }
+          ]
+        },
+        {
+          "name": "支出",
+          "rows": [
+            {
+              "label": "税金",
+              "value": "280"
+            },
+            {
+              "label": "住房抵押贷款/房租",
+              "value": "200"
+            },
+            {
+              "label": "教育贷款",
+              "value": "0"
+            },
+            {
+              "label": "购车贷款",
+              "value": "80"
+            },
+            {
+              "label": "信用卡支出",
+              "value": "60"
+            },
+            {
+              "label": "额外支出",
+              "value": "50"
+            },
+            {
+              "label": "其他支出",
+              "value": "300"
+            },
+            {
+              "label": "孩子支出",
+              "value": "0"
+            },
+            {
+              "label": "每个孩子支出",
+              "value": "$70"
+            },
+            {
+              "label": "总支出",
+              "value": "$970"
+            },
+            {
+              "label": "月现金流",
+              "value": "$630"
+            }
+          ]
+        },
+        {
+          "name": "资产",
+          "rows": [
+            {
+              "label": "储蓄",
+              "value": "$560"
+            }
+          ]
+        },
+        {
+          "name": "负债",
+          "rows": [
+            {
+              "label": "住房抵押贷款",
+              "value": "20,000"
+            },
+            {
+              "label": "教育贷款",
+              "value": "0"
+            },
+            {
+              "label": "购车贷款",
+              "value": "4,000"
+            },
+            {
+              "label": "信用卡",
+              "value": "2,000"
+            },
+            {
+              "label": "额外负债",
+              "value": "1,000"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "（非工资收入＝利息＋股利＋房地产/企业）",
+        "（注意：每个玩家开始游戏时孩子个数为0）"
+      ]
+    },
+    "data": {
+      "salary": 1600,
+      "taxes": 280,
+      "mortgagePayment": 200,
+      "schoolLoanPayment": 0,
+      "carLoanPayment": 80,
+      "creditCardPayment": 60,
+      "extraExpenses": 50,
+      "otherExpenses": 300,
+      "perChildExpense": 70,
+      "totalExpenses": 970,
+      "monthlyCashflow": 630,
+      "savings": 560,
+      "liabilities": {
+        "mortgage": 20000,
+        "schoolLoan": 0,
+        "carLoan": 4000,
+        "creditCard": 2000,
+        "extra": 1000
+      }
+    },
+    "ocr_keywords": [
+      "门卫",
+      "1,600",
+      "970",
+      "630",
+      "560"
+    ]
+  },
+  {
+    "id": "prof-006",
+    "key": "doctor",
     "deck": "PROFESSION",
     "subtype": "PROFESSION",
     "title": "医生",
+    "source": {
+      "sheetNo": 6,
+      "image": "docs/实体卡片/职业卡/6.jpg"
+    },
+    "raw": {
+      "title": "医生",
+      "subtitle": "您的职业",
+      "body": [
+        "请将所有数据（不包括0）抄到您的游戏卡上",
+        "目标：使您的非工资收入大于总支出"
+      ],
+      "groups": [
+        {
+          "name": "收入",
+          "rows": [
+            {
+              "label": "工资",
+              "value": "$13,200"
+            },
+            {
+              "label": "利息",
+              "value": "0"
+            },
+            {
+              "label": "股利",
+              "value": "0"
+            },
+            {
+              "label": "房地产",
+              "value": "0"
+            },
+            {
+              "label": "非工资收入",
+              "value": "0"
+            },
+            {
+              "label": "总收入",
+              "value": "$13,200"
+            }
+          ]
+        },
+        {
+          "name": "支出",
+          "rows": [
+            {
+              "label": "税金",
+              "value": "3,420"
+            },
+            {
+              "label": "住房抵押贷款/房租",
+              "value": "1,900"
+            },
+            {
+              "label": "教育贷款",
+              "value": "750"
+            },
+            {
+              "label": "购车贷款",
+              "value": "380"
+            },
+            {
+              "label": "信用卡支出",
+              "value": "270"
+            },
+            {
+              "label": "额外支出",
+              "value": "50"
+            },
+            {
+              "label": "其他支出",
+              "value": "2,880"
+            },
+            {
+              "label": "孩子支出",
+              "value": "0"
+            },
+            {
+              "label": "每个孩子支出",
+              "value": "$640"
+            },
+            {
+              "label": "总支出",
+              "value": "$9,650"
+            },
+            {
+              "label": "月现金流",
+              "value": "$3,550"
+            }
+          ]
+        },
+        {
+          "name": "资产",
+          "rows": [
+            {
+              "label": "储蓄",
+              "value": "$400"
+            }
+          ]
+        },
+        {
+          "name": "负债",
+          "rows": [
+            {
+              "label": "住房抵押贷款",
+              "value": "190,000"
+            },
+            {
+              "label": "教育贷款",
+              "value": "150,000"
+            },
+            {
+              "label": "购车贷款",
+              "value": "19,000"
+            },
+            {
+              "label": "信用卡",
+              "value": "9,000"
+            },
+            {
+              "label": "额外负债",
+              "value": "1,000"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "（非工资收入＝利息＋股利＋房地产/企业）",
+        "（注意：每个玩家开始游戏时孩子个数为0）"
+      ]
+    },
     "data": {
       "salary": 13200,
       "taxes": 3420,
@@ -14,6 +970,8 @@
       "extraExpenses": 50,
       "otherExpenses": 2880,
       "perChildExpense": 640,
+      "totalExpenses": 9650,
+      "monthlyCashflow": 3550,
       "savings": 400,
       "liabilities": {
         "mortgage": 190000,
@@ -23,13 +981,645 @@
         "extra": 1000
       }
     },
-    "ocr_keywords": ["医生", "13200", "13,200"]
+    "ocr_keywords": [
+      "医生",
+      "13,200",
+      "9,650",
+      "3,550",
+      "150,000"
+    ]
   },
   {
-    "id": "prof-manager",
+    "id": "prof-007",
+    "key": "mechanic",
+    "deck": "PROFESSION",
+    "subtype": "PROFESSION",
+    "title": "机械师",
+    "source": {
+      "sheetNo": 7,
+      "image": "docs/实体卡片/职业卡/7.jpg"
+    },
+    "raw": {
+      "title": "机械师",
+      "subtitle": "您的职业",
+      "body": [
+        "请将所有数据（不包括0）抄到您的游戏卡上",
+        "目标：使您的非工资收入大于总支出"
+      ],
+      "groups": [
+        {
+          "name": "收入",
+          "rows": [
+            {
+              "label": "工资",
+              "value": "$2,000"
+            },
+            {
+              "label": "利息",
+              "value": "0"
+            },
+            {
+              "label": "股利",
+              "value": "0"
+            },
+            {
+              "label": "房地产",
+              "value": "0"
+            },
+            {
+              "label": "非工资收入",
+              "value": "0"
+            },
+            {
+              "label": "总收入",
+              "value": "$2,000"
+            }
+          ]
+        },
+        {
+          "name": "支出",
+          "rows": [
+            {
+              "label": "税金",
+              "value": "360"
+            },
+            {
+              "label": "住房抵押贷款/房租",
+              "value": "300"
+            },
+            {
+              "label": "教育贷款",
+              "value": "0"
+            },
+            {
+              "label": "购车贷款",
+              "value": "60"
+            },
+            {
+              "label": "信用卡支出",
+              "value": "60"
+            },
+            {
+              "label": "额外支出",
+              "value": "50"
+            },
+            {
+              "label": "其他支出",
+              "value": "450"
+            },
+            {
+              "label": "孩子支出",
+              "value": "0"
+            },
+            {
+              "label": "每个孩子支出",
+              "value": "$110"
+            },
+            {
+              "label": "总支出",
+              "value": "$1,280"
+            },
+            {
+              "label": "月现金流",
+              "value": "$720"
+            }
+          ]
+        },
+        {
+          "name": "资产",
+          "rows": [
+            {
+              "label": "储蓄",
+              "value": "$400"
+            }
+          ]
+        },
+        {
+          "name": "负债",
+          "rows": [
+            {
+              "label": "住房抵押贷款",
+              "value": "30,000"
+            },
+            {
+              "label": "教育贷款",
+              "value": "0"
+            },
+            {
+              "label": "购车贷款",
+              "value": "3,000"
+            },
+            {
+              "label": "信用卡",
+              "value": "2,000"
+            },
+            {
+              "label": "额外负债",
+              "value": "1,000"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "（非工资收入＝利息＋股利＋房地产/企业）",
+        "（注意：每个玩家开始游戏时孩子个数为0）"
+      ]
+    },
+    "data": {
+      "salary": 2000,
+      "taxes": 360,
+      "mortgagePayment": 300,
+      "schoolLoanPayment": 0,
+      "carLoanPayment": 60,
+      "creditCardPayment": 60,
+      "extraExpenses": 50,
+      "otherExpenses": 450,
+      "perChildExpense": 110,
+      "totalExpenses": 1280,
+      "monthlyCashflow": 720,
+      "savings": 400,
+      "liabilities": {
+        "mortgage": 30000,
+        "schoolLoan": 0,
+        "carLoan": 3000,
+        "creditCard": 2000,
+        "extra": 1000
+      }
+    },
+    "ocr_keywords": [
+      "机械师",
+      "2,000",
+      "1,280",
+      "720",
+      "30,000"
+    ]
+  },
+  {
+    "id": "prof-008",
+    "key": "pilot",
+    "deck": "PROFESSION",
+    "subtype": "PROFESSION",
+    "title": "飞机驾驶员",
+    "source": {
+      "sheetNo": 8,
+      "image": "docs/实体卡片/职业卡/8.jpg"
+    },
+    "raw": {
+      "title": "飞机驾驶员",
+      "subtitle": "您的职业",
+      "body": [
+        "请将所有数据（不包括0）抄到您的游戏卡上",
+        "目标：使您的非工资收入大于总支出"
+      ],
+      "groups": [
+        {
+          "name": "收入",
+          "rows": [
+            {
+              "label": "工资",
+              "value": "$9,500"
+            },
+            {
+              "label": "利息",
+              "value": "0"
+            },
+            {
+              "label": "股利",
+              "value": "0"
+            },
+            {
+              "label": "房地产",
+              "value": "0"
+            },
+            {
+              "label": "非工资收入",
+              "value": "0"
+            },
+            {
+              "label": "总收入",
+              "value": "$9,500"
+            }
+          ]
+        },
+        {
+          "name": "支出",
+          "rows": [
+            {
+              "label": "税金",
+              "value": "2,350"
+            },
+            {
+              "label": "住房抵押贷款/房租",
+              "value": "1,330"
+            },
+            {
+              "label": "教育贷款",
+              "value": "0"
+            },
+            {
+              "label": "购车贷款",
+              "value": "300"
+            },
+            {
+              "label": "信用卡支出",
+              "value": "660"
+            },
+            {
+              "label": "额外支出",
+              "value": "50"
+            },
+            {
+              "label": "其他支出",
+              "value": "2,210"
+            },
+            {
+              "label": "孩子支出",
+              "value": "0"
+            },
+            {
+              "label": "每个孩子支出",
+              "value": "$480"
+            },
+            {
+              "label": "总支出",
+              "value": "$6,900"
+            },
+            {
+              "label": "月现金流",
+              "value": "$2,600"
+            }
+          ]
+        },
+        {
+          "name": "资产",
+          "rows": [
+            {
+              "label": "储蓄",
+              "value": "$400"
+            }
+          ]
+        },
+        {
+          "name": "负债",
+          "rows": [
+            {
+              "label": "住房抵押贷款",
+              "value": "13,300"
+            },
+            {
+              "label": "教育贷款",
+              "value": "0"
+            },
+            {
+              "label": "购车贷款",
+              "value": "15,000"
+            },
+            {
+              "label": "信用卡",
+              "value": "22,000"
+            },
+            {
+              "label": "额外负债",
+              "value": "1,000"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "（非工资收入＝利息＋股利＋房地产/企业）",
+        "（注意：每个玩家开始游戏时孩子个数为0）"
+      ]
+    },
+    "data": {
+      "salary": 9500,
+      "taxes": 2350,
+      "mortgagePayment": 1330,
+      "schoolLoanPayment": 0,
+      "carLoanPayment": 300,
+      "creditCardPayment": 660,
+      "extraExpenses": 50,
+      "otherExpenses": 2210,
+      "perChildExpense": 480,
+      "totalExpenses": 6900,
+      "monthlyCashflow": 2600,
+      "savings": 400,
+      "liabilities": {
+        "mortgage": 13300,
+        "schoolLoan": 0,
+        "carLoan": 15000,
+        "creditCard": 22000,
+        "extra": 1000
+      }
+    },
+    "ocr_keywords": [
+      "飞机驾驶员",
+      "9,500",
+      "6,900",
+      "2,600",
+      "22,000"
+    ]
+  },
+  {
+    "id": "prof-009",
+    "key": "secretary",
+    "deck": "PROFESSION",
+    "subtype": "PROFESSION",
+    "title": "秘书",
+    "source": {
+      "sheetNo": 9,
+      "image": "docs/实体卡片/职业卡/9.jpg"
+    },
+    "raw": {
+      "title": "秘书",
+      "subtitle": "您的职业",
+      "body": [
+        "请将所有数据（不包括0）抄到您的游戏卡上",
+        "目标：使您的非工资收入大于总支出"
+      ],
+      "groups": [
+        {
+          "name": "收入",
+          "rows": [
+            {
+              "label": "工资",
+              "value": "$2,500"
+            },
+            {
+              "label": "利息",
+              "value": "0"
+            },
+            {
+              "label": "股利",
+              "value": "0"
+            },
+            {
+              "label": "房地产",
+              "value": "0"
+            },
+            {
+              "label": "非工资收入",
+              "value": "0"
+            },
+            {
+              "label": "总收入",
+              "value": "$2,500"
+            }
+          ]
+        },
+        {
+          "name": "支出",
+          "rows": [
+            {
+              "label": "税金",
+              "value": "460"
+            },
+            {
+              "label": "住房抵押贷款/房租",
+              "value": "400"
+            },
+            {
+              "label": "教育贷款",
+              "value": "0"
+            },
+            {
+              "label": "购车贷款",
+              "value": "80"
+            },
+            {
+              "label": "信用卡支出",
+              "value": "60"
+            },
+            {
+              "label": "额外支出",
+              "value": "50"
+            },
+            {
+              "label": "其他支出",
+              "value": "570"
+            },
+            {
+              "label": "孩子支出",
+              "value": "0"
+            },
+            {
+              "label": "每个孩子支出",
+              "value": "$140"
+            },
+            {
+              "label": "总支出",
+              "value": "$1,620"
+            },
+            {
+              "label": "月现金流",
+              "value": "$880"
+            }
+          ]
+        },
+        {
+          "name": "资产",
+          "rows": [
+            {
+              "label": "储蓄",
+              "value": "$710"
+            }
+          ]
+        },
+        {
+          "name": "负债",
+          "rows": [
+            {
+              "label": "住房抵押贷款",
+              "value": "40,000"
+            },
+            {
+              "label": "教育贷款",
+              "value": "0"
+            },
+            {
+              "label": "购车贷款",
+              "value": "4,000"
+            },
+            {
+              "label": "信用卡",
+              "value": "2,000"
+            },
+            {
+              "label": "额外负债",
+              "value": "1,000"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "（非工资收入＝利息＋股利＋房地产/企业）",
+        "（注意：每个玩家开始游戏时孩子个数为0）"
+      ]
+    },
+    "data": {
+      "salary": 2500,
+      "taxes": 460,
+      "mortgagePayment": 400,
+      "schoolLoanPayment": 0,
+      "carLoanPayment": 80,
+      "creditCardPayment": 60,
+      "extraExpenses": 50,
+      "otherExpenses": 570,
+      "perChildExpense": 140,
+      "totalExpenses": 1620,
+      "monthlyCashflow": 880,
+      "savings": 710,
+      "liabilities": {
+        "mortgage": 40000,
+        "schoolLoan": 0,
+        "carLoan": 4000,
+        "creditCard": 2000,
+        "extra": 1000
+      }
+    },
+    "ocr_keywords": [
+      "秘书",
+      "2,500",
+      "1,620",
+      "880",
+      "710"
+    ]
+  },
+  {
+    "id": "prof-010",
+    "key": "manager",
     "deck": "PROFESSION",
     "subtype": "PROFESSION",
     "title": "经理",
+    "source": {
+      "sheetNo": 10,
+      "image": "docs/实体卡片/职业卡/10.jpg"
+    },
+    "raw": {
+      "title": "经理",
+      "subtitle": "您的职业",
+      "body": [
+        "请将所有数据（不包括0）抄到您的游戏卡上",
+        "目标：使您的非工资收入大于总支出"
+      ],
+      "groups": [
+        {
+          "name": "收入",
+          "rows": [
+            {
+              "label": "工资",
+              "value": "$4,600"
+            },
+            {
+              "label": "利息",
+              "value": "0"
+            },
+            {
+              "label": "股利",
+              "value": "0"
+            },
+            {
+              "label": "房地产",
+              "value": "0"
+            },
+            {
+              "label": "非工资收入",
+              "value": "0"
+            },
+            {
+              "label": "总收入",
+              "value": "$4,600"
+            }
+          ]
+        },
+        {
+          "name": "支出",
+          "rows": [
+            {
+              "label": "税金",
+              "value": "910"
+            },
+            {
+              "label": "住房抵押贷款/房租",
+              "value": "700"
+            },
+            {
+              "label": "教育贷款",
+              "value": "60"
+            },
+            {
+              "label": "购车贷款",
+              "value": "120"
+            },
+            {
+              "label": "信用卡支出",
+              "value": "90"
+            },
+            {
+              "label": "额外支出",
+              "value": "50"
+            },
+            {
+              "label": "其他支出",
+              "value": "1,000"
+            },
+            {
+              "label": "孩子支出",
+              "value": "0"
+            },
+            {
+              "label": "每个孩子支出",
+              "value": "$240"
+            },
+            {
+              "label": "总支出",
+              "value": "$2,930"
+            },
+            {
+              "label": "月现金流",
+              "value": "$1,670"
+            }
+          ]
+        },
+        {
+          "name": "资产",
+          "rows": [
+            {
+              "label": "储蓄",
+              "value": "$400"
+            }
+          ]
+        },
+        {
+          "name": "负债",
+          "rows": [
+            {
+              "label": "住房抵押贷款",
+              "value": "75,000"
+            },
+            {
+              "label": "教育贷款",
+              "value": "12,000"
+            },
+            {
+              "label": "购车贷款",
+              "value": "7,000"
+            },
+            {
+              "label": "信用卡",
+              "value": "4,000"
+            },
+            {
+              "label": "额外负债",
+              "value": "1,000"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "（非工资收入＝利息＋股利＋房地产/企业）",
+        "（注意：每个玩家开始游戏时孩子个数为0）"
+      ]
+    },
     "data": {
       "salary": 4600,
       "taxes": 910,
@@ -40,6 +1630,8 @@
       "extraExpenses": 50,
       "otherExpenses": 1000,
       "perChildExpense": 240,
+      "totalExpenses": 2930,
+      "monthlyCashflow": 1670,
       "savings": 400,
       "liabilities": {
         "mortgage": 75000,
@@ -49,6 +1641,342 @@
         "extra": 1000
       }
     },
-    "ocr_keywords": ["经理", "4600", "4,600"]
+    "ocr_keywords": [
+      "经理",
+      "4,600",
+      "2,930",
+      "1,670",
+      "75,000"
+    ]
+  },
+  {
+    "id": "prof-011",
+    "key": "engineer",
+    "deck": "PROFESSION",
+    "subtype": "PROFESSION",
+    "title": "工程师",
+    "source": {
+      "sheetNo": 11,
+      "image": "docs/实体卡片/职业卡/11.jpg"
+    },
+    "raw": {
+      "title": "工程师",
+      "subtitle": "您的职业",
+      "body": [
+        "请将所有数据（不包括0）抄到您的游戏卡上",
+        "目标：使您的非工资收入大于总支出"
+      ],
+      "groups": [
+        {
+          "name": "收入",
+          "rows": [
+            {
+              "label": "工资",
+              "value": "$4,900"
+            },
+            {
+              "label": "利息",
+              "value": "0"
+            },
+            {
+              "label": "股利",
+              "value": "0"
+            },
+            {
+              "label": "房地产",
+              "value": "0"
+            },
+            {
+              "label": "非工资收入",
+              "value": "0"
+            },
+            {
+              "label": "总收入",
+              "value": "$4,900"
+            }
+          ]
+        },
+        {
+          "name": "支出",
+          "rows": [
+            {
+              "label": "税金",
+              "value": "1,050"
+            },
+            {
+              "label": "住房抵押贷款/房租",
+              "value": "750"
+            },
+            {
+              "label": "教育贷款",
+              "value": "60"
+            },
+            {
+              "label": "购车贷款",
+              "value": "140"
+            },
+            {
+              "label": "信用卡支出",
+              "value": "120"
+            },
+            {
+              "label": "额外支出",
+              "value": "50"
+            },
+            {
+              "label": "其他支出",
+              "value": "1,090"
+            },
+            {
+              "label": "孩子支出",
+              "value": "0"
+            },
+            {
+              "label": "每个孩子支出",
+              "value": "$250"
+            },
+            {
+              "label": "总支出",
+              "value": "$3,260"
+            },
+            {
+              "label": "月现金流",
+              "value": "$1,640"
+            }
+          ]
+        },
+        {
+          "name": "资产",
+          "rows": [
+            {
+              "label": "储蓄",
+              "value": "$400"
+            }
+          ]
+        },
+        {
+          "name": "负债",
+          "rows": [
+            {
+              "label": "住房抵押贷款",
+              "value": "75,000"
+            },
+            {
+              "label": "教育贷款",
+              "value": "12,000"
+            },
+            {
+              "label": "购车贷款",
+              "value": "7,000"
+            },
+            {
+              "label": "信用卡",
+              "value": "4,000"
+            },
+            {
+              "label": "额外负债",
+              "value": "1,000"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "（非工资收入＝利息＋股利＋房地产/企业）",
+        "（注意：每个玩家开始游戏时孩子个数为0）"
+      ]
+    },
+    "data": {
+      "salary": 4900,
+      "taxes": 1050,
+      "mortgagePayment": 750,
+      "schoolLoanPayment": 60,
+      "carLoanPayment": 140,
+      "creditCardPayment": 120,
+      "extraExpenses": 50,
+      "otherExpenses": 1090,
+      "perChildExpense": 250,
+      "totalExpenses": 3260,
+      "monthlyCashflow": 1640,
+      "savings": 400,
+      "liabilities": {
+        "mortgage": 75000,
+        "schoolLoan": 12000,
+        "carLoan": 7000,
+        "creditCard": 4000,
+        "extra": 1000
+      }
+    },
+    "ocr_keywords": [
+      "工程师",
+      "4,900",
+      "3,260",
+      "1,640",
+      "1,090"
+    ]
+  },
+  {
+    "id": "prof-012",
+    "key": "teacher",
+    "deck": "PROFESSION",
+    "subtype": "PROFESSION",
+    "title": "小学教师",
+    "source": {
+      "sheetNo": 12,
+      "image": "docs/实体卡片/职业卡/12.jpg"
+    },
+    "raw": {
+      "title": "小学教师",
+      "subtitle": "您的职业",
+      "body": [
+        "请将所有数据（不包括0）抄到您的游戏卡上",
+        "目标：使您的非工资收入大于总支出"
+      ],
+      "groups": [
+        {
+          "name": "收入",
+          "rows": [
+            {
+              "label": "工资",
+              "value": "$3,300"
+            },
+            {
+              "label": "利息",
+              "value": "0"
+            },
+            {
+              "label": "股利",
+              "value": "0"
+            },
+            {
+              "label": "房地产",
+              "value": "0"
+            },
+            {
+              "label": "非工资收入",
+              "value": "0"
+            },
+            {
+              "label": "总收入",
+              "value": "$3,300"
+            }
+          ]
+        },
+        {
+          "name": "支出",
+          "rows": [
+            {
+              "label": "税金",
+              "value": "630"
+            },
+            {
+              "label": "住房抵押贷款/房租",
+              "value": "500"
+            },
+            {
+              "label": "教育贷款",
+              "value": "60"
+            },
+            {
+              "label": "购车贷款",
+              "value": "100"
+            },
+            {
+              "label": "信用卡支出",
+              "value": "90"
+            },
+            {
+              "label": "额外支出",
+              "value": "50"
+            },
+            {
+              "label": "其他支出",
+              "value": "760"
+            },
+            {
+              "label": "孩子支出",
+              "value": "0"
+            },
+            {
+              "label": "每个孩子支出",
+              "value": "$180"
+            },
+            {
+              "label": "总支出",
+              "value": "$2,190"
+            },
+            {
+              "label": "月现金流",
+              "value": "$1,110"
+            }
+          ]
+        },
+        {
+          "name": "资产",
+          "rows": [
+            {
+              "label": "储蓄",
+              "value": "$400"
+            }
+          ]
+        },
+        {
+          "name": "负债",
+          "rows": [
+            {
+              "label": "住房抵押贷款",
+              "value": "50,000"
+            },
+            {
+              "label": "教育贷款",
+              "value": "12,000"
+            },
+            {
+              "label": "购车贷款",
+              "value": "5,000"
+            },
+            {
+              "label": "信用卡",
+              "value": "3,000"
+            },
+            {
+              "label": "额外负债",
+              "value": "1,000"
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "（非工资收入＝利息＋股利＋房地产/企业）",
+        "（注意：每个玩家开始游戏时孩子个数为0）"
+      ]
+    },
+    "data": {
+      "salary": 3300,
+      "taxes": 630,
+      "mortgagePayment": 500,
+      "schoolLoanPayment": 60,
+      "carLoanPayment": 100,
+      "creditCardPayment": 90,
+      "extraExpenses": 50,
+      "otherExpenses": 760,
+      "perChildExpense": 180,
+      "totalExpenses": 2190,
+      "monthlyCashflow": 1110,
+      "savings": 400,
+      "liabilities": {
+        "mortgage": 50000,
+        "schoolLoan": 12000,
+        "carLoan": 5000,
+        "creditCard": 3000,
+        "extra": 1000
+      }
+    },
+    "ocr_keywords": [
+      "小学教师",
+      "3,300",
+      "2,190",
+      "1,110",
+      "50,000"
+    ]
   }
 ]

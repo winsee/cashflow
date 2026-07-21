@@ -1,132 +1,100 @@
 [
   {
-    "id": "sd-house-3b2b-01",
-    "deck": "SMALL_DEAL",
-    "subtype": "REALESTATE",
-    "title": "3室2厅出租房",
-    "data": {
-      "assetType": "3室2厅",
-      "cost": 50000,
-      "downPayment": 3000,
-      "mortgage": 47000,
-      "cashflow": 100,
-      "roiPct": 40,
-      "priceRange": [
-        65000,
-        135000
-      ]
-    },
-    "ocr_keywords": [
-      "3室2厅",
-      "50,000",
-      "47,000",
-      "3,000"
-    ]
-  },
-  {
-    "id": "sd-stock-on2u-30",
+    "id": "sd-001",
+    "key": "pref-2big",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "ON2U 股票 今日价 $30",
-    "data": {
-      "symbol": "ON2U",
-      "price": 30,
-      "priceRange": [
-        10,
-        30
+    "title": "优先股——2BIG电力公司",
+    "source": {
+      "sheetNo": 1,
+      "image": "docs/实体卡片/小生意/1.jpg"
+    },
+    "raw": {
+      "title": "优先股——2BIG电力公司",
+      "body": [
+        "国内占主导地位的电力公司的高投资收益率优先股。国家公用事业委员会制订了公平的红利和价格。",
+        "现在，每个人都能以此价格购买或出售任意数量的这种股票。"
       ],
-      "dividendPerShare": 0
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "2BIG"
+        },
+        {
+          "label": "今日价格",
+          "value": "$1,200"
+        },
+        {
+          "label": "投资收益率",
+          "value": "10%"
+        },
+        {
+          "label": "分红",
+          "value": "$10/月"
+        },
+        {
+          "label": "价格范围",
+          "value": "$1,200 ~ $1,200"
+        }
+      ],
+      "notes": []
     },
-    "ocr_keywords": [
-      "ON2U",
-      "30"
-    ]
-  },
-  {
-    "id": "sd-stockevt-myt4u",
-    "deck": "SMALL_DEAL",
-    "subtype": "STOCK_EVENT",
-    "title": "MYT4U 并股 2:1",
     "data": {
-      "symbol": "MYT4U",
-      "ratio": "2:1"
-    },
-    "ocr_keywords": [
-      "MYT4U",
-      "并股",
-      "每两股"
-    ]
-  },
-  {
-    "id": "sd-loss-tenant",
-    "deck": "SMALL_DEAL",
-    "subtype": "LOSS_EVENT",
-    "title": "承租人损坏财产",
-    "data": {
-      "condition": "hasRentalProperty",
-      "amount": 500
-    },
-    "ocr_keywords": [
-      "承租人",
-      "500"
-    ]
-  },
-  {
-    "id": "sd-001",
-    "deck": "SMALL_DEAL",
-    "subtype": "REALESTATE",
-    "title": "待售公寓—2室1厅",
-    "data": {
-      "assetType": "2室1厅",
-      "cost": 40000,
-      "downPayment": 4000,
-      "mortgage": 36000,
-      "cashflow": 140,
-      "roiPct": 42,
+      "symbol": "2BIG",
+      "price": 1200,
       "priceRange": [
-        45000,
-        65000
-      ]
+        1200,
+        1200
+      ],
+      "dividendPerShare": 10,
+      "incomeCategory": "DIVIDEND",
+      "roiPct": 10,
+      "buyerScope": "ALL"
     },
-    "ocr_keywords": []
+    "ocr_keywords": [
+      "优先股",
+      "2BIG",
+      "1,200",
+      "分红",
+      "10"
+    ]
   },
   {
     "id": "sd-002",
-    "deck": "SMALL_DEAL",
-    "subtype": "STOCK_OFFER",
-    "title": "共同基金 GRO4US基金",
-    "data": {
-      "symbol": "GRO4US",
-      "price": 20,
-      "dividendPerShare": 0,
-      "priceRange": [
-        10,
-        30
-      ]
-    },
-    "ocr_keywords": []
-  },
-  {
-    "id": "sd-003",
-    "deck": "SMALL_DEAL",
-    "subtype": "STOCK_OFFER",
-    "title": "股票 -MYT4U电子公司",
-    "data": {
-      "symbol": "MYT4U",
-      "price": 30,
-      "dividendPerShare": 0,
-      "priceRange": [
-        5,
-        30
-      ]
-    },
-    "ocr_keywords": []
-  },
-  {
-    "id": "sd-004",
+    "key": "apt2b1b-40k-220",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "待售公寓 2室1厅",
+    "title": "待售公寓——2室1厅（成本$40,000）",
+    "source": {
+      "sheetNo": 2,
+      "image": "docs/实体卡片/小生意/2.jpg"
+    },
+    "raw": {
+      "title": "待售公寓——2室1厅",
+      "body": [
+        "银行取消了一套2室1厅公寓的抵押品赎回权。该公寓临近办公区和中心商业区，现银行开价出售。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "53%的投资收益率，可以卖$45,000~$65,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$40,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$35,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$5,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$220"
+        }
+      ],
+      "notes": []
+    },
     "data": {
       "assetType": "2室1厅",
       "cost": 40000,
@@ -137,30 +105,2898 @@
       "priceRange": [
         45000,
         65000
-      ]
+      ],
+      "incomeCategory": "REAL_ESTATE"
     },
-    "ocr_keywords": []
+    "ocr_keywords": [
+      "待售公寓",
+      "2室1厅",
+      "40,000",
+      "5,000",
+      "220"
+    ]
+  },
+  {
+    "id": "sd-003",
+    "key": "stock-myt4u-30",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——MYT4U电子公司（$30）",
+    "source": {
+      "sheetNo": 3,
+      "image": "docs/实体卡片/小生意/3.jpg"
+    },
+    "raw": {
+      "title": "股票——MYT4U电子公司",
+      "body": [
+        "市场强劲导致公司股价上涨。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "MYT4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$30"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "MYT4U",
+      "price": 30,
+      "priceRange": [
+        5,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "MYT4U",
+      "30",
+      "市场强劲"
+    ]
+  },
+  {
+    "id": "sd-004",
+    "key": "fund-gro4us-20",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "共同基金——GRO4US基金（$20）",
+    "source": {
+      "sheetNo": 4,
+      "image": "docs/实体卡片/小生意/4.jpg"
+    },
+    "raw": {
+      "title": "共同基金——GRO4US基金",
+      "body": [
+        "来了年轻有为的基金经理。每个人都相信他是个能赚大钱的人。只有你能以这个价格买你所希望数量的GRO4US基金。",
+        "每个人都能以这个价格出售本基金。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "GRO4US"
+        },
+        {
+          "label": "今日价格",
+          "value": "$20"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$10 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "GRO4US",
+      "price": 20,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "GRO4US",
+      "共同基金",
+      "20",
+      "基金经理"
+    ]
   },
   {
     "id": "sd-005",
+    "key": "apt2b1b-40k-140",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "待售公寓——2室1厅（成本$40,000，现金流$140）",
+    "source": {
+      "sheetNo": 5,
+      "image": "docs/实体卡片/小生意/5.jpg"
+    },
+    "raw": {
+      "title": "待售公寓——2室1厅",
+      "body": [
+        "有父母准备出售上大学的孩子原来居住的公寓。该地区房屋出租率很高。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "42%的投资收益率，可以卖$45,000~$65,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$40,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$36,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$4,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$140"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "2室1厅",
+      "cost": 40000,
+      "downPayment": 4000,
+      "mortgage": 36000,
+      "cashflow": 140,
+      "roiPct": 42,
+      "priceRange": [
+        45000,
+        65000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "待售公寓",
+      "2室1厅",
+      "40,000",
+      "4,000",
+      "140"
+    ]
+  },
+  {
+    "id": "sd-006",
+    "key": "house3b2b-50k-100",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "待售居室——3室2厅（成本$50,000）",
+    "source": {
+      "sheetNo": 6,
+      "image": "docs/实体卡片/小生意/6.jpg"
+    },
+    "raw": {
+      "title": "待售居室——3室2厅",
+      "body": [
+        "出于某种考虑，房主要搬到城外去住，用比较低的首期支付就可以买到这套房子。合适的购买者会谈成这笔生意。可以自己接受这笔生意，也可卖给其他玩家。",
+        "40%的投资收益率，可以卖$65,000~$135,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$50,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$47,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$3,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$100"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 50000,
+      "downPayment": 3000,
+      "mortgage": 47000,
+      "cashflow": 100,
+      "roiPct": 40,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "待售居室",
+      "3室2厅",
+      "50,000",
+      "3,000",
+      "100"
+    ]
+  },
+  {
+    "id": "sd-007",
+    "key": "tenant-damage-500",
+    "deck": "SMALL_DEAL",
+    "subtype": "EXPENSE_EVENT",
+    "title": "承租人损坏了你的财产",
+    "source": {
+      "sheetNo": 7,
+      "image": "docs/实体卡片/小生意/7.jpg"
+    },
+    "raw": {
+      "title": "承租人损坏了你的财产",
+      "body": [
+        "承租人两个月没有付租金了，并且在逃走时损坏了你的财产。保险公司赔偿了大部分损失和成本，但你还需要自己掏$500。",
+        "如果你有出租财产，就付$500现金。（可以向银行贷款。）",
+        "只是抽到这张卡的人这么做。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 500,
+      "appliesTo": "DRAWER_ONLY",
+      "payerCondition": "hasRentalProperty"
+    },
+    "ocr_keywords": [
+      "承租人损坏了你的财产",
+      "500",
+      "出租财产"
+    ]
+  },
+  {
+    "id": "sd-008",
+    "key": "stock-on2u-30",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "优先股 -2BIG电力公司",
+    "title": "股票——ON2U娱乐公司（$30）",
+    "source": {
+      "sheetNo": 8,
+      "image": "docs/实体卡片/小生意/8.jpg"
+    },
+    "raw": {
+      "title": "股票——ON2U娱乐公司",
+      "body": [
+        "成人部票房创造了新纪录，股价剧烈上扬。你可按此价格购买任意数量的这种股票，只有你一个买主。",
+        "所有人都可以按此价格出售这种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "ON2U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$30"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$10 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "ON2U",
+      "price": 30,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "ON2U",
+      "30",
+      "成人部票房"
+    ]
+  },
+  {
+    "id": "sd-009",
+    "key": "stockevt-myt4u-reverse",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_EVENT",
+    "title": "股票——MYT4U电子公司（并股 2:1）",
+    "source": {
+      "sheetNo": 9,
+      "image": "docs/实体卡片/小生意/9.jpg"
+    },
+    "raw": {
+      "title": "股票——MYT4U电子公司",
+      "body": [
+        "公司重组。过分扩张和市场衰退导致公司蒙受巨额损失，股东权益减少一半。所有拥有MYT4U股票的人缩减股票。（不用支付现金，股票总成本不变。）",
+        "无股利，此时不能交易。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "MYT4U"
+        },
+        {
+          "label": "每两股并成一股",
+          "value": ""
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "MYT4U",
+      "ratio": "2:1"
+    },
+    "ocr_keywords": [
+      "MYT4U",
+      "并股",
+      "每两股并成一股",
+      "公司重组"
+    ]
+  },
+  {
+    "id": "sd-010",
+    "key": "fund-gro4us-40",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "共同基金——GRO4US基金（$40）",
+    "source": {
+      "sheetNo": 10,
+      "image": "docs/实体卡片/小生意/10.jpg"
+    },
+    "raw": {
+      "title": "共同基金——GRO4US基金",
+      "body": [
+        "电力市场使基金价格上到创纪录的高度。只有你能以这个价格买你所希望数量的GRO4US基金。",
+        "每个人都能以这个价格出售本基金。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "GRO4US"
+        },
+        {
+          "label": "今日价格",
+          "value": "$40"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$10 ~ $30"
+        }
+      ],
+      "notes": [
+        "卡面今日价格 $40 高于所印价格范围上限 $30，以实体卡为准"
+      ]
+    },
+    "data": {
+      "symbol": "GRO4US",
+      "price": 40,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "GRO4US",
+      "40",
+      "电力市场",
+      "创纪录"
+    ]
+  },
+  {
+    "id": "sd-011",
+    "key": "pref-2big",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "优先股——2BIG电力公司",
+    "source": {
+      "sheetNo": 11,
+      "image": "docs/实体卡片/小生意/11.jpg"
+    },
+    "raw": {
+      "title": "优先股——2BIG电力公司",
+      "body": [
+        "国内占主导地位的电力公司的高投资收益率优先股。国家公用事业委员会制订了公平的红利和价格。",
+        "现在，每个人都能以此价格购买或出售任意数量的这种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "2BIG"
+        },
+        {
+          "label": "今日价格",
+          "value": "$1,200"
+        },
+        {
+          "label": "投资收益率",
+          "value": "10%"
+        },
+        {
+          "label": "分红",
+          "value": "$10/月"
+        },
+        {
+          "label": "价格范围",
+          "value": "$1,200 ~ $1,200"
+        }
+      ],
+      "notes": []
+    },
     "data": {
       "symbol": "2BIG",
       "price": 1200,
-      "dividendPerShare": 10,
       "priceRange": [
         1200,
         1200
-      ]
+      ],
+      "dividendPerShare": 10,
+      "incomeCategory": "DIVIDEND",
+      "roiPct": 10,
+      "buyerScope": "ALL"
     },
     "ocr_keywords": [
-      "2BIG",
       "优先股",
+      "2BIG",
       "1,200",
       "分红",
       "10"
+    ],
+    "duplicateOf": "sd-001"
+  },
+  {
+    "id": "sd-012",
+    "key": "stock-on2u-30-video",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——ON2U娱乐公司（$30，老电影录像）",
+    "source": {
+      "sheetNo": 12,
+      "image": "docs/实体卡片/小生意/12.jpg"
+    },
+    "raw": {
+      "title": "股票——ON2U娱乐公司",
+      "body": [
+        "对老电影录像图书馆的强烈需求引起股价上涨。你可按此价格购买任意数量的这种股票，只有你一个买主。",
+        "所有人都可以按此价格出售这种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "ON2U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$30"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$10 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "ON2U",
+      "price": 30,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "ON2U",
+      "30",
+      "老电影录像图书馆"
+    ]
+  },
+  {
+    "id": "sd-013",
+    "key": "sister-in-law-loan",
+    "deck": "SMALL_DEAL",
+    "subtype": "DICE_GAMBLE",
+    "title": "嫂子借钱",
+    "source": {
+      "sheetNo": 13,
+      "image": "docs/实体卡片/小生意/13.jpg"
+    },
+    "raw": {
+      "title": "嫂子借钱",
+      "body": [
+        "嫂子因公司裁员失业，需要$5,000周转。她答应找到工作后还$10,000。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "借钱给嫂子的玩家向银行支付$5,000，然后掷一粒骰子，如果点数>3，自动获得$10,000，否则没有收入。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$5,000"
+        },
+        {
+          "label": "负债",
+          "value": "$0"
+        },
+        {
+          "label": "首期支付",
+          "value": "$5,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "$0"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "cost": 5000,
+      "downPayment": 5000,
+      "mortgage": 0,
+      "cashflow": 0,
+      "diceCount": 1,
+      "winCondition": ">3",
+      "payout": 10000
+    },
+    "ocr_keywords": [
+      "嫂子借钱",
+      "5,000",
+      "10,000",
+      "掷一粒骰子",
+      "点数>3"
+    ]
+  },
+  {
+    "id": "sd-014",
+    "key": "stock-ok4u-40",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——OK4U药业公司（$40）",
+    "source": {
+      "sheetNo": 14,
+      "image": "docs/实体卡片/小生意/14.jpg"
+    },
+    "raw": {
+      "title": "股票——OK4U药业公司",
+      "body": [
+        "市场需求使公司股价上涨。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "OK4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$40"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $40"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "OK4U",
+      "price": 40,
+      "priceRange": [
+        5,
+        40
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "OK4U",
+      "40",
+      "市场需求"
+    ]
+  },
+  {
+    "id": "sd-015",
+    "key": "house3b2b-65k-160",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "待售居室——3室2厅（成本$65,000）",
+    "source": {
+      "sheetNo": 15,
+      "image": "docs/实体卡片/小生意/15.jpg"
+    },
+    "raw": {
+      "title": "待售居室——3室2厅",
+      "body": [
+        "政府查封的房产中有非常好的3室2厅的居室出售。原来的房产维护得非常好，还有一批房客。可以自己接受这笔生意，也可卖给其他玩家。",
+        "38%的投资收益率，可以卖$65,000~$135,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$65,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$60,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$5,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$160"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 65000,
+      "downPayment": 5000,
+      "mortgage": 60000,
+      "cashflow": 160,
+      "roiPct": 38,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "待售居室",
+      "3室2厅",
+      "65,000",
+      "5,000",
+      "160",
+      "政府查封"
+    ]
+  },
+  {
+    "id": "sd-016",
+    "key": "stock-myt4u-5-inflation",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——MYT4U电子公司（$5，高通胀）",
+    "source": {
+      "sheetNo": 16,
+      "image": "docs/实体卡片/小生意/16.jpg"
+    },
+    "raw": {
+      "title": "股票——MYT4U电子公司",
+      "body": [
+        "高通货膨胀率使公司股价下跌。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "MYT4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$5"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "MYT4U",
+      "price": 5,
+      "priceRange": [
+        5,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "MYT4U",
+      "5",
+      "高通货膨胀率"
+    ]
+  },
+  {
+    "id": "sd-017",
+    "key": "land-10mu-5k",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "10亩的荒地",
+    "source": {
+      "sheetNo": 17,
+      "image": "docs/实体卡片/小生意/17.jpg"
+    },
+    "raw": {
+      "title": "10亩的荒地",
+      "body": [
+        "10亩未开发的荒地，有小溪流过，环境优美，像公园一样。没有公路，没有公用设施，没有噪音。可以自己使用这片地或卖给其他人。",
+        "0%的投资收益率，可能在将来以某个价格卖掉。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$5,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$0"
+        },
+        {
+          "label": "首期支付",
+          "value": "$5,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "$0"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "10英亩土地（带河流）",
+      "cost": 5000,
+      "downPayment": 5000,
+      "mortgage": 0,
+      "cashflow": 0,
+      "roiPct": 0,
+      "priceIndeterminate": true
+    },
+    "ocr_keywords": [
+      "10亩的荒地",
+      "5,000",
+      "小溪",
+      "未开发"
+    ]
+  },
+  {
+    "id": "sd-018",
+    "key": "sidebiz-machine-3k",
+    "deck": "SMALL_DEAL",
+    "subtype": "BUSINESS",
+    "title": "兼职办公司（小型机械产品）",
+    "source": {
+      "sheetNo": 18,
+      "image": "docs/实体卡片/小生意/18.jpg"
+    },
+    "raw": {
+      "title": "兼职办公司",
+      "body": [
+        "发明一个新的生产小型机械产品的方法，所以你开公司生产并销售它。开始没有利润，工作时间长，没有额外工资。可以自己接受这笔生意，也可以把这个生意卖给别人。",
+        "0%的投资收益率，如果不满意，可以卖掉。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$3,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$0"
+        },
+        {
+          "label": "首期支付",
+          "value": "$3,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "$0"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "自建企业",
+      "cost": 3000,
+      "downPayment": 3000,
+      "mortgage": 0,
+      "cashflow": 0,
+      "roiPct": 0,
+      "priceIndeterminate": true,
+      "businessKind": "小型机械公司"
+    },
+    "ocr_keywords": [
+      "兼职办公司",
+      "小型机械产品",
+      "3,000"
+    ]
+  },
+  {
+    "id": "sd-019",
+    "key": "stock-myt4u-20",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——MYT4U电子公司（$20）",
+    "source": {
+      "sheetNo": 19,
+      "image": "docs/实体卡片/小生意/19.jpg"
+    },
+    "raw": {
+      "title": "股票——MYT4U电子公司",
+      "body": [
+        "家用电子产品销售旺盛。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "MYT4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$20"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "MYT4U",
+      "price": 20,
+      "priceRange": [
+        5,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "MYT4U",
+      "20",
+      "家用电子产品"
+    ]
+  },
+  {
+    "id": "sd-020",
+    "key": "stock-on2u-10-park",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——ON2U娱乐公司（$10，主题公园）",
+    "source": {
+      "sheetNo": 20,
+      "image": "docs/实体卡片/小生意/20.jpg"
+    },
+    "raw": {
+      "title": "股票——ON2U娱乐公司",
+      "body": [
+        "最新主题公园的游客数量没有达到预期目标。股价跌至历史新低点。你可按此价格购买任意数量的这种股票，只有你一个买主。",
+        "所有人都可以按此价格出售这种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "ON2U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$10"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$10 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "ON2U",
+      "price": 10,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "ON2U",
+      "10",
+      "主题公园",
+      "历史新低"
+    ]
+  },
+  {
+    "id": "sd-021",
+    "key": "stock-on2u-40-kids",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——ON2U娱乐公司（$40，儿童部票房）",
+    "source": {
+      "sheetNo": 21,
+      "image": "docs/实体卡片/小生意/21.jpg"
+    },
+    "raw": {
+      "title": "股票——ON2U娱乐公司",
+      "body": [
+        "儿童部票房创下新纪录，股价达到历史最高点。你可按此价格购买任意数量的这种股票，只有你一个买主。",
+        "所有人都可以按此价格出售这种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "ON2U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$40"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $30"
+        }
+      ],
+      "notes": [
+        "卡面今日价格 $40 高于所印价格范围上限 $30，以实体卡为准"
+      ]
+    },
+    "data": {
+      "symbol": "ON2U",
+      "price": 40,
+      "priceRange": [
+        5,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "ON2U",
+      "40",
+      "儿童部票房",
+      "历史最高点"
+    ]
+  },
+  {
+    "id": "sd-022",
+    "key": "stock-myt4u-5-rate",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——MYT4U电子公司（$5，高利率）",
+    "source": {
+      "sheetNo": 22,
+      "image": "docs/实体卡片/小生意/22.jpg"
+    },
+    "raw": {
+      "title": "股票——MYT4U电子公司",
+      "body": [
+        "高利率使公司股价下跌。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "MYT4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$5"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "MYT4U",
+      "price": 5,
+      "priceRange": [
+        5,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "MYT4U",
+      "5",
+      "高利率"
+    ]
+  },
+  {
+    "id": "sd-023",
+    "key": "bigdeal-house3b2b-35k",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "你发现了一宗大买卖（3室2厅，成本$35,000）",
+    "source": {
+      "sheetNo": 23,
+      "image": "docs/实体卡片/小生意/23.jpg"
+    },
+    "raw": {
+      "title": "你发现了一宗大买卖",
+      "body": [
+        "一套旧的3室2厅的房子，被政府机构收回。你准备向政府购买并将房屋出租。如果需要，可以向银行贷款，但必须用于购买这套房子。",
+        "132%的投资收益率，可以卖$65,000~$135,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$35,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$33,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$2,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$220"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 35000,
+      "downPayment": 2000,
+      "mortgage": 33000,
+      "cashflow": 220,
+      "roiPct": 132,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "你发现了一宗大买卖",
+      "35,000",
+      "2,000",
+      "220",
+      "132%"
+    ]
+  },
+  {
+    "id": "sd-024",
+    "key": "stock-myt4u-40",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——MYT4U电子公司（$40）",
+    "source": {
+      "sheetNo": 24,
+      "image": "docs/实体卡片/小生意/24.jpg"
+    },
+    "raw": {
+      "title": "股票——MYT4U电子公司",
+      "body": [
+        "市场繁荣使公司股价上涨。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "MYT4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$40"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $30"
+        }
+      ],
+      "notes": [
+        "卡面今日价格 $40 高于所印价格范围上限 $30，以实体卡为准"
+      ]
+    },
+    "data": {
+      "symbol": "MYT4U",
+      "price": 40,
+      "priceRange": [
+        5,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "MYT4U",
+      "40",
+      "市场繁荣"
+    ]
+  },
+  {
+    "id": "sd-025",
+    "key": "stock-on2u-10-musical",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——ON2U娱乐公司（$10，音乐荒诞剧）",
+    "source": {
+      "sheetNo": 25,
+      "image": "docs/实体卡片/小生意/25.jpg"
+    },
+    "raw": {
+      "title": "股票——ON2U娱乐公司",
+      "body": [
+        "音乐荒诞剧的票房收入很差。核心管理层分裂导致股价很低。你可按此价格购买任意数量的这种股票，只有你可以购买。",
+        "所有人都可以按此价格出售这种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "ON2U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$10"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$10 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "ON2U",
+      "price": 10,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "ON2U",
+      "10",
+      "音乐荒诞剧",
+      "核心管理层分裂"
+    ]
+  },
+  {
+    "id": "sd-026",
+    "key": "stock-on2u-20-merger",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——ON2U娱乐公司（$20，兼并）",
+    "source": {
+      "sheetNo": 26,
+      "image": "docs/实体卡片/小生意/26.jpg"
+    },
+    "raw": {
+      "title": "股票——ON2U娱乐公司",
+      "body": [
+        "最近的兼并提高了这家公司的市场份额，进一步增强了其领先地位，前景看好。你可按此价格购买任意数量的这种股票，只有你一个买主。",
+        "所有人都可以按此价格出售这种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "ON2U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$20"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$10 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "ON2U",
+      "price": 20,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "ON2U",
+      "20",
+      "兼并",
+      "市场份额"
+    ]
+  },
+  {
+    "id": "sd-027",
+    "key": "fund-gro4us-30-bull",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "共同基金——GRO4US基金（$30，市场看好）",
+    "source": {
+      "sheetNo": 27,
+      "image": "docs/实体卡片/小生意/27.jpg"
+    },
+    "raw": {
+      "title": "共同基金——GRO4US基金",
+      "body": [
+        "市场形势普遍看好，使得所管理的基金价格走高。只有你能以这个价格买你所希望数量的GRO4US基金。",
+        "每个人都能以这个价格出售本基金。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "GRO4US"
+        },
+        {
+          "label": "今日价格",
+          "value": "$30"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$10 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "GRO4US",
+      "price": 30,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "GRO4US",
+      "30",
+      "市场形势普遍看好"
+    ]
+  },
+  {
+    "id": "sd-028",
+    "key": "stock-ok4u-1",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——OK4U药业公司（$1，股灾）",
+    "source": {
+      "sheetNo": 28,
+      "image": "docs/实体卡片/小生意/28.jpg"
+    },
+    "raw": {
+      "title": "股票——OK4U药业公司",
+      "body": [
+        "市场恐慌造成股灾。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "OK4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$1"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $40"
+        }
+      ],
+      "notes": [
+        "卡面今日价格 $1 低于所印价格范围下限 $5，以实体卡为准"
+      ]
+    },
+    "data": {
+      "symbol": "OK4U",
+      "price": 1,
+      "priceRange": [
+        5,
+        40
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "OK4U",
+      "1",
+      "市场恐慌",
+      "股灾"
+    ]
+  },
+  {
+    "id": "sd-029",
+    "key": "cd-5000",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "银行存单（CD $5,000）",
+    "source": {
+      "sheetNo": 29,
+      "image": "docs/实体卡片/小生意/29.jpg"
+    },
+    "raw": {
+      "title": "银行存单",
+      "body": [
+        "一家大银行提供这种特殊的存单给他的客户。保证在持有一段时间后有利息并可以赎回。",
+        "这次，每个人都可以按照自己的愿望买或卖。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "CD"
+        },
+        {
+          "label": "今日价格",
+          "value": "$5,000"
+        },
+        {
+          "label": "投资收益率",
+          "value": "4.8%"
+        },
+        {
+          "label": "利息",
+          "value": "$20/月"
+        },
+        {
+          "label": "价格范围",
+          "value": "$5,000 ~ $5,000"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "CD",
+      "price": 5000,
+      "priceRange": [
+        5000,
+        5000
+      ],
+      "dividendPerShare": 20,
+      "incomeCategory": "INTEREST",
+      "roiPct": 4.8,
+      "buyerScope": "ALL"
+    },
+    "ocr_keywords": [
+      "银行存单",
+      "CD",
+      "5,000",
+      "利息",
+      "20"
+    ]
+  },
+  {
+    "id": "sd-030",
+    "key": "stock-ok4u-30",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——OK4U药业公司（$30）",
+    "source": {
+      "sheetNo": 30,
+      "image": "docs/实体卡片/小生意/30.jpg"
+    },
+    "raw": {
+      "title": "股票——OK4U药业公司",
+      "body": [
+        "历史悠久的制药商，特别针对70岁以上的老年人制造药品。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "OK4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$30"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $40"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "OK4U",
+      "price": 30,
+      "priceRange": [
+        5,
+        40
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "OK4U",
+      "30",
+      "历史悠久的制药商",
+      "70岁"
+    ]
+  },
+  {
+    "id": "sd-031",
+    "key": "house3b2b-50k-zerodown",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "待售居室——3室2厅（零首付，$50,000）",
+    "source": {
+      "sheetNo": 31,
+      "image": "docs/实体卡片/小生意/31.jpg"
+    },
+    "raw": {
+      "title": "待售居室——3室2厅",
+      "body": [
+        "已经6个月没人居住了，银行取消了该房产的抵押品赎回权，房子贬值了。贷款包括预计修理费。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率未知，可以卖$65,000~$135,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$50,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$50,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$0"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$100"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 50000,
+      "downPayment": 0,
+      "mortgage": 50000,
+      "cashflow": 100,
+      "roiPct": null,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "待售居室",
+      "3室2厅",
+      "50,000",
+      "0",
+      "100",
+      "投资收益率未知"
+    ]
+  },
+  {
+    "id": "sd-032",
+    "key": "stock-on2u-20-director",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——ON2U娱乐公司（$20，新导演）",
+    "source": {
+      "sheetNo": 32,
+      "image": "docs/实体卡片/小生意/32.jpg"
+    },
+    "raw": {
+      "title": "股票——ON2U娱乐公司",
+      "body": [
+        "新电影导演上任为股价上涨带来了新的希望。你可按此价格购买任意数量的这种股票，只有你一个买主。",
+        "所有人都可以按此价格出售这种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "ON2U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$20"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$10 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "ON2U",
+      "price": 20,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "ON2U",
+      "20",
+      "新电影导演"
+    ]
+  },
+  {
+    "id": "sd-033",
+    "key": "fund-gro4us-30-lowrate",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "共同基金——GRO4US基金（$30，低利率）",
+    "source": {
+      "sheetNo": 33,
+      "image": "docs/实体卡片/小生意/33.jpg"
+    },
+    "raw": {
+      "title": "共同基金——GRO4US基金",
+      "body": [
+        "低利率刺激市场，基金开始走强。只有你能以这个价格买你所希望数量的GRO4US基金。",
+        "每个人都能以这个价格出售本基金。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "GRO4US"
+        },
+        {
+          "label": "今日价格",
+          "value": "$30"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$10 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "GRO4US",
+      "price": 30,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "GRO4US",
+      "30",
+      "低利率刺激市场"
+    ]
+  },
+  {
+    "id": "sd-034",
+    "key": "stock-ok4u-5",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——OK4U药业公司（$5，利率变化）",
+    "source": {
+      "sheetNo": 34,
+      "image": "docs/实体卡片/小生意/34.jpg"
+    },
+    "raw": {
+      "title": "股票——OK4U药业公司",
+      "body": [
+        "利率变化造成公司股价下跌。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "OK4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$5"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $40"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "OK4U",
+      "price": 5,
+      "priceRange": [
+        5,
+        40
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "OK4U",
+      "5",
+      "利率变化"
+    ]
+  },
+  {
+    "id": "sd-035",
+    "key": "apt2b1b-50k-100",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "待售公寓——2室1厅（成本$50,000）",
+    "source": {
+      "sheetNo": 35,
+      "image": "docs/实体卡片/小生意/35.jpg"
+    },
+    "raw": {
+      "title": "待售公寓——2室1厅",
+      "body": [
+        "房主结婚，想出售原来居住的2室1厅公寓。地点不太好，需要装修。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "24%的投资收益率，可以卖$45,000~$65,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$50,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$45,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$5,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$100"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "2室1厅",
+      "cost": 50000,
+      "downPayment": 5000,
+      "mortgage": 45000,
+      "cashflow": 100,
+      "roiPct": 24,
+      "priceRange": [
+        45000,
+        65000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "待售公寓",
+      "2室1厅",
+      "50,000",
+      "5,000",
+      "100",
+      "房主结婚"
+    ]
+  },
+  {
+    "id": "sd-036",
+    "key": "rare-coin-500",
+    "deck": "SMALL_DEAL",
+    "subtype": "COLLECTIBLE",
+    "title": "稀有的金币（$500）",
+    "source": {
+      "sheetNo": 36,
+      "image": "docs/实体卡片/小生意/36.jpg"
+    },
+    "raw": {
+      "title": "稀有的金币",
+      "body": [
+        "在一个交易会上，你发现了16世纪西班牙王室8枚“新大陆”金币（哈瓦那铸币）中的一个，卖价$500。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "0%的投资收益率，可以卖$0~$5,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$500"
+        },
+        {
+          "label": "负债",
+          "value": "$0"
+        },
+        {
+          "label": "首期支付",
+          "value": "$500"
+        },
+        {
+          "label": "月现金流",
+          "value": "$0"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "八里亚尔比索金币",
+      "quantity": 1,
+      "cost": 500,
+      "downPayment": 500,
+      "mortgage": 0,
+      "cashflow": 0,
+      "roiPct": 0,
+      "priceRange": [
+        0,
+        5000
+      ]
+    },
+    "ocr_keywords": [
+      "稀有的金币",
+      "500",
+      "哈瓦那铸币",
+      "新大陆"
+    ]
+  },
+  {
+    "id": "sd-037",
+    "key": "apt2b1b-55k-160",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "待售公寓——2室1厅（成本$55,000）",
+    "source": {
+      "sheetNo": 37,
+      "image": "docs/实体卡片/小生意/37.jpg"
+    },
+    "raw": {
+      "title": "待售公寓——2室1厅",
+      "body": [
+        "有对年轻夫妇，因自己家庭人口增加，要搬到更大的公寓中去，急于出售他们原来居住的2室1厅公寓。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "38%的投资收益率，可以卖$45,000~$65,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$55,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$50,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$5,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$160"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "2室1厅",
+      "cost": 55000,
+      "downPayment": 5000,
+      "mortgage": 50000,
+      "cashflow": 160,
+      "roiPct": 38,
+      "priceRange": [
+        45000,
+        65000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "待售公寓",
+      "2室1厅",
+      "55,000",
+      "5,000",
+      "160",
+      "年轻夫妇"
+    ]
+  },
+  {
+    "id": "sd-038",
+    "key": "stock-ok4u-20",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——OK4U药业公司（$20，低通胀）",
+    "source": {
+      "sheetNo": 38,
+      "image": "docs/实体卡片/小生意/38.jpg"
+    },
+    "raw": {
+      "title": "股票——OK4U药业公司",
+      "body": [
+        "低通货膨胀率使公司股价上涨。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "OK4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$20"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $40"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "OK4U",
+      "price": 20,
+      "priceRange": [
+        5,
+        40
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "OK4U",
+      "20",
+      "低通货膨胀率"
+    ]
+  },
+  {
+    "id": "sd-039",
+    "key": "house3b2b-50k-200",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "待售居室——3室2厅（成本$50,000，现金流$200）",
+    "source": {
+      "sheetNo": 39,
+      "image": "docs/实体卡片/小生意/39.jpg"
+    },
+    "raw": {
+      "title": "待售居室——3室2厅",
+      "body": [
+        "失业增加，市场萧条。有条件较好的3室2厅房子出售。可以为购买者带来比较好的投资收益。可以自己接受这笔生意，也可卖给其他玩家。",
+        "60%的投资收益率，可以卖$65,000~$135,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$50,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$46,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$4,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$200"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 50000,
+      "downPayment": 4000,
+      "mortgage": 46000,
+      "cashflow": 200,
+      "roiPct": 60,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "待售居室",
+      "3室2厅",
+      "50,000",
+      "4,000",
+      "200",
+      "市场萧条"
+    ]
+  },
+  {
+    "id": "sd-040",
+    "key": "stock-myt4u-30-lowrate",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——MYT4U电子公司（$30，低利率）",
+    "source": {
+      "sheetNo": 40,
+      "image": "docs/实体卡片/小生意/40.jpg"
+    },
+    "raw": {
+      "title": "股票——MYT4U电子公司",
+      "body": [
+        "低利率使公司股价上涨。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "MYT4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$30"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "MYT4U",
+      "price": 30,
+      "priceRange": [
+        5,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "MYT4U",
+      "30",
+      "低利率"
+    ]
+  },
+  {
+    "id": "sd-041",
+    "key": "stockevt-ok4u-reverse",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_EVENT",
+    "title": "股票——OK4U药业公司（并股 2:1）",
+    "source": {
+      "sheetNo": 41,
+      "image": "docs/实体卡片/小生意/41.jpg"
+    },
+    "raw": {
+      "title": "股票——OK4U药业公司",
+      "body": [
+        "公司陷入困境，药物污染丑闻使公司蒙受巨大损失，所有股东权益减半。所有拥有OK4U股票的人缩减股票。（不用支付现金，股票总成本不变。）",
+        "无股利，此时不能交易。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "OK4U"
+        },
+        {
+          "label": "每两股并成一股",
+          "value": ""
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "OK4U",
+      "ratio": "2:1"
+    },
+    "ocr_keywords": [
+      "OK4U",
+      "并股",
+      "每两股并成一股",
+      "药物污染丑闻"
+    ]
+  },
+  {
+    "id": "sd-042",
+    "key": "stock-myt4u-10",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——MYT4U电子公司（$10，市场疲软）",
+    "source": {
+      "sheetNo": 42,
+      "image": "docs/实体卡片/小生意/42.jpg"
+    },
+    "raw": {
+      "title": "股票——MYT4U电子公司",
+      "body": [
+        "市场疲软导致公司股价下跌。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "MYT4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$10"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "MYT4U",
+      "price": 10,
+      "priceRange": [
+        5,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "MYT4U",
+      "10",
+      "市场疲软"
+    ]
+  },
+  {
+    "id": "sd-043",
+    "key": "bigdeal-house3b2b-45k",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "你发现了一宗大买卖（3室2厅，成本$45,000）",
+    "source": {
+      "sheetNo": 43,
+      "image": "docs/实体卡片/小生意/43.jpg"
+    },
+    "raw": {
+      "title": "你发现了一宗大买卖",
+      "body": [
+        "公司收回了已经迁走的经理的3室2厅的房子。现在没有房客，房子已经在房产交易市场上6个月了，刚贬过值。如果需要，可以向银行贷款，但必须用于购买这套房子。",
+        "150%的投资收益率，可以卖$65,000~$135,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$45,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$43,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$2,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$250"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 45000,
+      "downPayment": 2000,
+      "mortgage": 43000,
+      "cashflow": 250,
+      "roiPct": 150,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "你发现了一宗大买卖",
+      "45,000",
+      "2,000",
+      "250",
+      "150%"
+    ]
+  },
+  {
+    "id": "sd-044",
+    "key": "stock-ok4u-10-highrate",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——OK4U药业公司（$10，高利率）",
+    "source": {
+      "sheetNo": 44,
+      "image": "docs/实体卡片/小生意/44.jpg"
+    },
+    "raw": {
+      "title": "股票——OK4U药业公司",
+      "body": [
+        "高利率使公司股价下跌。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "OK4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$10"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $40"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "OK4U",
+      "price": 10,
+      "priceRange": [
+        5,
+        40
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "OK4U",
+      "10",
+      "高利率"
+    ]
+  },
+  {
+    "id": "sd-045",
+    "key": "apt2b1b-60k-neg",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "待售公寓——2室1厅（成本$60,000，负现金流）",
+    "source": {
+      "sheetNo": 45,
+      "image": "docs/实体卡片/小生意/45.jpg"
+    },
+    "raw": {
+      "title": "待售公寓——2室1厅",
+      "body": [
+        "房主经营企业获得成功，喜迁新居。现欲出售原来居住的2室1厅公寓，房屋状况良好，配套设施齐备。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "-24%的投资收益率，可以卖$45,000~$65,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$60,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$55,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$5,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "-$100"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "2室1厅",
+      "cost": 60000,
+      "downPayment": 5000,
+      "mortgage": 55000,
+      "cashflow": -100,
+      "roiPct": -24,
+      "priceRange": [
+        45000,
+        65000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "待售公寓",
+      "2室1厅",
+      "60,000",
+      "5,000",
+      "-100",
+      "-24%"
+    ]
+  },
+  {
+    "id": "sd-046",
+    "key": "stockevt-ok4u-split",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_EVENT",
+    "title": "股票——OK4U药业公司（分割 1:2）",
+    "source": {
+      "sheetNo": 46,
+      "image": "docs/实体卡片/小生意/46.jpg"
+    },
+    "raw": {
+      "title": "股票——OK4U药业公司",
+      "body": [
+        "好消息，该公司股票分割。拥有OK4U股票的玩家都将他们拥有的OK4U股票数量翻番。",
+        "无股利，此时不能交易。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "OK4U"
+        },
+        {
+          "label": "每一股变成两股",
+          "value": ""
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "OK4U",
+      "ratio": "1:2"
+    },
+    "ocr_keywords": [
+      "OK4U",
+      "股票分割",
+      "每一股变成两股",
+      "翻番"
+    ]
+  },
+  {
+    "id": "sd-047",
+    "key": "stock-myt4u-1",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——MYT4U电子公司（$1，贸易战）",
+    "source": {
+      "sheetNo": 47,
+      "image": "docs/实体卡片/小生意/47.jpg"
+    },
+    "raw": {
+      "title": "股票——MYT4U电子公司",
+      "body": [
+        "贸易战引起的恐慌使公司股价暴跌。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "MYT4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$1"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $30"
+        }
+      ],
+      "notes": [
+        "卡面今日价格 $1 低于所印价格范围下限 $5，以实体卡为准"
+      ]
+    },
+    "data": {
+      "symbol": "MYT4U",
+      "price": 1,
+      "priceRange": [
+        5,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "MYT4U",
+      "1",
+      "贸易战",
+      "暴跌"
+    ]
+  },
+  {
+    "id": "sd-048",
+    "key": "stockevt-myt4u-split",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_EVENT",
+    "title": "股票——MYT4U电子公司（分割 1:2）",
+    "source": {
+      "sheetNo": 48,
+      "image": "docs/实体卡片/小生意/48.jpg"
+    },
+    "raw": {
+      "title": "股票——MYT4U电子公司",
+      "body": [
+        "业绩上升，公司进行股票分割。拥有MYT4U股票的玩家都将他们拥有的MYT4U股票数量翻番。",
+        "无股利，此时不能交易。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "MYT4U"
+        },
+        {
+          "label": "每一股变成两股",
+          "value": ""
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "MYT4U",
+      "ratio": "1:2"
+    },
+    "ocr_keywords": [
+      "MYT4U",
+      "股票分割",
+      "每一股变成两股",
+      "业绩上升"
+    ]
+  },
+  {
+    "id": "sd-049",
+    "key": "sidebiz-game-5k",
+    "deck": "SMALL_DEAL",
+    "subtype": "BUSINESS",
+    "title": "兼职办公司（游戏软件）",
+    "source": {
+      "sheetNo": 49,
+      "image": "docs/实体卡片/小生意/49.jpg"
+    },
+    "raw": {
+      "title": "兼职办公司",
+      "body": [
+        "开发出一个有趣的游戏软件，所以你开公司生产并销售它。开始没有利润，工作时间长，没有额外工资。可以自己接受这笔生意，也可以把这个生意卖给别人。",
+        "0%的投资收益率，如果不满意，可以卖掉。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$5,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$0"
+        },
+        {
+          "label": "首期支付",
+          "value": "$5,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "$0"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "自建企业",
+      "cost": 5000,
+      "downPayment": 5000,
+      "mortgage": 0,
+      "cashflow": 0,
+      "roiPct": 0,
+      "priceIndeterminate": true,
+      "businessKind": "软件公司"
+    },
+    "ocr_keywords": [
+      "兼职办公司",
+      "游戏软件",
+      "5,000"
+    ]
+  },
+  {
+    "id": "sd-050",
+    "key": "cd-4000",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "银行存单（CD $4,000）",
+    "source": {
+      "sheetNo": 50,
+      "image": "docs/实体卡片/小生意/50.jpg"
+    },
+    "raw": {
+      "title": "银行存单",
+      "body": [
+        "一家大银行提供这种特殊的存单给他的客户。保证在持有一段时间后有利息并可以赎回。",
+        "这次，每个人都可以按照自己的愿望买或卖。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "CD"
+        },
+        {
+          "label": "今日价格",
+          "value": "$4,000"
+        },
+        {
+          "label": "投资收益率",
+          "value": "6%"
+        },
+        {
+          "label": "利息",
+          "value": "$20/月"
+        },
+        {
+          "label": "价格范围",
+          "value": "$4,000 ~ $4,000"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "CD",
+      "price": 4000,
+      "priceRange": [
+        4000,
+        4000
+      ],
+      "dividendPerShare": 20,
+      "incomeCategory": "INTEREST",
+      "roiPct": 6,
+      "buyerScope": "ALL"
+    },
+    "ocr_keywords": [
+      "银行存单",
+      "CD",
+      "4,000",
+      "利息",
+      "20",
+      "6%"
+    ]
+  },
+  {
+    "id": "sd-051",
+    "key": "house3b2b-50k-zerodown-neg",
+    "deck": "SMALL_DEAL",
+    "subtype": "REALESTATE",
+    "title": "待售居室——3室2厅（零首付，负现金流）",
+    "source": {
+      "sheetNo": 51,
+      "image": "docs/实体卡片/小生意/51.jpg"
+    },
+    "raw": {
+      "title": "待售居室——3室2厅",
+      "body": [
+        "高速公路管理部门出售老区的3室2厅居室一套。市场萧条，上周折卖无人竞买。可以自己接受这笔生意，也可卖给其他玩家。",
+        "投资收益率未知，可以卖$65,000~$135,000。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$50,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$50,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$0"
+        },
+        {
+          "label": "月现金流",
+          "value": "-$100"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 50000,
+      "downPayment": 0,
+      "mortgage": 50000,
+      "cashflow": -100,
+      "roiPct": null,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "待售居室",
+      "3室2厅",
+      "50,000",
+      "0",
+      "-100",
+      "高速公路管理部门"
+    ]
+  },
+  {
+    "id": "sd-052",
+    "key": "stock-ok4u-50",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——OK4U药业公司（$50，市场繁荣）",
+    "source": {
+      "sheetNo": 52,
+      "image": "docs/实体卡片/小生意/52.jpg"
+    },
+    "raw": {
+      "title": "股票——OK4U药业公司",
+      "body": [
+        "市场繁荣导致公司股价上涨。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "OK4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$50"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $40"
+        }
+      ],
+      "notes": [
+        "卡面今日价格 $50 高于所印价格范围上限 $40，以实体卡为准"
+      ]
+    },
+    "data": {
+      "symbol": "OK4U",
+      "price": 50,
+      "priceRange": [
+        5,
+        40
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "OK4U",
+      "50",
+      "市场繁荣"
+    ]
+  },
+  {
+    "id": "sd-053",
+    "key": "krugerrand-10x300",
+    "deck": "SMALL_DEAL",
+    "subtype": "COLLECTIBLE",
+    "title": "朋友需要现金，得赶快给他（克鲁格金币10枚）",
+    "source": {
+      "sheetNo": 53,
+      "image": "docs/实体卡片/小生意/53.jpg"
+    },
+    "raw": {
+      "title": "朋友需要现金，得赶快给他",
+      "body": [
+        "一个朋友急需用钱。他以低于目前市场的价格卖给你10个1盎司重的克鲁格金币，每枚$300。可以自己接受这笔生意，也可以把它卖给别人。",
+        "0%的投资收益率，可能在将来以某个价格卖掉。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$3,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$0"
+        },
+        {
+          "label": "首期支付",
+          "value": "$3,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "$0"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "克鲁格金币",
+      "quantity": 10,
+      "cost": 3000,
+      "downPayment": 3000,
+      "mortgage": 0,
+      "cashflow": 0,
+      "roiPct": 0,
+      "priceIndeterminate": true
+    },
+    "ocr_keywords": [
+      "朋友需要现金",
+      "克鲁格金币",
+      "3,000",
+      "300",
+      "10个"
+    ]
+  },
+  {
+    "id": "sd-054",
+    "key": "stock-ok4u-10-inflation",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——OK4U药业公司（$10，通胀恐慌）",
+    "source": {
+      "sheetNo": 54,
+      "image": "docs/实体卡片/小生意/54.jpg"
+    },
+    "raw": {
+      "title": "股票——OK4U药业公司",
+      "body": [
+        "通货膨胀恐慌使公司股价下跌。只有你才能按此价格购买该股票。",
+        "每个人都可以按此价格出售该种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "OK4U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$10"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$5 ~ $40"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "OK4U",
+      "price": 10,
+      "priceRange": [
+        5,
+        40
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "OK4U",
+      "10",
+      "通货膨胀恐慌"
+    ]
+  },
+  {
+    "id": "sd-055",
+    "key": "fund-gro4us-10",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "共同基金——GRO4US基金（$10）",
+    "source": {
+      "sheetNo": 55,
+      "image": "docs/实体卡片/小生意/55.jpg"
+    },
+    "raw": {
+      "title": "共同基金——GRO4US基金",
+      "body": [
+        "大多数公司利润低，导致共同基金价格下降。只有你能以这个价格买你所希望数量的GRO4US基金。",
+        "每个人都能以这个价格出售本基金。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "GRO4US"
+        },
+        {
+          "label": "今日价格",
+          "value": "$10"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$10 ~ $30"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "symbol": "GRO4US",
+      "price": 10,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "GRO4US",
+      "10",
+      "公司利润低"
+    ]
+  },
+  {
+    "id": "sd-056",
+    "key": "stock-on2u-5",
+    "deck": "SMALL_DEAL",
+    "subtype": "STOCK_OFFER",
+    "title": "股票——ON2U娱乐公司（$5，购片员被解雇）",
+    "source": {
+      "sheetNo": 56,
+      "image": "docs/实体卡片/小生意/56.jpg"
+    },
+    "raw": {
+      "title": "股票——ON2U娱乐公司",
+      "body": [
+        "在第三次惨败后，购片员被解雇了。股价下跌。取消公司主席的奖金。你可按此价格购买任意数量的这种股票，只有你可以购买。",
+        "所有人都可以按此价格出售这种股票。"
+      ],
+      "fields": [
+        {
+          "label": "股票代码",
+          "value": "ON2U"
+        },
+        {
+          "label": "今日价格",
+          "value": "$5"
+        },
+        {
+          "label": "无红利（投资收益率＝0%）",
+          "value": ""
+        },
+        {
+          "label": "价格范围",
+          "value": "$10 ~ $30"
+        }
+      ],
+      "notes": [
+        "卡面今日价格 $5 低于所印价格范围下限 $10，以实体卡为准"
+      ]
+    },
+    "data": {
+      "symbol": "ON2U",
+      "price": 5,
+      "priceRange": [
+        10,
+        30
+      ],
+      "dividendPerShare": 0,
+      "buyerScope": "DRAWER_ONLY",
+      "roiPct": 0
+    },
+    "ocr_keywords": [
+      "ON2U",
+      "5",
+      "购片员被解雇",
+      "第三次惨败"
     ]
   }
 ]
