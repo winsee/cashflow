@@ -1,35 +1,1277 @@
 [
   {
-    "id": "mk-offer-2b1b-55k",
-    "deck": "MARKET",
-    "subtype": "BUYER_OFFER",
-    "title": "求购2室1厅 $55,000",
-    "data": {
-      "targetAssetType": "2室1厅",
-      "pricePerUnit": 55000
-    },
-    "ocr_keywords": ["2室1厅", "55,000"]
-  },
-  {
-    "id": "mk-multi-lp-3x",
+    "id": "mk-001",
+    "key": "lp-sale-3x",
     "deck": "MARKET",
     "subtype": "MULTIPLE_OFFER",
-    "title": "有限合伙按原价3倍出售",
+    "title": "有限合伙人公司出售（三倍）",
+    "source": {
+      "sheetNo": 1,
+      "image": "docs/实体卡片/市场风云/1.jpg"
+    },
+    "raw": {
+      "title": "有限合伙人公司出售",
+      "body": [
+        "公司出售，你获得自己所拥有股份原价的三倍的售价。如果公司创立者决定出售公司，你也同意，那么公司新所有者将使用自有资金购买。",
+        "任何有限合伙人公司都会受此影响。如果你拥有有限合伙人公司股份，从银行获得现金并立即减少相应的月现金流。"
+      ],
+      "fields": [],
+      "notes": []
+    },
     "data": {
       "targetAssetType": "有限合伙",
       "multiple": 3
     },
-    "ocr_keywords": ["有限合伙", "3倍"]
+    "ocr_keywords": [
+      "有限合伙人公司出售",
+      "三倍"
+    ]
   },
   {
-    "id": "mk-evt-inflation",
+    "id": "mk-002",
+    "key": "inflation-3b2b",
     "deck": "MARKET",
     "subtype": "ECONOMY_EVENT",
     "title": "通货膨胀爆发",
+    "source": {
+      "sheetNo": 2,
+      "image": "docs/实体卡片/市场风云/2.jpg"
+    },
+    "raw": {
+      "title": "通货膨胀爆发",
+      "body": [
+        "通货膨胀率高达10%，房屋贷款利率升至20%。您拥有的所有三室两厅出租屋被取消赎回权。",
+        "您必须将拥有的三室两厅房屋交给银行，并注销从这些资产中可以获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
     "data": {
       "kind": "FORCED_SURRENDER",
       "targetAssetType": "3室2厅"
     },
-    "ocr_keywords": ["通货膨胀", "3室2厅"]
+    "ocr_keywords": [
+      "通货膨胀爆发",
+      "10%",
+      "20%",
+      "三室两厅"
+    ]
+  },
+  {
+    "id": "mk-003",
+    "key": "buy-2b1b-55k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购两室一厅公寓（$55,000/套）",
+    "source": {
+      "sheetNo": 3,
+      "image": "docs/实体卡片/市场风云/3.jpg"
+    },
+    "raw": {
+      "title": "求购两室一厅公寓",
+      "body": [
+        "求购供出租的分套购置公寓，两室一厅，每套出价$55,000，使用自有资金购买。",
+        "每个人都能按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "2室1厅",
+      "priceBasis": "PER_UNIT",
+      "price": 55000
+    },
+    "ocr_keywords": [
+      "求购两室一厅公寓",
+      "55,000"
+    ]
+  },
+  {
+    "id": "mk-004",
+    "key": "buy-2b1b-65k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购两室一厅公寓（$65,000/套）",
+    "source": {
+      "sheetNo": 4,
+      "image": "docs/实体卡片/市场风云/4.jpg"
+    },
+    "raw": {
+      "title": "求购两室一厅公寓",
+      "body": [
+        "求购供出租的分套购置公寓，两室一厅，每套出价$65,000，使用自有资金购买。",
+        "每个人都能按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "2室1厅",
+      "priceBasis": "PER_UNIT",
+      "price": 65000
+    },
+    "ocr_keywords": [
+      "求购两室一厅公寓",
+      "65,000"
+    ]
+  },
+  {
+    "id": "mk-005",
+    "key": "lp-sale-2x",
+    "deck": "MARKET",
+    "subtype": "MULTIPLE_OFFER",
+    "title": "有限合伙人公司出售（两倍）",
+    "source": {
+      "sheetNo": 5,
+      "image": "docs/实体卡片/市场风云/5.jpg"
+    },
+    "raw": {
+      "title": "有限合伙人公司出售",
+      "body": [
+        "公司出售，你获得自己所拥有股份原价的两倍的售价。如果公司创立者决定出售公司，你也同意，那么公司新所有者将使用自有资金购买。",
+        "任何有限合伙人公司都会受此影响。如果你拥有有限合伙人公司股份，从银行获得现金并立即减少相应的月现金流。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "有限合伙",
+      "multiple": 2
+    },
+    "ocr_keywords": [
+      "有限合伙人公司出售",
+      "两倍"
+    ]
+  },
+  {
+    "id": "mk-006",
+    "key": "rate-drop-3b2b-premium-50k",
+    "deck": "MARKET",
+    "subtype": "PREMIUM_OFFER",
+    "title": "利率下降（三室两厅溢价$50,000）",
+    "source": {
+      "sheetNo": 6,
+      "image": "docs/实体卡片/市场风云/6.jpg"
+    },
+    "raw": {
+      "title": "利率下降",
+      "body": [
+        "房屋抵押贷款利率下降到5%。如果您拥有三室两厅出租屋，您将可以以高于原价$50,000的价格将它出售。",
+        "如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "3室2厅",
+      "premiumOverCost": 50000
+    },
+    "ocr_keywords": [
+      "利率下降",
+      "5%",
+      "50,000",
+      "三室两厅"
+    ]
+  },
+  {
+    "id": "mk-007",
+    "key": "gold-krugerrand-600",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "黄金价格飙升（克鲁格金币 $600/盎司）",
+    "source": {
+      "sheetNo": 7,
+      "image": "docs/实体卡片/市场风云/7.jpg"
+    },
+    "raw": {
+      "title": "黄金价格飙升",
+      "body": [
+        "由于中东冲突，石油价格上涨，黄金价格飙升至每盎司$600。",
+        "每位拥有一盎司重的克鲁格金币的玩家都可以按此价格出售。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "克鲁格金币",
+      "priceBasis": "PER_PIECE",
+      "price": 600
+    },
+    "ocr_keywords": [
+      "黄金价格飙升",
+      "克鲁格金币",
+      "600",
+      "盎司"
+    ]
+  },
+  {
+    "id": "mk-008",
+    "key": "small-biz-boost-250",
+    "deck": "MARKET",
+    "subtype": "CASHFLOW_MODIFIER",
+    "title": "小企业经营业绩提升（+$250/月）",
+    "source": {
+      "sheetNo": 8,
+      "image": "docs/实体卡片/市场风云/8.jpg"
+    },
+    "raw": {
+      "title": "小企业经营业绩提升",
+      "body": [
+        "你建立的小企业的新产品获奖，知名度因此提高，销售额翻了一番。这需要你花费更多的精力，但你每月净收入增加$250。",
+        "每个拥有一家自己创立的企业的人都会因此增加每月月现金流量$250。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "自建企业",
+      "cashflowDelta": 250,
+      "appliesTo": "ALL"
+    },
+    "ocr_keywords": [
+      "小企业经营业绩提升",
+      "250",
+      "获奖"
+    ]
+  },
+  {
+    "id": "mk-009",
+    "key": "small-biz-boost-400",
+    "deck": "MARKET",
+    "subtype": "CASHFLOW_MODIFIER",
+    "title": "小企业经营业绩提升（+$400/月）",
+    "source": {
+      "sheetNo": 9,
+      "image": "docs/实体卡片/市场风云/9.jpg"
+    },
+    "raw": {
+      "title": "小企业经营业绩提升",
+      "body": [
+        "你建立的小企业找到了一家大客户，销售额上升150%。",
+        "这给你带来了更多的问题，也要花费更多的精力，但你要每月净收入增加$400。",
+        "每个拥有一家自己创立的企业的人都会因此增加每月月现金流量$400。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "自建企业",
+      "cashflowDelta": 400,
+      "appliesTo": "ALL"
+    },
+    "ocr_keywords": [
+      "小企业经营业绩提升",
+      "400",
+      "150%",
+      "大客户"
+    ]
+  },
+  {
+    "id": "mk-010",
+    "key": "collector-coin-5000",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "收藏家求购金币（$5,000/枚）",
+    "source": {
+      "sheetNo": 10,
+      "image": "docs/实体卡片/市场风云/10.jpg"
+    },
+    "raw": {
+      "title": "收藏家求购金币",
+      "body": [
+        "收藏家求购16世纪皇家西班牙“八里亚尔比索”新大陆金币（只要哈瓦那铸币）。",
+        "每枚金币$5,000。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "八里亚尔比索金币",
+      "priceBasis": "PER_PIECE",
+      "price": 5000
+    },
+    "ocr_keywords": [
+      "收藏家求购金币",
+      "八里亚尔比索",
+      "哈瓦那",
+      "5,000"
+    ]
+  },
+  {
+    "id": "mk-011",
+    "key": "buy-land-20acre-200k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购20英亩土地（$200,000）",
+    "source": {
+      "sheetNo": 11,
+      "image": "docs/实体卡片/市场风云/11.jpg"
+    },
+    "raw": {
+      "title": "求购20英亩土地",
+      "body": [
+        "房地产开发商欲购买20英亩土地，由居住区改为商业区，出价$200,000。",
+        "每位拥有20英亩居住区土地的玩家都可以按此价格出售。如果你打算出售，需放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "20英亩土地",
+      "priceBasis": "PER_UNIT",
+      "price": 200000
+    },
+    "ocr_keywords": [
+      "求购20英亩土地",
+      "200,000",
+      "商业区"
+    ]
+  },
+  {
+    "id": "mk-012",
+    "key": "buy-3b2b-135k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购三室两厅住宅（$135,000/套）",
+    "source": {
+      "sheetNo": 12,
+      "image": "docs/实体卡片/市场风云/12.jpg"
+    },
+    "raw": {
+      "title": "求购三室两厅住宅",
+      "body": [
+        "求购供出租的房屋，三室两厅，每套出价$135,000，买主使用自有资金购买。",
+        "每个人都能按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "3室2厅",
+      "priceBasis": "PER_UNIT",
+      "price": 135000
+    },
+    "ocr_keywords": [
+      "求购三室两厅住宅",
+      "135,000"
+    ]
+  },
+  {
+    "id": "mk-013",
+    "key": "buy-mall-100k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购购物商场（$100,000）",
+    "source": {
+      "sheetNo": 13,
+      "image": "docs/实体卡片/市场风云/13.jpg"
+    },
+    "raw": {
+      "title": "求购购物商场",
+      "body": [
+        "某国际著名零售商欲进驻你市，现需要购买一个小型购物商场，出价$100,000。",
+        "每个人都可以按此价格出售。如果你打算出售，需放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "购物商场",
+      "priceBasis": "PER_UNIT",
+      "price": 100000
+    },
+    "ocr_keywords": [
+      "求购购物商场",
+      "100,000",
+      "零售商"
+    ]
+  },
+  {
+    "id": "mk-014",
+    "key": "buy-3b2b-135k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购三室两厅住宅（$135,000/套）",
+    "source": {
+      "sheetNo": 14,
+      "image": "docs/实体卡片/市场风云/14.jpg"
+    },
+    "raw": {
+      "title": "求购三室两厅住宅",
+      "body": [
+        "求购供出租的房屋，三室两厅，每套出价$135,000，买主使用自有资金购买。",
+        "每个人都能按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "3室2厅",
+      "priceBasis": "PER_UNIT",
+      "price": 135000
+    },
+    "ocr_keywords": [
+      "求购三室两厅住宅",
+      "135,000"
+    ],
+    "duplicateOf": "mk-012"
+  },
+  {
+    "id": "mk-015",
+    "key": "buy-aptbldg-30k-min12",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓房（12套以上，$30,000/套）",
+    "source": {
+      "sheetNo": 15,
+      "image": "docs/实体卡片/市场风云/15.jpg"
+    },
+    "raw": {
+      "title": "求购公寓房",
+      "body": [
+        "求购12套以上的公寓房，不动产投资信托公司每套报价$30,000,使用自有资金购买。资金来源于在另一城市出售组合式公寓所得。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓楼",
+      "priceBasis": "PER_UNIT",
+      "price": 30000,
+      "minUnits": 12
+    },
+    "ocr_keywords": [
+      "求购公寓房",
+      "12套以上",
+      "30,000",
+      "不动产投资信托"
+    ]
+  },
+  {
+    "id": "mk-016",
+    "key": "buy-3b2b-100k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购三室两厅住宅（$100,000/套）",
+    "source": {
+      "sheetNo": 16,
+      "image": "docs/实体卡片/市场风云/16.jpg"
+    },
+    "raw": {
+      "title": "求购三室两厅住宅",
+      "body": [
+        "求购供出租的房屋，三室两厅，每套出价$100,000，买主使用自有资金购买。",
+        "每个人都能按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "3室2厅",
+      "priceBasis": "PER_UNIT",
+      "price": 100000
+    },
+    "ocr_keywords": [
+      "求购三室两厅住宅",
+      "100,000"
+    ]
+  },
+  {
+    "id": "mk-017",
+    "key": "buy-3b2b-90k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购三室两厅住宅（$90,000/套）",
+    "source": {
+      "sheetNo": 17,
+      "image": "docs/实体卡片/市场风云/17.jpg"
+    },
+    "raw": {
+      "title": "求购三室两厅住宅",
+      "body": [
+        "求购供出租的房屋，三室两厅，每套出价$90,000，买主使用自有资金购买。",
+        "每个人都能按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "3室2厅",
+      "priceBasis": "PER_UNIT",
+      "price": 90000
+    },
+    "ocr_keywords": [
+      "求购三室两厅住宅",
+      "90,000"
+    ]
+  },
+  {
+    "id": "mk-018",
+    "key": "buy-aptbldg-25k-any",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓房（不论大小，$25,000/套）",
+    "source": {
+      "sheetNo": 18,
+      "image": "docs/实体卡片/市场风云/18.jpg"
+    },
+    "raw": {
+      "title": "求购公寓房",
+      "body": [
+        "公寓房不论大小，每套出价$25,000，使用自有资金购买。（其纳税递延时间已过。）",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓楼",
+      "priceBasis": "PER_UNIT",
+      "price": 25000
+    },
+    "ocr_keywords": [
+      "求购公寓房",
+      "不论大小",
+      "25,000",
+      "纳税递延"
+    ]
+  },
+  {
+    "id": "mk-019",
+    "key": "buy-3b2b-65k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购三室两厅住宅（$65,000/套）",
+    "source": {
+      "sheetNo": 19,
+      "image": "docs/实体卡片/市场风云/19.jpg"
+    },
+    "raw": {
+      "title": "求购三室两厅住宅",
+      "body": [
+        "求购供出租的房屋，三室两厅，每套出价$65,000，买主使用自有资金购买。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "3室2厅",
+      "priceBasis": "PER_UNIT",
+      "price": 65000
+    },
+    "ocr_keywords": [
+      "求购三室两厅住宅",
+      "65,000"
+    ]
+  },
+  {
+    "id": "mk-020",
+    "key": "buy-apt-perroom-40k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓（$40,000/间房）",
+    "source": {
+      "sheetNo": 20,
+      "image": "docs/实体卡片/市场风云/20.jpg"
+    },
+    "raw": {
+      "title": "求购公寓",
+      "body": [
+        "市场急需公寓房，2室、4室、8室，任意户型均可，每间房出价$40,000，买方使用自有资金购买。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓",
+      "priceBasis": "PER_ROOM",
+      "price": 40000
+    },
+    "ocr_keywords": [
+      "求购公寓",
+      "每间房",
+      "40,000",
+      "2室、4室、8室"
+    ]
+  },
+  {
+    "id": "mk-021",
+    "key": "buy-apt-perroom-25k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓（$25,000/间房）",
+    "source": {
+      "sheetNo": 21,
+      "image": "docs/实体卡片/市场风云/21.jpg"
+    },
+    "raw": {
+      "title": "求购公寓",
+      "body": [
+        "市场急需公寓房，2室、4室、8室，任意户型均可，每间房出价$25,000，买方使用自有资金购买。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓",
+      "priceBasis": "PER_ROOM",
+      "price": 25000
+    },
+    "ocr_keywords": [
+      "求购公寓",
+      "每间房",
+      "25,000"
+    ]
+  },
+  {
+    "id": "mk-022",
+    "key": "buy-apt-perroom-25k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓（$25,000/间房）",
+    "source": {
+      "sheetNo": 22,
+      "image": "docs/实体卡片/市场风云/22.jpg"
+    },
+    "raw": {
+      "title": "求购公寓",
+      "body": [
+        "市场急需公寓房，2室、4室、8室，任意户型均可，每间房出价$25,000，买方使用自有资金购买。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓",
+      "priceBasis": "PER_ROOM",
+      "price": 25000
+    },
+    "ocr_keywords": [
+      "求购公寓",
+      "每间房",
+      "25,000"
+    ],
+    "duplicateOf": "mk-021"
+  },
+  {
+    "id": "mk-023",
+    "key": "lp-sale-2x",
+    "deck": "MARKET",
+    "subtype": "MULTIPLE_OFFER",
+    "title": "有限合伙人公司出售（两倍）",
+    "source": {
+      "sheetNo": 23,
+      "image": "docs/实体卡片/市场风云/23.jpg"
+    },
+    "raw": {
+      "title": "有限合伙人公司出售",
+      "body": [
+        "公司出售，你获得自己所拥有股份原价的两倍的售价。如果公司创立者决定出售公司，你也同意，那么公司新所有者将使用自有资金购买。",
+        "任何有限合伙人公司都会受此影响。如果你拥有有限合伙人公司股份，从银行获得现金并立即减少相应的月现金流。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "有限合伙",
+      "multiple": 2
+    },
+    "ocr_keywords": [
+      "有限合伙人公司出售",
+      "两倍"
+    ],
+    "duplicateOf": "mk-005"
+  },
+  {
+    "id": "mk-024",
+    "key": "buy-apt-perroom-30k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓（$30,000/间房）",
+    "source": {
+      "sheetNo": 24,
+      "image": "docs/实体卡片/市场风云/24.jpg"
+    },
+    "raw": {
+      "title": "求购公寓",
+      "body": [
+        "市场急需公寓房，2室、4室、8室，任意户型均可，每间房出价$30,000，买方使用自有资金购买。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓",
+      "priceBasis": "PER_ROOM",
+      "price": 30000
+    },
+    "ocr_keywords": [
+      "求购公寓",
+      "每间房",
+      "30,000"
+    ]
+  },
+  {
+    "id": "mk-025",
+    "key": "buy-machine-co-50k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "小机械公司购买者（$50,000）",
+    "source": {
+      "sheetNo": 25,
+      "image": "docs/实体卡片/市场风云/25.jpg"
+    },
+    "raw": {
+      "title": "小机械公司购买者",
+      "body": [
+        "工程师（发明家）拥有一家机器公司，现欲购买生产小型机械的生产技术，报价现金$50,000。",
+        "任何拥有这种小型机械公司的人均可按此价格出售。如果你出售的话，需放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "自建企业",
+      "priceBasis": "PER_UNIT",
+      "price": 50000,
+      "targetBusinessKind": "小型机械公司"
+    },
+    "ocr_keywords": [
+      "小机械公司购买者",
+      "50,000",
+      "发明家"
+    ]
+  },
+  {
+    "id": "mk-026",
+    "key": "buy-land-10acre-river-150k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "建筑商求购土地（10英亩带河流 $150,000）",
+    "source": {
+      "sheetNo": 26,
+      "image": "docs/实体卡片/市场风云/26.jpg"
+    },
+    "raw": {
+      "title": "建筑商求购土地",
+      "body": [
+        "城市规划人员要求建筑商附带建设一个10英亩公园，否则不予批准兴建新的居民区。建筑商因此需要购买带河流的10英亩土地。",
+        "对任何拥有这种地产的人，报价均为$150,000。如果你出售的话，需放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "10英亩土地（带河流）",
+      "priceBasis": "PER_UNIT",
+      "price": 150000
+    },
+    "ocr_keywords": [
+      "建筑商求购土地",
+      "10英亩",
+      "河流",
+      "150,000"
+    ]
+  },
+  {
+    "id": "mk-027",
+    "key": "buy-apt-perroom-30k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓（$30,000/间房）",
+    "source": {
+      "sheetNo": 27,
+      "image": "docs/实体卡片/市场风云/27.jpg"
+    },
+    "raw": {
+      "title": "求购公寓",
+      "body": [
+        "市场急需公寓房，2室、4室、8室，任意户型均可，每间房出价$30,000，买方使用自有资金购买。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓",
+      "priceBasis": "PER_ROOM",
+      "price": 30000
+    },
+    "ocr_keywords": [
+      "求购公寓",
+      "每间房",
+      "30,000"
+    ],
+    "duplicateOf": "mk-024"
+  },
+  {
+    "id": "mk-028",
+    "key": "buy-2b1b-45k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购两室一厅公寓（$45,000/套）",
+    "source": {
+      "sheetNo": 28,
+      "image": "docs/实体卡片/市场风云/28.jpg"
+    },
+    "raw": {
+      "title": "求购两室一厅公寓",
+      "body": [
+        "求购供出租的分套购置公寓，两室一厅，每套出价$45,000，使用自有资金购买。",
+        "每个人都能按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "2室1厅",
+      "priceBasis": "PER_UNIT",
+      "price": 45000
+    },
+    "ocr_keywords": [
+      "求购两室一厅公寓",
+      "45,000"
+    ]
+  },
+  {
+    "id": "mk-029",
+    "key": "buy-3b2b-installment-100k",
+    "deck": "MARKET",
+    "subtype": "INSTALLMENT_SALE",
+    "title": "求购三室两厅住宅（分期收款 $100,000）",
+    "source": {
+      "sheetNo": 29,
+      "image": "docs/实体卡片/市场风云/29.jpg"
+    },
+    "raw": {
+      "title": "求购三室两厅住宅",
+      "body": [
+        "你的妹夫失业了，他想买你的三室两厅住宅。他承诺从现在起四年内支付给你$100,000，但他目前没有任何收入或储蓄。他可以每月支付一小笔钱，但不支付首期款。",
+        "如果你按此条件出售的话，你的月现金流量就会每月减少$500，直到你收齐$100,000为止。"
+      ],
+      "fields": [],
+      "notes": [
+        "卡面「四年内」为剧情文案；按数值结算为 $100,000 ÷ $500 = 200 个月，期满月现金流恢复 +$500 并一次性入账 $100,000（房主 2026-07-21 裁定）"
+      ]
+    },
+    "data": {
+      "targetAssetType": "3室2厅",
+      "totalPrice": 100000,
+      "downPayment": 0,
+      "monthlyCashflowDelta": -500,
+      "durationMonths": 200,
+      "onCompletion": "RESTORE_CASHFLOW_AND_PAY"
+    },
+    "ocr_keywords": [
+      "求购三室两厅住宅",
+      "妹夫",
+      "100,000",
+      "500",
+      "四年"
+    ]
+  },
+  {
+    "id": "mk-030",
+    "key": "buy-3b2b-110k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购三室两厅住宅（$110,000/套）",
+    "source": {
+      "sheetNo": 30,
+      "image": "docs/实体卡片/市场风云/30.jpg"
+    },
+    "raw": {
+      "title": "求购三室两厅住宅",
+      "body": [
+        "求购供出租的房屋，三室两厅，每套出$110,000，买主使用自有资金购买。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "3室2厅",
+      "priceBasis": "PER_UNIT",
+      "price": 110000
+    },
+    "ocr_keywords": [
+      "求购三室两厅住宅",
+      "110,000"
+    ]
+  },
+  {
+    "id": "mk-031",
+    "key": "buy-aptbldg-45k-any",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓房（不论大小，$45,000/套）",
+    "source": {
+      "sheetNo": 31,
+      "image": "docs/实体卡片/市场风云/31.jpg"
+    },
+    "raw": {
+      "title": "求购公寓房",
+      "body": [
+        "公寓房不论大小，每套出价$45,000，使用自有资金购买。（其纳税递延时间已过。）",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓楼",
+      "priceBasis": "PER_UNIT",
+      "price": 45000
+    },
+    "ocr_keywords": [
+      "求购公寓房",
+      "不论大小",
+      "45,000",
+      "纳税递延"
+    ]
+  },
+  {
+    "id": "mk-032",
+    "key": "buy-bnb-250k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购旅馆（$250,000）",
+    "source": {
+      "sheetNo": 32,
+      "image": "docs/实体卡片/市场风云/32.jpg"
+    },
+    "raw": {
+      "title": "求购旅馆",
+      "body": [
+        "一对夫妻厌烦了公司工作，他们拥有足够多的现金，现欲购买一盈利性的提供住宿和早餐的旅馆，他们愿为此支付$250,000。",
+        "拥有提供住宿和早餐的旅馆且能盈利的玩家都可按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "住宿和早餐旅馆",
+      "priceBasis": "PER_UNIT",
+      "price": 250000,
+      "assetCondition": "cashflowPositive"
+    },
+    "ocr_keywords": [
+      "求购旅馆",
+      "住宿和早餐",
+      "250,000",
+      "盈利"
+    ]
+  },
+  {
+    "id": "mk-033",
+    "key": "buy-software-co-100k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购软件公司（$100,000）",
+    "source": {
+      "sheetNo": 33,
+      "image": "docs/实体卡片/市场风云/33.jpg"
+    },
+    "raw": {
+      "title": "求购软件公司",
+      "body": [
+        "一家大型综合软件公司欲购买一家编制软件及相关产品的公司，报价现金$100,000。",
+        "拥有软件公司的每个人均可按此价格出售公司。如果你出售的话，需放弃从此公司获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "自建企业",
+      "priceBasis": "PER_UNIT",
+      "price": 100000,
+      "targetBusinessKind": "软件公司"
+    },
+    "ocr_keywords": [
+      "求购软件公司",
+      "100,000"
+    ]
+  },
+  {
+    "id": "mk-034",
+    "key": "buy-3b2b-100k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购三室两厅住宅（$100,000/套）",
+    "source": {
+      "sheetNo": 34,
+      "image": "docs/实体卡片/市场风云/34.jpg"
+    },
+    "raw": {
+      "title": "求购三室两厅住宅",
+      "body": [
+        "求购供出租的房屋，三室两厅，每套出价$100,000，买主使用自有资金购买。",
+        "每个人都能按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "3室2厅",
+      "priceBasis": "PER_UNIT",
+      "price": 100000
+    },
+    "ocr_keywords": [
+      "求购三室两厅住宅",
+      "100,000"
+    ],
+    "duplicateOf": "mk-016"
+  },
+  {
+    "id": "mk-035",
+    "key": "buy-carwash-25k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购汽车清洗公司（$25,000）",
+    "source": {
+      "sheetNo": 35,
+      "image": "docs/实体卡片/市场风云/35.jpg"
+    },
+    "raw": {
+      "title": "求购汽车清洗公司",
+      "body": [
+        "急需一家汽车清洗公司，出价为$25,000。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": [
+        "标的为一切「汽车清洗公司」：bd-037 洗车店、bd-023 4家投币式洗车店。出售可选——报价低于账面时玩家可拒绝，报价不划算不构成匹配矛盾。"
+      ]
+    },
+    "data": {
+      "priceBasis": "PER_UNIT",
+      "price": 25000,
+      "targetBusinessKind": "汽车清洗公司"
+    },
+    "ocr_keywords": [
+      "求购汽车清洗公司",
+      "25,000"
+    ]
+  },
+  {
+    "id": "mk-036",
+    "key": "buy-apt-perroom-35k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓（$35,000/间房）",
+    "source": {
+      "sheetNo": 36,
+      "image": "docs/实体卡片/市场风云/36.jpg"
+    },
+    "raw": {
+      "title": "求购公寓",
+      "body": [
+        "市场急需公寓房，2室、4室、8室，任意户型均可，每间房出价$35,000，买方使用自有资金购买。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓",
+      "priceBasis": "PER_ROOM",
+      "price": 35000
+    },
+    "ocr_keywords": [
+      "求购公寓",
+      "每间房",
+      "35,000"
+    ]
+  },
+  {
+    "id": "mk-037",
+    "key": "buy-apt-perroom-30k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓（$30,000/间房）",
+    "source": {
+      "sheetNo": 37,
+      "image": "docs/实体卡片/市场风云/37.jpg"
+    },
+    "raw": {
+      "title": "求购公寓",
+      "body": [
+        "市场急需公寓房，2室、4室、8室，任意户型均可，每间房出价$30,000，买方使用自有资金购买。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓",
+      "priceBasis": "PER_ROOM",
+      "price": 30000
+    },
+    "ocr_keywords": [
+      "求购公寓",
+      "每间房",
+      "30,000"
+    ],
+    "duplicateOf": "mk-024"
+  },
+  {
+    "id": "mk-038",
+    "key": "buy-apt-perroom-40k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓（$40,000/间房）",
+    "source": {
+      "sheetNo": 38,
+      "image": "docs/实体卡片/市场风云/38.jpg"
+    },
+    "raw": {
+      "title": "求购公寓",
+      "body": [
+        "市场急需公寓房，2室、4室、8室，任意户型均可，每间房出价$40,000，买方使用自有资金购买。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓",
+      "priceBasis": "PER_ROOM",
+      "price": 40000
+    },
+    "ocr_keywords": [
+      "求购公寓",
+      "每间房",
+      "40,000"
+    ],
+    "duplicateOf": "mk-020"
+  },
+  {
+    "id": "mk-039",
+    "key": "buy-apt-perroom-35k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓（$35,000/间房）",
+    "source": {
+      "sheetNo": 39,
+      "image": "docs/实体卡片/市场风云/39.jpg"
+    },
+    "raw": {
+      "title": "求购公寓",
+      "body": [
+        "市场急需公寓房，2室、4室、8室，任意户型均可，每间房出价$35,000，买方使用自有资金购买。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓",
+      "priceBasis": "PER_ROOM",
+      "price": 35000
+    },
+    "ocr_keywords": [
+      "求购公寓",
+      "每间房",
+      "35,000"
+    ],
+    "duplicateOf": "mk-036"
+  },
+  {
+    "id": "mk-040",
+    "key": "buy-2b1b-55k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购两室一厅公寓（$55,000/套）",
+    "source": {
+      "sheetNo": 40,
+      "image": "docs/实体卡片/市场风云/40.jpg"
+    },
+    "raw": {
+      "title": "求购两室一厅公寓",
+      "body": [
+        "市场需要供出租的分套购置公寓，两室一厅，每套出价$55,000，使用自有资金购买。",
+        "每个人都能按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "2室1厅",
+      "priceBasis": "PER_UNIT",
+      "price": 55000
+    },
+    "ocr_keywords": [
+      "求购两室一厅公寓",
+      "55,000"
+    ],
+    "duplicateOf": "mk-003"
+  },
+  {
+    "id": "mk-041",
+    "key": "buy-apt-perroom-35k",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓（$35,000/间房）",
+    "source": {
+      "sheetNo": 41,
+      "image": "docs/实体卡片/市场风云/41.jpg"
+    },
+    "raw": {
+      "title": "求购公寓",
+      "body": [
+        "市场急需公寓房，2室、4室、8室，任意户型均可，每间房出价$35,000，买方使用自有资金购买。",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓",
+      "priceBasis": "PER_ROOM",
+      "price": 35000
+    },
+    "ocr_keywords": [
+      "求购公寓",
+      "每间房",
+      "35,000"
+    ],
+    "duplicateOf": "mk-036"
+  },
+  {
+    "id": "mk-042",
+    "key": "buy-aptbldg-40k-any",
+    "deck": "MARKET",
+    "subtype": "BUYER_OFFER",
+    "title": "求购公寓房（不论大小，$40,000/套）",
+    "source": {
+      "sheetNo": 42,
+      "image": "docs/实体卡片/市场风云/42.jpg"
+    },
+    "raw": {
+      "title": "求购公寓房",
+      "body": [
+        "公寓房不论大小，每套出价$40,000，使用自有资金购买。（其纳税递延时间已过。）",
+        "每个人都可以按此价格出售。如果你打算出售，应先清偿相关抵押贷款，并放弃目前从这一资产中可获得的月现金流量。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓楼",
+      "priceBasis": "PER_UNIT",
+      "price": 40000
+    },
+    "ocr_keywords": [
+      "求购公寓房",
+      "不论大小",
+      "40,000",
+      "纳税递延"
+    ]
   }
 ]

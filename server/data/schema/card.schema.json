@@ -1,75 +1,168 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "card.schema.json",
-  "title": "卡牌文件（对象数组）",
+  "title": "卡牌文件 v3 —— 卡面原文(raw) + 结构化数值(data) 双轨",
+  "$comment": "设计原则：1) 能由别处推出的一律不存（如 effects 由 subtype 推、unitCost 由 cost÷quantity 推）；2) 一个字段只有一种语义；3) 通用规则不逐卡标注（如银行贷款，说明书 p6 规定随时可借除非破产）。",
   "type": "array",
   "items": {
     "type": "object",
-    "required": ["id", "deck", "subtype", "title", "data"],
+    "required": ["id", "key", "deck", "subtype", "title", "source", "raw", "data"],
     "additionalProperties": false,
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "id": {
+        "type": "string",
+        "pattern": "^(sd|bd|mk|dd|prof)-[0-9]{3}$",
+        "description": "一张实体卡一条记录，编号对应 source.sheetNo，永久稳定"
+      },
+      "key": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$",
+        "description": "内容语义键；同内容的重复卡共用同一个 key，牌堆构成靠它归组"
+      },
       "deck": { "enum": ["SMALL_DEAL", "BIG_DEAL", "MARKET", "DOODAD", "PROFESSION"] },
       "subtype": {
+        "$comment": "17 类。effects 由本字段查表推出，不再逐卡存储。",
         "enum": [
-          "REALESTATE", "STOCK_OFFER", "STOCK_EVENT", "LOSS_EVENT", "BUSINESS",
-          "EXPENSE_EVENT", "BUYER_OFFER", "MULTIPLE_OFFER", "ECONOMY_EVENT",
+          "REALESTATE", "BUSINESS", "COLLECTIBLE", "DICE_GAMBLE",
+          "STOCK_OFFER", "STOCK_EVENT", "EXPENSE_EVENT",
+          "BUYER_OFFER", "MULTIPLE_OFFER", "PREMIUM_OFFER", "INSTALLMENT_SALE",
+          "CASHFLOW_MODIFIER", "ECONOMY_EVENT",
           "CASH", "CREDIT_OPTION", "INSTALLMENT", "PROFESSION"
         ]
       },
-      "title": { "type": "string", "minLength": 1 },
-      "data": { "type": "object" },
-      "effects": { "type": "array" },
+      "title": { "type": "string", "minLength": 1, "description": "带区分度的显示名（编者拟定，非卡面原文）" },
+      "duplicateOf": { "type": "string", "pattern": "^(sd|bd|mk|dd|prof)-[0-9]{3}$" },
+
+      "source": {
+        "type": "object",
+        "required": ["sheetNo", "image"],
+        "additionalProperties": false,
+        "properties": {
+          "sheetNo": { "type": "integer", "minimum": 1, "description": "实体牌叠内编号 = 照片文件名" },
+          "image": { "type": "string", "description": "原始照片路径（存档权威）" }
+        }
+      },
+
+      "raw": {
+        "type": "object",
+        "description": "卡面原文逐字转录。纯线上版据此渲染卡面，不得省略。",
+        "required": ["title"],
+        "additionalProperties": false,
+        "properties": {
+          "title": { "type": "string", "minLength": 1 },
+          "subtitle": { "type": "string" },
+          "body": { "type": "array", "items": { "type": "string" }, "description": "正文段落，按卡面分段" },
+          "fields": {
+            "type": "array",
+            "description": "卡面下方的标签:数值行，保留原样文本（含 $ 与千分位）",
+            "items": {
+              "type": "object",
+              "required": ["label", "value"],
+              "additionalProperties": false,
+              "properties": { "label": { "type": "string" }, "value": { "type": "string" } }
+            }
+          },
+          "groups": {
+            "type": "array",
+            "description": "表格式卡面（职业卡）的分组行",
+            "items": {
+              "type": "object",
+              "required": ["name", "rows"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" },
+                "rows": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["label", "value"],
+                    "additionalProperties": false,
+                    "properties": { "label": { "type": "string" }, "value": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          },
+          "notes": { "type": "array", "items": { "type": "string" }, "description": "括注、脚注、录入者标注" }
+        }
+      },
+
+      "data": { "type": "object", "description": "结构化数值，规则引擎唯一取数来源" },
       "ocr_keywords": { "type": "array", "items": { "type": "string" } },
       "image_hash": { "type": ["string", "null"] }
     },
+
     "allOf": [
       {
-        "if": { "properties": { "subtype": { "const": "REALESTATE" } } },
+        "$comment": "可购入资产：房地产/企业/收藏品/赌局共用成本三件套。说明书 p8：买入只付首期支付，月供已含在现金流里。",
+        "if": {
+          "properties": { "subtype": { "enum": ["REALESTATE", "BUSINESS", "COLLECTIBLE", "DICE_GAMBLE"] } }
+        },
         "then": {
           "properties": {
             "data": {
-              "required": ["assetType", "cost", "downPayment", "mortgage", "cashflow"],
+              "required": ["cost", "downPayment", "mortgage", "cashflow"],
               "properties": {
-                "assetType": { "type": "string" },
+                "assetType": { "type": "string", "description": "受控词表，市场卡靠它匹配" },
+                "businessKind": {
+                  "type": "string",
+                  "description": "企业细分类型，跨 assetType 的横切标签。指名求购的市场卡靠它匹配"
+                },
+                "rooms": { "type": "integer", "minimum": 1, "description": "公寓房间数（2/4/8），按间计价的求购卡需要" },
+                "units": { "type": "integer", "minimum": 1, "description": "公寓楼套数（12/24/60），按套计价与套数门槛需要" },
+                "quantity": { "type": "integer", "minimum": 1, "description": "收藏品件数。单价 = cost ÷ quantity，不另存" },
                 "cost": { "type": "integer", "minimum": 0 },
                 "downPayment": { "type": "integer", "minimum": 0 },
                 "mortgage": { "type": "integer", "minimum": 0 },
-                "cashflow": { "type": "integer" },
-                "roiPct": { "type": "number" },
-                "priceRange": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 }
+                "cashflow": { "type": "integer", "description": "可为负（亏损资产）" },
+                "incomeCategory": {
+                  "enum": ["REAL_ESTATE", "BUSINESS"],
+                  "description": "现金流记入记录卡收入栏的哪一行（说明书 p7）。仅现金流非 0 时需要"
+                },
+                "roiPct": { "type": ["number", "null"], "description": "null = 卡面印「投资收益率未知」" },
+                "priceRange": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+                "resaleBasis": {
+                  "const": "CASHFLOW_MULTIPLE",
+                  "description": "本资产自身的估值方式（区别于求购卡的 priceBasis）"
+                },
+                "priceMultipleRange": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+                "priceIndeterminate": {
+                  "const": true,
+                  "description": "卡面未印转售参考价（「售价不能确定」或「目前没有其他买主」）。不表示不可转售"
+                },
+                "diceCount": { "type": "integer", "minimum": 1 },
+                "winCondition": { "type": "string" },
+                "payout": { "type": "integer", "minimum": 0 }
               }
             }
           }
         }
       },
       {
-        "if": { "properties": { "subtype": { "const": "BUSINESS" } } },
-        "then": {
-          "properties": {
-            "data": {
-              "required": ["cost", "downPayment", "cashflow"],
-              "properties": {
-                "cost": { "type": "integer", "minimum": 0 },
-                "downPayment": { "type": "integer", "minimum": 0 },
-                "mortgage": { "type": "integer", "minimum": 0 },
-                "cashflow": { "type": "integer" }
-              }
-            }
-          }
-        }
+        "if": { "properties": { "subtype": { "const": "DICE_GAMBLE" } } },
+        "then": { "properties": { "data": { "required": ["diceCount", "winCondition", "payout"] } } }
       },
       {
         "if": { "properties": { "subtype": { "const": "STOCK_OFFER" } } },
         "then": {
           "properties": {
             "data": {
-              "required": ["symbol", "price", "dividendPerShare"],
+              "required": ["symbol", "price", "priceRange", "dividendPerShare", "roiPct", "buyerScope"],
+              "additionalProperties": false,
               "properties": {
                 "symbol": { "type": "string" },
-                "price": { "type": "integer", "minimum": 1 },
+                "price": { "type": "integer", "minimum": 1, "description": "今日价。可能落在 priceRange 之外（股灾/暴涨），不得用区间夹逼" },
                 "priceRange": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
-                "dividendPerShare": { "type": "integer", "minimum": 0 }
+                "dividendPerShare": { "type": "integer", "minimum": 0 },
+                "incomeCategory": {
+                  "enum": ["DIVIDEND", "INTEREST"],
+                  "description": "记入记录卡「股利」还是「利息」栏（说明书 p7）。仅 dividendPerShare > 0 时需要"
+                },
+                "roiPct": { "type": "number" },
+                "buyerScope": {
+                  "enum": ["DRAWER_ONLY", "ALL"],
+                  "description": "谁能买。卖出侧一律所有人可卖，故不设 sellerScope"
+                }
               }
             }
           }
@@ -81,23 +174,11 @@
           "properties": {
             "data": {
               "required": ["symbol", "ratio"],
+              "additionalProperties": false,
+              "$comment": "「总成本不变」「此时不能交易」是并股/拆股的固有规则，不逐卡标注",
               "properties": {
                 "symbol": { "type": "string" },
-                "ratio": { "type": "string", "pattern": "^[0-9]+:[0-9]+$" }
-              }
-            }
-          }
-        }
-      },
-      {
-        "if": { "properties": { "subtype": { "const": "LOSS_EVENT" } } },
-        "then": {
-          "properties": {
-            "data": {
-              "required": ["amount"],
-              "properties": {
-                "condition": { "type": "string" },
-                "amount": { "type": "integer", "minimum": 0 }
+                "ratio": { "type": "string", "pattern": "^[0-9]+:[0-9]+$", "description": "2:1=并股，1:2=拆股" }
               }
             }
           }
@@ -108,10 +189,19 @@
         "then": {
           "properties": {
             "data": {
-              "required": ["targetAssetType", "amountPerUnit"],
+              "additionalProperties": false,
+              "anyOf": [{ "required": ["amount"] }, { "required": ["amountPerUnit"] }],
               "properties": {
+                "payerCondition": {
+                  "enum": ["hasChildren", "hasRentalProperty", "hasRealEstate"],
+                  "description": "判定「玩家」是否需要支付"
+                },
                 "targetAssetType": { "type": "string" },
-                "amountPerUnit": { "type": "integer", "minimum": 0 }
+                "targetRooms": { "type": "integer", "minimum": 1, "description": "限定房间数（bd-003 只针对 8 室公寓）" },
+                "amount": { "type": "integer", "minimum": 0 },
+                "amountPerUnit": { "type": "integer", "minimum": 0 },
+                "chargeOnce": { "const": true, "description": "持有多套也只付一套（bd-003 卡面明示）" },
+                "appliesTo": { "enum": ["DRAWER_ONLY", "ALL"] }
               }
             }
           }
@@ -122,10 +212,25 @@
         "then": {
           "properties": {
             "data": {
-              "required": ["targetAssetType", "pricePerUnit"],
+              "required": ["priceBasis", "price"],
+              "additionalProperties": false,
+              "anyOf": [{ "required": ["targetAssetType"] }, { "required": ["targetBusinessKind"] }],
               "properties": {
                 "targetAssetType": { "type": "string" },
-                "pricePerUnit": { "type": "integer", "minimum": 0 }
+                "targetBusinessKind": {
+                  "type": "string",
+                  "description": "只给本字段时按企业类型跨 assetType 匹配（mk-035 同时收洗车店与自动化企业名下的汽车清洗公司）"
+                },
+                "priceBasis": {
+                  "enum": ["PER_UNIT", "PER_ROOM", "PER_PIECE"],
+                  "description": "求购方怎么算价：每套 / 每间房 / 每枚。算错基准最大差 13 倍"
+                },
+                "price": { "type": "integer", "minimum": 0 },
+                "minUnits": { "type": "integer", "minimum": 1, "description": "如「求购12套以上的公寓房」" },
+                "assetCondition": {
+                  "enum": ["cashflowPositive"],
+                  "description": "判定「资产」是否合格（mk-032 旅馆须盈利）"
+                }
               }
             }
           }
@@ -137,9 +242,60 @@
           "properties": {
             "data": {
               "required": ["targetAssetType", "multiple"],
+              "additionalProperties": false,
               "properties": {
                 "targetAssetType": { "type": "string" },
                 "multiple": { "type": "number", "exclusiveMinimum": 0 }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "PREMIUM_OFFER" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["targetAssetType", "premiumOverCost"],
+              "additionalProperties": false,
+              "properties": {
+                "targetAssetType": { "type": "string" },
+                "premiumOverCost": { "type": "integer", "description": "以「原价 + 溢价」成交" }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "INSTALLMENT_SALE" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["targetAssetType", "totalPrice", "monthlyCashflowDelta", "durationMonths"],
+              "additionalProperties": false,
+              "properties": {
+                "targetAssetType": { "type": "string" },
+                "totalPrice": { "type": "integer", "minimum": 0 },
+                "downPayment": { "type": "integer", "minimum": 0 },
+                "monthlyCashflowDelta": { "type": "integer" },
+                "durationMonths": { "type": "integer", "minimum": 1, "description": "totalPrice ÷ |monthlyCashflowDelta|" },
+                "onCompletion": { "const": "RESTORE_CASHFLOW_AND_PAY" }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": { "properties": { "subtype": { "const": "CASHFLOW_MODIFIER" } } },
+        "then": {
+          "properties": {
+            "data": {
+              "required": ["targetAssetType", "cashflowDelta", "appliesTo"],
+              "additionalProperties": false,
+              "properties": {
+                "targetAssetType": { "type": "string" },
+                "cashflowDelta": { "type": "integer" },
+                "appliesTo": { "enum": ["DRAWER_ONLY", "ALL"] }
               }
             }
           }
@@ -151,6 +307,7 @@
           "properties": {
             "data": {
               "required": ["kind"],
+              "additionalProperties": false,
               "properties": {
                 "kind": { "enum": ["FORCED_SURRENDER", "MODIFY_EXPENSE"] },
                 "targetAssetType": { "type": "string" }
@@ -164,10 +321,12 @@
         "then": {
           "properties": {
             "data": {
-              "required": ["amount"],
+              "additionalProperties": false,
+              "anyOf": [{ "required": ["amount"] }, { "required": ["amountPerChild"] }],
               "properties": {
                 "amount": { "type": "integer", "minimum": 0 },
-                "condition": { "type": "string" }
+                "amountPerChild": { "type": "integer", "minimum": 0, "description": "「为每个小孩花费$50」" },
+                "payerCondition": { "enum": ["hasChildren", "hasRentalProperty", "hasRealEstate"] }
               }
             }
           }
@@ -179,6 +338,7 @@
           "properties": {
             "data": {
               "required": ["amount", "creditMonthly"],
+              "additionalProperties": false,
               "properties": {
                 "amount": { "type": "integer", "minimum": 0 },
                 "creditMonthly": { "type": "integer", "minimum": 0 }
@@ -193,6 +353,7 @@
           "properties": {
             "data": {
               "required": ["downPayment", "liability", "liabilityName", "monthly"],
+              "additionalProperties": false,
               "properties": {
                 "downPayment": { "type": "integer", "minimum": 0 },
                 "liability": { "type": "integer", "minimum": 0 },
@@ -211,8 +372,10 @@
               "required": [
                 "salary", "taxes", "mortgagePayment", "schoolLoanPayment",
                 "carLoanPayment", "creditCardPayment", "otherExpenses",
-                "extraExpenses", "perChildExpense", "savings", "liabilities"
+                "extraExpenses", "perChildExpense", "totalExpenses",
+                "monthlyCashflow", "savings", "liabilities"
               ],
+              "additionalProperties": false,
               "properties": {
                 "salary": { "type": "integer", "minimum": 0 },
                 "taxes": { "type": "integer", "minimum": 0 },
@@ -223,10 +386,13 @@
                 "otherExpenses": { "type": "integer", "minimum": 0 },
                 "extraExpenses": { "type": "integer", "minimum": 0 },
                 "perChildExpense": { "type": "integer", "minimum": 0 },
+                "totalExpenses": { "type": "integer", "minimum": 0 },
+                "monthlyCashflow": { "type": "integer" },
                 "savings": { "type": "integer", "minimum": 0 },
                 "liabilities": {
                   "type": "object",
                   "required": ["mortgage", "schoolLoan", "carLoan", "creditCard", "extra"],
+                  "additionalProperties": false,
                   "properties": {
                     "mortgage": { "type": "integer", "minimum": 0 },
                     "schoolLoan": { "type": "integer", "minimum": 0 },

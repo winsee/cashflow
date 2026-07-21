@@ -1,29 +1,2343 @@
 [
   {
-    "id": "bd-apt4-01",
+    "id": "bd-001",
+    "key": "apt2-60k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "4室公寓",
+    "title": "2室公寓待售（成本$60,000）",
+    "source": {
+      "sheetNo": 1,
+      "image": "docs/实体卡片/大买卖/1.jpg"
+    },
+    "raw": {
+      "title": "2室公寓待售",
+      "body": [
+        "由于业主调离，有位置理想、维护良好的2室公寓出售。对某些投资者是一个非常好的投资机会。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为60%，售价在$50,000~$80,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$60,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$54,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$6,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$300"
+        }
+      ],
+      "notes": []
+    },
     "data": {
-      "assetType": "4室公寓",
+      "assetType": "公寓",
+      "rooms": 2,
+      "cost": 60000,
+      "downPayment": 6000,
+      "mortgage": 54000,
+      "cashflow": 300,
+      "roiPct": 60,
+      "priceRange": [
+        50000,
+        80000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "2室公寓待售",
+      "60,000",
+      "6,000",
+      "54,000",
+      "300"
+    ]
+  },
+  {
+    "id": "bd-002",
+    "key": "apt4-125k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "4室公寓待售（成本$125,000）",
+    "source": {
+      "sheetNo": 2,
+      "image": "docs/实体卡片/大买卖/2.jpg"
+    },
+    "raw": {
+      "title": "4室公寓待售",
+      "body": [
+        "位于高端时尚社区、维护良好的4室公寓楼房待售。房客稳定，月现金流量为正，问题很少，记录齐全。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为48%，售价在$100,000~$140,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$125,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$110,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$15,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$600"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 4,
       "cost": 125000,
       "downPayment": 15000,
       "mortgage": 110000,
       "cashflow": 600,
       "roiPct": 48,
-      "priceRange": [100000, 140000]
+      "priceRange": [
+        100000,
+        140000
+      ],
+      "incomeCategory": "REAL_ESTATE"
     },
-    "ocr_keywords": ["4室公寓", "125,000", "110,000", "15,000"]
+    "ocr_keywords": [
+      "4室公寓待售",
+      "125,000",
+      "15,000",
+      "110,000",
+      "600"
+    ]
   },
   {
-    "id": "bd-evt-sewer",
+    "id": "bd-003",
+    "key": "sewer-repair",
     "deck": "BIG_DEAL",
     "subtype": "EXPENSE_EVENT",
     "title": "下水管破裂",
-    "data": {
-      "targetAssetType": "8室公寓",
-      "amountPerUnit": 2000
+    "source": {
+      "sheetNo": 3,
+      "image": "docs/实体卡片/大买卖/3.jpg"
     },
-    "ocr_keywords": ["下水管", "2,000", "8室"]
+    "raw": {
+      "title": "下水管破裂",
+      "body": [
+        "你的8室公寓楼房下水管破裂，污水四处横流，需要立即修理。如果你有一套8室公寓楼房，需支付$2,000购买新的下水管。(可以通过条款取得银行贷款。)",
+        "如果你有多套8室公寓楼房，只需支付一套的修理费。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "targetAssetType": "公寓",
+      "amountPerUnit": 2000,
+      "chargeOnce": true,
+      "appliesTo": "DRAWER_ONLY",
+      "targetRooms": 8
+    },
+    "ocr_keywords": [
+      "下水管破裂",
+      "8室公寓",
+      "2,000"
+    ]
+  },
+  {
+    "id": "bd-004",
+    "key": "biz-arcade-100k",
+    "deck": "BIG_DEAL",
+    "subtype": "BUSINESS",
+    "title": "自动化企业待售（录像机和弹子球机）",
+    "source": {
+      "sheetNo": 4,
+      "image": "docs/实体卡片/大买卖/4.jpg"
+    },
+    "raw": {
+      "title": "自动化企业待售",
+      "body": [
+        "由于业主过分扩张造成资金紧张，被迫出售30台录像机和弹子球机，占用地是长期合同。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为96%，目前没有其他买主。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$100,000"
+        },
+        {
+          "label": "负债",
+          "value": "$80,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$20,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$1,600"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "自动化企业",
+      "cost": 100000,
+      "downPayment": 20000,
+      "mortgage": 80000,
+      "cashflow": 1600,
+      "roiPct": 96,
+      "priceIndeterminate": true,
+      "incomeCategory": "BUSINESS"
+    },
+    "ocr_keywords": [
+      "自动化企业待售",
+      "录像机",
+      "弹子球机",
+      "100,000",
+      "1,600"
+    ]
+  },
+  {
+    "id": "bd-005",
+    "key": "apt4-140k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "4室公寓待售（成本$140,000）",
+    "source": {
+      "sheetNo": 5,
+      "image": "docs/实体卡片/大买卖/5.jpg"
+    },
+    "raw": {
+      "title": "4室公寓待售",
+      "body": [
+        "业主搬迁，出售4室公寓楼房。记录齐全，已全部租出，房客关系融洽，很少更换。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为75%，售价在$100,000~$140,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$140,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$108,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$32,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$2,000"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 4,
+      "cost": 140000,
+      "downPayment": 32000,
+      "mortgage": 108000,
+      "cashflow": 2000,
+      "roiPct": 75,
+      "priceRange": [
+        100000,
+        140000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "4室公寓待售",
+      "140,000",
+      "32,000",
+      "108,000",
+      "2,000"
+    ]
+  },
+  {
+    "id": "bd-006",
+    "key": "aptbldg-24u-575k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "公寓住宅待售（2栋24套，成本$575,000）",
+    "source": {
+      "sheetNo": 6,
+      "image": "docs/实体卡片/大买卖/6.jpg"
+    },
+    "raw": {
+      "title": "公寓住宅待售",
+      "body": [
+        "业主退休，急需出售2栋楼房共24套公寓。由业主在现场管理。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为54%，售价在$600,000~$960,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$575,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$500,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$75,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$3,400"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓楼",
+      "units": 24,
+      "cost": 575000,
+      "downPayment": 75000,
+      "mortgage": 500000,
+      "cashflow": 3400,
+      "roiPct": 54,
+      "priceRange": [
+        600000,
+        960000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "公寓住宅待售",
+      "24套",
+      "575,000",
+      "75,000",
+      "3,400"
+    ]
+  },
+  {
+    "id": "bd-007",
+    "key": "lp-carrental-30k",
+    "deck": "BIG_DEAL",
+    "subtype": "BUSINESS",
+    "title": "征求有限责任合伙人（旧车出租）",
+    "source": {
+      "sheetNo": 7,
+      "image": "docs/实体卡片/大买卖/7.jpg"
+    },
+    "raw": {
+      "title": "征求有限责任合伙人",
+      "body": [
+        "汽车销售商想扩大经营2~3年的旧车出租业务，但汽车制造商对此不感兴趣，因此急需吸纳资本。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为40%，业主可能以$60,000~$90,000购买你的权益。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$30,000"
+        },
+        {
+          "label": "负债",
+          "value": "$0"
+        },
+        {
+          "label": "首期支付",
+          "value": "$30,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$1,000"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "有限合伙",
+      "cost": 30000,
+      "downPayment": 30000,
+      "mortgage": 0,
+      "cashflow": 1000,
+      "roiPct": 40,
+      "priceRange": [
+        60000,
+        90000
+      ],
+      "incomeCategory": "BUSINESS"
+    },
+    "ocr_keywords": [
+      "征求有限责任合伙人",
+      "旧车出租",
+      "30,000",
+      "1,000"
+    ]
+  },
+  {
+    "id": "bd-008",
+    "key": "house3b2b-125k-neg",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "3室2厅住宅待售（成本$125,000，负现金流）",
+    "source": {
+      "sheetNo": 8,
+      "image": "docs/实体卡片/大买卖/8.jpg"
+    },
+    "raw": {
+      "title": "3室2厅住宅待售",
+      "body": [
+        "中上等阶层居住区内良好住宅，3室2厅，带全套家具，社区内有很好的学校和室外游泳池。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为-6%，售价在$65,000~$150,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$125,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$105,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$20,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "-$100"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 125000,
+      "downPayment": 20000,
+      "mortgage": 105000,
+      "cashflow": -100,
+      "roiPct": -6,
+      "priceRange": [
+        65000,
+        150000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "3室2厅住宅待售",
+      "125,000",
+      "20,000",
+      "105,000",
+      "-100"
+    ]
+  },
+  {
+    "id": "bd-009",
+    "key": "house3b2b-65k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "3室2厅住宅待售（成本$65,000）",
+    "source": {
+      "sheetNo": 9,
+      "image": "docs/实体卡片/大买卖/9.jpg"
+    },
+    "raw": {
+      "title": "3室2厅住宅待售",
+      "body": [
+        "如果你有足够的耐心，该住宅有很好的升值潜力。虽然租金收入不高，仍有正的月现金流量。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为45%，售价在$65,000~$135,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$65,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$57,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$8,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$300"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 65000,
+      "downPayment": 8000,
+      "mortgage": 57000,
+      "cashflow": 300,
+      "roiPct": 45,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "3室2厅住宅待售",
+      "65,000",
+      "8,000",
+      "57,000",
+      "300"
+    ]
+  },
+  {
+    "id": "bd-010",
+    "key": "biz-payphone-200k",
+    "deck": "BIG_DEAL",
+    "subtype": "BUSINESS",
+    "title": "自动化企业待售（投币电话厂）",
+    "source": {
+      "sheetNo": 10,
+      "image": "docs/实体卡片/大买卖/10.jpg"
+    },
+    "raw": {
+      "title": "自动化企业待售",
+      "body": [
+        "由于业主去世，一家成功的投币电话厂待售。所有经营用地都有长期合同。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为81%，目前没有其他买主。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$200,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$160,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$40,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$2,700"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "自动化企业",
+      "cost": 200000,
+      "downPayment": 40000,
+      "mortgage": 160000,
+      "cashflow": 2700,
+      "roiPct": 81,
+      "priceIndeterminate": true,
+      "incomeCategory": "BUSINESS"
+    },
+    "ocr_keywords": [
+      "自动化企业待售",
+      "投币电话厂",
+      "200,000",
+      "2,700"
+    ]
+  },
+  {
+    "id": "bd-011",
+    "key": "apt4-80k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "4室公寓待售（成本$80,000）",
+    "source": {
+      "sheetNo": 11,
+      "image": "docs/实体卡片/大买卖/11.jpg"
+    },
+    "raw": {
+      "title": "4室公寓待售",
+      "body": [
+        "由于充抵所得税，业主被强制迁出。4室公寓楼待售，该建筑周围正在重建。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为24%，售价在$100,000~$140,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$80,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$60,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$20,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$400"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 4,
+      "cost": 80000,
+      "downPayment": 20000,
+      "mortgage": 60000,
+      "cashflow": 400,
+      "roiPct": 24,
+      "priceRange": [
+        100000,
+        140000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "4室公寓待售",
+      "80,000",
+      "20,000",
+      "60,000",
+      "400"
+    ]
+  },
+  {
+    "id": "bd-012",
+    "key": "apt4-100k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "4室公寓待售（成本$100,000）",
+    "source": {
+      "sheetNo": 12,
+      "image": "docs/实体卡片/大买卖/12.jpg"
+    },
+    "raw": {
+      "title": "4室公寓待售",
+      "body": [
+        "出售重建地区的4室公寓楼房。已全部租出，出售后业主负责修理。你需要首期支付和相当的耐心。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为48%，售价在$100,000~$140,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$100,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$80,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$20,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$800"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 4,
+      "cost": 100000,
+      "downPayment": 20000,
+      "mortgage": 80000,
+      "cashflow": 800,
+      "roiPct": 48,
+      "priceRange": [
+        100000,
+        140000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "4室公寓待售",
+      "100,000",
+      "20,000",
+      "80,000",
+      "800"
+    ]
+  },
+  {
+    "id": "bd-013",
+    "key": "house3b2b-70k-divorce",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "3室2厅住宅待售（成本$70,000，离婚）",
+    "source": {
+      "sheetNo": 13,
+      "image": "docs/实体卡片/大买卖/13.jpg"
+    },
+    "raw": {
+      "title": "3室2厅住宅待售",
+      "body": [
+        "由于离婚，私人住宅区3室2厅住宅待售。已待售5个月。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为30%，售价在$65,000~$135,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$70,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$50,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$20,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$500"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 70000,
+      "downPayment": 20000,
+      "mortgage": 50000,
+      "cashflow": 500,
+      "roiPct": 30,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "3室2厅住宅待售",
+      "离婚",
+      "70,000",
+      "20,000",
+      "500"
+    ]
+  },
+  {
+    "id": "bd-014",
+    "key": "bnb-150k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "提供住宿和早餐的小旅馆待售",
+    "source": {
+      "sheetNo": 14,
+      "image": "docs/实体卡片/大买卖/14.jpg"
+    },
+    "raw": {
+      "title": "提供住宿和早餐的小旅馆待售",
+      "body": [
+        "业主准备退休，希望马上出售。客户主要为旅游者。5室3厅。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为40%，售价在$100,000~$300,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$150,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$120,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$30,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$1,000"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "住宿和早餐旅馆",
+      "cost": 150000,
+      "downPayment": 30000,
+      "mortgage": 120000,
+      "cashflow": 1000,
+      "roiPct": 40,
+      "priceRange": [
+        100000,
+        300000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "提供住宿和早餐的小旅馆待售",
+      "5室3厅",
+      "150,000",
+      "1,000"
+    ]
+  },
+  {
+    "id": "bd-015",
+    "key": "aptbldg-12u-350k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "公寓住宅待售（12套，成本$350,000）",
+    "source": {
+      "sheetNo": 15,
+      "image": "docs/实体卡片/大买卖/15.jpg"
+    },
+    "raw": {
+      "title": "公寓住宅待售",
+      "body": [
+        "一栋12套公寓住宅出售，房主为长期居住在外地的水手的继承人。有许多人求租这栋建筑里的公寓。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为58%，售价在$300,000~$480,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$350,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$300,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$50,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$2,400"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓楼",
+      "units": 12,
+      "cost": 350000,
+      "downPayment": 50000,
+      "mortgage": 300000,
+      "cashflow": 2400,
+      "roiPct": 58,
+      "priceRange": [
+        300000,
+        480000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "公寓住宅待售",
+      "12套",
+      "350,000",
+      "50,000",
+      "2,400"
+    ]
+  },
+  {
+    "id": "bd-016",
+    "key": "biz-laundry-150k",
+    "deck": "BIG_DEAL",
+    "subtype": "BUSINESS",
+    "title": "自动化企业待售（自动洗衣店）",
+    "source": {
+      "sheetNo": 16,
+      "image": "docs/实体卡片/大买卖/16.jpg"
+    },
+    "raw": {
+      "title": "自动化企业待售",
+      "body": [
+        "由于业主破产，现有业务繁忙、经营良好的自动洗衣店出售。该店位于繁忙的高速路旁。业主不明，所有合同都已结清。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为100%，目前无其他买主。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$150,000"
+        },
+        {
+          "label": "负债",
+          "value": "$120,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$30,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$2,500"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "自动化企业",
+      "cost": 150000,
+      "downPayment": 30000,
+      "mortgage": 120000,
+      "cashflow": 2500,
+      "roiPct": 100,
+      "priceIndeterminate": true,
+      "incomeCategory": "BUSINESS"
+    },
+    "ocr_keywords": [
+      "自动化企业待售",
+      "自动洗衣店",
+      "150,000",
+      "2,500"
+    ]
+  },
+  {
+    "id": "bd-017",
+    "key": "apt2-45k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "2室公寓待售（成本$45,000）",
+    "source": {
+      "sheetNo": 17,
+      "image": "docs/实体卡片/大买卖/17.jpg"
+    },
+    "raw": {
+      "title": "2室公寓待售",
+      "body": [
+        "房客准备继续租住。由于所得税问题，业主想要尽快出售。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为48%，售价在$50,000~$80,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$45,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$37,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$8,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$320"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 2,
+      "cost": 45000,
+      "downPayment": 8000,
+      "mortgage": 37000,
+      "cashflow": 320,
+      "roiPct": 48,
+      "priceRange": [
+        50000,
+        80000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "2室公寓待售",
+      "45,000",
+      "8,000",
+      "37,000",
+      "320"
+    ]
+  },
+  {
+    "id": "bd-018",
+    "key": "aptcomplex-60u-1200k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "组合公寓待售（60套，成本$1,200,000）",
+    "source": {
+      "sheetNo": 18,
+      "image": "docs/实体卡片/大买卖/18.jpg"
+    },
+    "raw": {
+      "title": "组合公寓待售",
+      "body": [
+        "退休基金出售60套对业主取消抵押品赎回权的组合公寓。现场管理良好。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为66%，售价在$1,500,000~$2,700,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$1,200,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$1,000,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$200,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$11,000"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓楼",
+      "units": 60,
+      "cost": 1200000,
+      "downPayment": 200000,
+      "mortgage": 1000000,
+      "cashflow": 11000,
+      "roiPct": 66,
+      "priceRange": [
+        1500000,
+        2700000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "组合公寓待售",
+      "60套",
+      "1,200,000",
+      "200,000",
+      "11,000"
+    ]
+  },
+  {
+    "id": "bd-019",
+    "key": "apt2-50k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "2室公寓待售（成本$50,000）",
+    "source": {
+      "sheetNo": 19,
+      "image": "docs/实体卡片/大买卖/19.jpg"
+    },
+    "raw": {
+      "title": "2室公寓待售",
+      "body": [
+        "由于家庭成员增加，业主搬迁。房客继续留住，维护良好，风景优美。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为36%，售价在$50,000~$70,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$50,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$42,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$8,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$240"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 2,
+      "cost": 50000,
+      "downPayment": 8000,
+      "mortgage": 42000,
+      "cashflow": 240,
+      "roiPct": 36,
+      "priceRange": [
+        50000,
+        70000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "2室公寓待售",
+      "50,000",
+      "8,000",
+      "42,000",
+      "240"
+    ]
+  },
+  {
+    "id": "bd-020",
+    "key": "mall-50k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "小型购物商场待售（成本$50,000）",
+    "source": {
+      "sheetNo": 20,
+      "image": "docs/实体卡片/大买卖/20.jpg"
+    },
+    "raw": {
+      "title": "小型购物商场待售",
+      "body": [
+        "银行从破产业主手中收回的购物商场，当前利用率50%，今日出售。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为19%，售价在$35,000~$150,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$50,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$0"
+        },
+        {
+          "label": "首期支付",
+          "value": "$50,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$800"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "购物商场",
+      "cost": 50000,
+      "downPayment": 50000,
+      "mortgage": 0,
+      "cashflow": 800,
+      "roiPct": 19,
+      "priceRange": [
+        35000,
+        150000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "小型购物商场待售",
+      "50,000",
+      "800",
+      "利用率50%"
+    ]
+  },
+  {
+    "id": "bd-021",
+    "key": "aptbldg-24u-550k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "公寓住宅待售（24套旧楼房，成本$550,000）",
+    "source": {
+      "sheetNo": 21,
+      "image": "docs/实体卡片/大买卖/21.jpg"
+    },
+    "raw": {
+      "title": "公寓住宅待售",
+      "body": [
+        "将要退休的业主出售有24套公寓的旧楼房，该公寓靠近社区大学，已全部租出，月现金流量良好。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为67%，售价在$600,000~$960,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$550,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$500,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$50,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$2,800"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓楼",
+      "units": 24,
+      "cost": 550000,
+      "downPayment": 50000,
+      "mortgage": 500000,
+      "cashflow": 2800,
+      "roiPct": 67,
+      "priceRange": [
+        600000,
+        960000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "公寓住宅待售",
+      "24套",
+      "550,000",
+      "50,000",
+      "2,800"
+    ]
+  },
+  {
+    "id": "bd-022",
+    "key": "lp-clinic-25k",
+    "deck": "BIG_DEAL",
+    "subtype": "BUSINESS",
+    "title": "征求有限责任合伙人（医生诊所）",
+    "source": {
+      "sheetNo": 22,
+      "image": "docs/实体卡片/大买卖/22.jpg"
+    },
+    "raw": {
+      "title": "征求有限责任合伙人",
+      "body": [
+        "成功医生想扩大办公室和诊所，需要与合伙人平均分摊建设成本。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为48%，业主可能以$50,000~$75,000购买你的权益。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$25,000"
+        },
+        {
+          "label": "负债",
+          "value": "$0"
+        },
+        {
+          "label": "首期支付",
+          "value": "$25,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$1,000"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "有限合伙",
+      "cost": 25000,
+      "downPayment": 25000,
+      "mortgage": 0,
+      "cashflow": 1000,
+      "roiPct": 48,
+      "priceRange": [
+        50000,
+        75000
+      ],
+      "incomeCategory": "BUSINESS"
+    },
+    "ocr_keywords": [
+      "征求有限责任合伙人",
+      "医生",
+      "诊所",
+      "25,000",
+      "1,000"
+    ]
+  },
+  {
+    "id": "bd-023",
+    "key": "biz-carwash4-125k",
+    "deck": "BIG_DEAL",
+    "subtype": "BUSINESS",
+    "title": "自动化企业待售（4家投币式洗车店）",
+    "source": {
+      "sheetNo": 23,
+      "image": "docs/实体卡片/大买卖/23.jpg"
+    },
+    "raw": {
+      "title": "自动化企业待售",
+      "body": [
+        "4家经营良好、靠近繁忙路口的投币式洗车店待售。卖主要搬离本地区。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为86%，目前没有其他买主。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$125,000"
+        },
+        {
+          "label": "负债",
+          "value": "$100,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$25,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$1,800"
+        }
+      ],
+      "notes": [
+        "$125,000 为 4 家洗车店作为一个整体的成本，不拆分为 4 个资产单位；「目前没有其他买主」是卡面剧情（没人跟你抢这笔生意），不影响日后转售"
+      ]
+    },
+    "data": {
+      "assetType": "自动化企业",
+      "cost": 125000,
+      "downPayment": 25000,
+      "mortgage": 100000,
+      "cashflow": 1800,
+      "roiPct": 86,
+      "priceIndeterminate": true,
+      "businessKind": "汽车清洗公司",
+      "incomeCategory": "BUSINESS"
+    },
+    "ocr_keywords": [
+      "自动化企业待售",
+      "投币式洗车店",
+      "125,000",
+      "1,800"
+    ]
+  },
+  {
+    "id": "bd-024",
+    "key": "apt2-70k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "2室公寓待售（成本$70,000）",
+    "source": {
+      "sheetNo": 24,
+      "image": "docs/实体卡片/大买卖/24.jpg"
+    },
+    "raw": {
+      "title": "2室公寓待售",
+      "body": [
+        "这套2室公寓在当地是最好的。业主将要退休并搬到其他地区，住在孙子孙女们附近。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为24%，售价在$50,000~$80,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$70,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$63,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$7,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$140"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 2,
+      "cost": 70000,
+      "downPayment": 7000,
+      "mortgage": 63000,
+      "cashflow": 140,
+      "roiPct": 24,
+      "priceRange": [
+        50000,
+        80000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "2室公寓待售",
+      "70,000",
+      "7,000",
+      "63,000",
+      "140"
+    ]
+  },
+  {
+    "id": "bd-025",
+    "key": "apt4-90k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "4室公寓待售（成本$90,000）",
+    "source": {
+      "sheetNo": 25,
+      "image": "docs/实体卡片/大买卖/25.jpg"
+    },
+    "raw": {
+      "title": "4室公寓待售",
+      "body": [
+        "紧靠新公路的老式公寓待售。业主正准备搬到更安静的地区。价格优惠，希望尽快出售。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为40%，售价在$100,000~$140,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$90,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$75,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$15,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$500"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 4,
+      "cost": 90000,
+      "downPayment": 15000,
+      "mortgage": 75000,
+      "cashflow": 500,
+      "roiPct": 40,
+      "priceRange": [
+        100000,
+        140000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "4室公寓待售",
+      "90,000",
+      "15,000",
+      "75,000",
+      "500"
+    ]
+  },
+  {
+    "id": "bd-026",
+    "key": "house3b2b-80k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "3室2厅住宅待售（成本$80,000）",
+    "source": {
+      "sheetNo": 26,
+      "image": "docs/实体卡片/大买卖/26.jpg"
+    },
+    "raw": {
+      "title": "3室2厅住宅待售",
+      "body": [
+        "业主是位成功的商人，他被调离本地。该住宅状况极为良好，可以当地最高租金出租。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为56%，售价在$65,000~$135,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$80,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$64,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$16,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$750"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 80000,
+      "downPayment": 16000,
+      "mortgage": 64000,
+      "cashflow": 750,
+      "roiPct": 56,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "3室2厅住宅待售",
+      "80,000",
+      "16,000",
+      "64,000",
+      "750"
+    ]
+  },
+  {
+    "id": "bd-027",
+    "key": "apt8-220k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "8室公寓待售（成本$220,000）",
+    "source": {
+      "sheetNo": 27,
+      "image": "docs/实体卡片/大买卖/27.jpg"
+    },
+    "raw": {
+      "title": "8室公寓待售",
+      "body": [
+        "业主为再投资以合理价格出售8室公寓楼房。为你提供可靠的金融支持，你只需支付首期付款。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为51%，售价在$200,000~$250,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$220,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$180,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$40,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$1,700"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 8,
+      "cost": 220000,
+      "downPayment": 40000,
+      "mortgage": 180000,
+      "cashflow": 1700,
+      "roiPct": 51,
+      "priceRange": [
+        200000,
+        250000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "8室公寓待售",
+      "220,000",
+      "40,000",
+      "180,000",
+      "1,700"
+    ]
+  },
+  {
+    "id": "bd-028",
+    "key": "apt4-80k-tax",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "4室公寓待售（成本$80,000，拖延纳税）",
+    "source": {
+      "sheetNo": 28,
+      "image": "docs/实体卡片/大买卖/28.jpg"
+    },
+    "raw": {
+      "title": "4室公寓待售",
+      "body": [
+        "财务紧张的业主由于连续数年拖延纳税被迫出售4室公寓楼房。业主不在本地区居住。房产记录不全。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为56%，售价在$100,000~$140,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$80,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$64,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$16,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$750"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 4,
+      "cost": 80000,
+      "downPayment": 16000,
+      "mortgage": 64000,
+      "cashflow": 750,
+      "roiPct": 56,
+      "priceRange": [
+        100000,
+        140000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "4室公寓待售",
+      "拖延纳税",
+      "80,000",
+      "16,000",
+      "750"
+    ]
+  },
+  {
+    "id": "bd-029",
+    "key": "apt8-160k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "8室公寓待售（成本$160,000）",
+    "source": {
+      "sheetNo": 29,
+      "image": "docs/实体卡片/大买卖/29.jpg"
+    },
+    "raw": {
+      "title": "8室公寓待售",
+      "body": [
+        "业主急需现金以保持合伙企业股份。为筹资现出售8室公寓楼房。实在是很好的机会。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为64%，售价在$200,000~$280,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$160,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$128,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$32,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$1,700"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 8,
+      "cost": 160000,
+      "downPayment": 32000,
+      "mortgage": 128000,
+      "cashflow": 1700,
+      "roiPct": 64,
+      "priceRange": [
+        200000,
+        280000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "8室公寓待售",
+      "160,000",
+      "32,000",
+      "128,000",
+      "1,700"
+    ]
+  },
+  {
+    "id": "bd-030",
+    "key": "lp-pizza-20k",
+    "deck": "BIG_DEAL",
+    "subtype": "BUSINESS",
+    "title": "征求有限责任合伙人（比萨饼连锁店）",
+    "source": {
+      "sheetNo": 30,
+      "image": "docs/实体卡片/大买卖/30.jpg"
+    },
+    "raw": {
+      "title": "征求有限责任合伙人",
+      "body": [
+        "经营良好的比萨饼连锁店想为食品零售商店生产冷冻比萨饼，业主需要资本购买设备。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为48%，业主可以用$40,000~$60,000购买你的权益。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$20,000"
+        },
+        {
+          "label": "负债",
+          "value": "$0"
+        },
+        {
+          "label": "首期支付",
+          "value": "$20,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$800"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "有限合伙",
+      "cost": 20000,
+      "downPayment": 20000,
+      "mortgage": 0,
+      "cashflow": 800,
+      "roiPct": 48,
+      "priceRange": [
+        40000,
+        60000
+      ],
+      "incomeCategory": "BUSINESS"
+    },
+    "ocr_keywords": [
+      "征求有限责任合伙人",
+      "比萨饼连锁店",
+      "20,000",
+      "800"
+    ]
+  },
+  {
+    "id": "bd-031",
+    "key": "pizza-franchise-500k",
+    "deck": "BIG_DEAL",
+    "subtype": "BUSINESS",
+    "title": "比萨饼特许专卖店待售（成本$500,000）",
+    "source": {
+      "sheetNo": 31,
+      "image": "docs/实体卡片/大买卖/31.jpg"
+    },
+    "raw": {
+      "title": "比萨饼特许专卖店待售",
+      "body": [
+        "健康比萨公司特许专卖店。紧跟正迅速兴起的营养快餐潮流。紧邻大学，处于交通要道。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为60%，售价在$520,000~$800,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$500,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$400,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$100,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$5,000"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "特许专卖店",
+      "cost": 500000,
+      "downPayment": 100000,
+      "mortgage": 400000,
+      "cashflow": 5000,
+      "roiPct": 60,
+      "priceRange": [
+        520000,
+        800000
+      ],
+      "incomeCategory": "BUSINESS"
+    },
+    "ocr_keywords": [
+      "比萨饼特许专卖店待售",
+      "500,000",
+      "100,000",
+      "5,000"
+    ]
+  },
+  {
+    "id": "bd-032",
+    "key": "apt8-240k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "8室公寓待售（成本$240,000）",
+    "source": {
+      "sheetNo": 32,
+      "image": "docs/实体卡片/大买卖/32.jpg"
+    },
+    "raw": {
+      "title": "8室公寓待售",
+      "body": [
+        "将要退休的业主以当前评估价出售8室公寓楼房。拥有专业剪草和管理人员。记录齐全。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为29%，售价在$200,000~$280,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$240,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$200,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$40,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$950"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 8,
+      "cost": 240000,
+      "downPayment": 40000,
+      "mortgage": 200000,
+      "cashflow": 950,
+      "roiPct": 29,
+      "priceRange": [
+        200000,
+        280000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "8室公寓待售",
+      "240,000",
+      "40,000",
+      "200,000",
+      "950"
+    ]
+  },
+  {
+    "id": "bd-033",
+    "key": "house3b2b-65k-cash",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "3室2厅住宅待售（成本$65,000，急需现金）",
+    "source": {
+      "sheetNo": 33,
+      "image": "docs/实体卡片/大买卖/33.jpg"
+    },
+    "raw": {
+      "title": "3室2厅住宅待售",
+      "body": [
+        "由于业务急需现金，业主急于出售该住宅。目前已全租出，房客很满意。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为26%，售价在$65,000~$135,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$65,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$58,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$7,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$150"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 65000,
+      "downPayment": 7000,
+      "mortgage": 58000,
+      "cashflow": 150,
+      "roiPct": 26,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "3室2厅住宅待售",
+      "65,000",
+      "7,000",
+      "58,000",
+      "150"
+    ]
+  },
+  {
+    "id": "bd-034",
+    "key": "lp-sandwich-30k",
+    "deck": "BIG_DEAL",
+    "subtype": "BUSINESS",
+    "title": "征求有限责任合伙人（三明治商店）",
+    "source": {
+      "sheetNo": 34,
+      "image": "docs/实体卡片/大买卖/34.jpg"
+    },
+    "raw": {
+      "title": "征求有限责任合伙人",
+      "body": [
+        "非特许三明治商店将其分店数量增加了1倍。业主急需追加权益资本以获得经营贷款。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为60%，业主可能以$60,000~$90,000购买你的权益。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$30,000"
+        },
+        {
+          "label": "负债",
+          "value": "$0"
+        },
+        {
+          "label": "首期支付",
+          "value": "$30,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$1,500"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "有限合伙",
+      "cost": 30000,
+      "downPayment": 30000,
+      "mortgage": 0,
+      "cashflow": 1500,
+      "roiPct": 60,
+      "priceRange": [
+        60000,
+        90000
+      ],
+      "incomeCategory": "BUSINESS"
+    },
+    "ocr_keywords": [
+      "征求有限责任合伙人",
+      "三明治商店",
+      "30,000",
+      "1,500"
+    ]
+  },
+  {
+    "id": "bd-035",
+    "key": "apt2-60k-hospital",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "2室公寓待售（成本$60,000，支付医院账单）",
+    "source": {
+      "sheetNo": 35,
+      "image": "docs/实体卡片/大买卖/35.jpg"
+    },
+    "raw": {
+      "title": "2室公寓待售",
+      "body": [
+        "为支付医院账单业主被迫出售房产。已全部租出, 房客准备继续租住。记录齐全，是很好的投资机会。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为40%，售价在$50,000~$80,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$60,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$48,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$12,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$400"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 2,
+      "cost": 60000,
+      "downPayment": 12000,
+      "mortgage": 48000,
+      "cashflow": 400,
+      "roiPct": 40,
+      "priceRange": [
+        50000,
+        80000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "2室公寓待售",
+      "医院账单",
+      "60,000",
+      "12,000",
+      "400"
+    ]
+  },
+  {
+    "id": "bd-036",
+    "key": "house3b2b-70k-laidoff",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "3室2厅住宅待售（成本$70,000，被解职经理）",
+    "source": {
+      "sheetNo": 36,
+      "image": "docs/实体卡片/大买卖/36.jpg"
+    },
+    "raw": {
+      "title": "3室2厅住宅待售",
+      "body": [
+        "被解职的经理靠新工作的工资不能支付开销，必须出售这套住宅。该住宅所处地区正在建设。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为40%，售价在$65,000~$135,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$70,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$61,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$9,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$300"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 70000,
+      "downPayment": 9000,
+      "mortgage": 61000,
+      "cashflow": 300,
+      "roiPct": 40,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "3室2厅住宅待售",
+      "被解职",
+      "70,000",
+      "9,000",
+      "300"
+    ]
+  },
+  {
+    "id": "bd-037",
+    "key": "carwash-350k",
+    "deck": "BIG_DEAL",
+    "subtype": "BUSINESS",
+    "title": "洗车店待售（成本$350,000）",
+    "source": {
+      "sheetNo": 37,
+      "image": "docs/实体卡片/大买卖/37.jpg"
+    },
+    "raw": {
+      "title": "洗车店待售",
+      "body": [
+        "家庭洗车店待售。家庭不和，想尽快出手。主要经营地点在高速发展区域。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为36%，售价可能为年月现金流量的12~25倍。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$350,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$300,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$50,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "$1,500"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "洗车店",
+      "cost": 350000,
+      "downPayment": 50000,
+      "mortgage": 300000,
+      "cashflow": 1500,
+      "roiPct": 36,
+      "priceMultipleRange": [
+        12,
+        25
+      ],
+      "businessKind": "汽车清洗公司",
+      "resaleBasis": "CASHFLOW_MULTIPLE",
+      "incomeCategory": "BUSINESS"
+    },
+    "ocr_keywords": [
+      "洗车店待售",
+      "350,000",
+      "50,000",
+      "1,500",
+      "12~25倍"
+    ]
+  },
+  {
+    "id": "bd-038",
+    "key": "tenant-damage-1000",
+    "deck": "BIG_DEAL",
+    "subtype": "EXPENSE_EVENT",
+    "title": "房产受到房客破坏",
+    "source": {
+      "sheetNo": 38,
+      "image": "docs/实体卡片/大买卖/38.jpg"
+    },
+    "raw": {
+      "title": "房产受到房客破坏",
+      "body": [
+        "房客由于失业而拒绝支付租金。将其逐出后发现室内财产受到了严重破坏。大部分灾害和费用都已投保，但你仍需支付$1,000。",
+        "如果你有房地产, 请支付$1,000。（可以通过条款取得银行贷款。）只有抽到本卡的人才需要支付。"
+      ],
+      "fields": [],
+      "notes": []
+    },
+    "data": {
+      "amount": 1000,
+      "chargeOnce": true,
+      "appliesTo": "DRAWER_ONLY",
+      "payerCondition": "hasRealEstate"
+    },
+    "ocr_keywords": [
+      "房产受到房客破坏",
+      "1,000",
+      "只有抽到本卡的人"
+    ]
+  },
+  {
+    "id": "bd-039",
+    "key": "apt8-200k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "8室公寓待售（成本$200,000）",
+    "source": {
+      "sheetNo": 39,
+      "image": "docs/实体卡片/大买卖/39.jpg"
+    },
+    "raw": {
+      "title": "8室公寓待售",
+      "body": [
+        "业主由于遇到法律纠纷被强制出售8室公寓楼房。由于受押人比较合作，这笔贷款没有争议。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为48%，售价在$200,000~$280,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$200,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$160,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$40,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$1,600"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "公寓",
+      "rooms": 8,
+      "cost": 200000,
+      "downPayment": 40000,
+      "mortgage": 160000,
+      "cashflow": 1600,
+      "roiPct": 48,
+      "priceRange": [
+        200000,
+        280000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "8室公寓待售",
+      "法律纠纷",
+      "200,000",
+      "40,000",
+      "1,600"
+    ]
+  },
+  {
+    "id": "bd-040",
+    "key": "house3b2b-75k-golf",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "3室2厅住宅待售（成本$75,000，高尔夫球场路边）",
+    "source": {
+      "sheetNo": 40,
+      "image": "docs/实体卡片/大买卖/40.jpg"
+    },
+    "raw": {
+      "title": "3室2厅住宅待售",
+      "body": [
+        "位于通往高尔夫球场的路边，除当前的月现金流量外，尚有增值潜力。可获得较高的租金收入和良好的融资支持。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为51%，售价在$65,000~$135,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$75,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$68,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$7,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "+$300"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 75000,
+      "downPayment": 7000,
+      "mortgage": 68000,
+      "cashflow": 300,
+      "roiPct": 51,
+      "priceRange": [
+        65000,
+        135000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "3室2厅住宅待售",
+      "高尔夫球场",
+      "75,000",
+      "7,000",
+      "300"
+    ]
+  },
+  {
+    "id": "bd-041",
+    "key": "house3b2b-115k-neg",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "3室2厅住宅待售（成本$115,000，负现金流）",
+    "source": {
+      "sheetNo": 41,
+      "image": "docs/实体卡片/大买卖/41.jpg"
+    },
+    "raw": {
+      "title": "3室2厅住宅待售",
+      "body": [
+        "业主继承人出售可分式3室2厅住宅。该住宅位于高尔夫球场出口路边。包括高尔夫会员资格。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为-12%，售价在$65,000~$150,000之间。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$115,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$105,000"
+        },
+        {
+          "label": "首期支付",
+          "value": "$10,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "-$100"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "3室2厅",
+      "cost": 115000,
+      "downPayment": 10000,
+      "mortgage": 105000,
+      "cashflow": -100,
+      "roiPct": -12,
+      "priceRange": [
+        65000,
+        150000
+      ],
+      "incomeCategory": "REAL_ESTATE"
+    },
+    "ocr_keywords": [
+      "3室2厅住宅待售",
+      "高尔夫会员",
+      "115,000",
+      "10,000",
+      "-100"
+    ]
+  },
+  {
+    "id": "bd-042",
+    "key": "land-20acre-20k",
+    "deck": "BIG_DEAL",
+    "subtype": "REALESTATE",
+    "title": "20英亩土地待售（成本$20,000）",
+    "source": {
+      "sheetNo": 42,
+      "image": "docs/实体卡片/大买卖/42.jpg"
+    },
+    "raw": {
+      "title": "20英亩土地待售",
+      "body": [
+        "20英亩空地待售，已被规划为住宅区。如果开发成商业区将是很好的投资机会。可以自己接受这笔生意，也可以卖给其他玩家。",
+        "投资收益率为0%，售价不能确定。"
+      ],
+      "fields": [
+        {
+          "label": "成本",
+          "value": "$20,000"
+        },
+        {
+          "label": "抵押贷款",
+          "value": "$0"
+        },
+        {
+          "label": "首期支付",
+          "value": "$20,000"
+        },
+        {
+          "label": "月现金流",
+          "value": "$0"
+        }
+      ],
+      "notes": []
+    },
+    "data": {
+      "assetType": "20英亩土地",
+      "cost": 20000,
+      "downPayment": 20000,
+      "mortgage": 0,
+      "cashflow": 0,
+      "roiPct": 0,
+      "priceIndeterminate": true
+    },
+    "ocr_keywords": [
+      "20英亩土地待售",
+      "20,000",
+      "住宅区",
+      "商业区"
+    ]
   }
 ]

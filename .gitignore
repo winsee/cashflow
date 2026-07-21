@@ -21,3 +21,7 @@ web/dist/
 
 # 卡片原始高清照片（313MB，仅本地保留，仓库里放 docs/实体卡片/ 的压缩版）
 docs/实体卡片_原图/
+
+# 工具产物（134MB）：卡片裁剪图、人工核对页、说明书渲染图
+# 全部可由 tools/crop_cards.py、build_review.py、render_manual.py 重新生成
+build/
