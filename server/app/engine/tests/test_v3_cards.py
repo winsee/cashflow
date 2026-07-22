@@ -295,61 +295,79 @@ def test_land_matches_merged_asset_type(duo):
     assert duo.player("A").real_estates == []
 
 
-# ---------- 13. 分期收款 ----------
+# ---------- 13. 分期收款（mk-029 亲戚分期买房：冻结房产模型，design/06 §6.4） ----------
 
-def _sell_house_on_installment(duo):
-    """给 A 一套 3室2厅（无抵押、月租 $100）并接受 mk-029 的分期收购。
+def _sell_house_on_installment(duo, mortgage=0):
+    """给 A 一套 3室2厅（月租 $100，抵押可选）并接受 mk-029 的分期收购。
 
-    返回成交前的月现金流，供断言「相对持房状态」的变化。
+    返回 (持房状态下的月现金流, 房产 id)。房子成交后只是冻结，不移除。
     """
-    _give(duo, "A", id="h3b2b", asset_type="3室2厅", name="3室2厅",
-          cost=50000, down_payment=3000, mortgage=0, cashflow=100)
+    house = _give(duo, "A", id="h3b2b", asset_type="3室2厅", name="3室2厅",
+                  cost=50000, down_payment=3000, mortgage=mortgage, cashflow=100)
     cf_holding = F.monthly_cashflow(duo.player("A"))
     duo.act("A", "DRAW_CARD", cardId="mk-029")
     pr = _prompts(duo, "A")[0]
     duo.act("A", "MARKET_SELL", promptId=pr.id, accept=True)
-    return cf_holding
+    return cf_holding, house.id
 
 
-def test_installment_sale_monthly_deduction(duo):
-    """成交即移交房产、月现金流 −$500 且未入账。"""
+def test_installment_sale_freezes_house_no_cash_move(duo):
+    """成交只是冻结房子：不动现金、不移房、租金照收，月现金流仅额外 −$500。"""
     cash_before = duo.player("A").cash
-    cf_holding = _sell_house_on_installment(duo)
+    cf_holding, house_id = _sell_house_on_installment(duo)
     a = duo.player("A")
-    assert a.real_estates == []                       # 房产已移交
-    assert a.cash == cash_before                      # 无首付，未收全款
-    assert F.monthly_cashflow(a) == cf_holding - 100 - 500  # 失去租金 + 挂账扣减
+    assert [r.id for r in a.real_estates] == [house_id]   # 房子仍在（冻结，非移除）
+    assert house_id in a.frozen_asset_ids
+    assert a.cash == cash_before                          # 不收首付、不动现金
+    assert F.monthly_cashflow(a) == cf_holding - 500      # 租金仍在，只额外扣 500
     assert a.installment_receivables[0].months_elapsed == 0
 
 
-def test_installment_sale_settles_on_completion(duo):
-    """第 200 个结算日：现金流恢复，同时一次性入账 $100,000。"""
+def test_installment_sale_keeps_mortgage_no_payoff(duo):
+    """带抵押的房子分期卖出：不当场结清抵押，卖方一分钱不掏。"""
+    cash_before = duo.player("A").cash
+    _cf, house_id = _sell_house_on_installment(duo, mortgage=47000)
+    a = duo.player("A")
+    assert a.cash == cash_before                          # 抵押不解押，无现金流出
+    house = next(h for h in a.real_estates if h.id == house_id)
+    assert house.mortgage == 47000                        # 房贷照旧挂着
+
+
+def test_installment_frozen_house_immune_to_market_cards(duo):
+    """冻结房不在市场上：求购/溢价收购推不到它，通货膨胀也没收不了它（Q2 裁决）。"""
     _sell_house_on_installment(duo)
+    _cycle(duo)                                       # 成交那回合的停留格已用掉
+    # 溢价收购 3室2厅（mk-006）：冻结房不应被推要约
+    duo.act("A", "DRAW_CARD", cardId="mk-006")
+    assert _prompts(duo, "A") == []
+    _cycle(duo)
+    # 通货膨胀强制没收全部 3室2厅（mk-002）：冻结房免疫，仍在手上
+    duo.act("A", "DRAW_CARD", cardId="mk-002")
+    assert len(duo.player("A").real_estates) == 1
+
+
+def test_installment_sale_settles_on_completion(duo):
+    """第 200 个结算日：移交房产、一次性入账 $100,000、−$500 停止。"""
+    cf_holding, house_id = _sell_house_on_installment(duo)
     r = duo.player("A").installment_receivables[0]
-    assert r.duration_months == 200
+    assert r.duration_months == 200 and r.asset_id == house_id
     r.months_elapsed = 199                            # 快进到最后一个月
-    cf_with_hold = F.monthly_cashflow(duo.player("A"))
+    cf_with_hold = F.monthly_cashflow(duo.player("A"))   # = cf_holding − 500
 
     _cycle(duo)
     cash_before = duo.player("A").cash
     duo.act("A", "PAYDAY")
     a = duo.player("A")
     assert a.installment_receivables[0].settled
+    assert a.real_estates == []                       # 全款收齐，房产移交
     assert a.cash == cash_before + cf_with_hold + 100000
-    assert F.monthly_cashflow(a) == cf_with_hold + 500      # 现金流恢复
-
-
-def test_installment_bankruptcy_prorates_receivable(duo):
-    """中途破产清算：挂账按已扣月数比例折算（design/07 §5.13）。"""
-    _sell_house_on_installment(duo)
-    r = duo.player("A").installment_receivables[0]
-    r.months_elapsed = 50                             # 已收 1/4
-    assert E.installment_liquidation_value(duo.player("A")) == 100000 * 50 // 200
+    # 房子没了，租金也停：月现金流回到「没有这套房」的基线
+    assert F.monthly_cashflow(a) == cf_holding - 100
 
 
 def test_installment_multi_payday_does_not_overcharge(duo):
-    """一次过 3 个结算日跨过期满月：多扣的月份要退回，不能白扣。"""
-    _sell_house_on_installment(duo)
+    """一次过 3 个结算日跨过期满月：期满后的月份多算的「租金 + (−500)」要退回。"""
+    _sell_house_on_installment(duo)                   # 租金 +100，挂账 −500 → 净 −400/月
     r = duo.player("A").installment_receivables[0]
     r.months_elapsed = 198                            # 还剩 2 个月，却要过 3 个
     cf = F.monthly_cashflow(duo.player("A"))
@@ -358,6 +376,25 @@ def test_installment_multi_payday_does_not_overcharge(duo):
     cash_before = duo.player("A").cash
     duo.act("A", "PAYDAY", times=3)
     a = duo.player("A")
-    # 3 个月的现金流里只有 2 个月该扣 $500，第 3 个月要退回
-    assert a.cash == cash_before + cf * 3 + 500 + 100000
+    # 第 3 个月房已移交：那个月不该有 +100 租金也不该扣 −500，退回净 400
+    assert a.cash == cash_before + cf * 3 + 400 + 100000
     assert a.installment_receivables[0].months_elapsed == 200
+    assert a.real_estates == []
+
+
+def test_installment_bankruptcy_wipes_receivable_and_house(duo):
+    """中途破产出局：冻结房被银行收回、未收欠款直接清零，玩家一分未得（Q1 裁决）。"""
+    _sell_house_on_installment(duo)
+    a = duo.player("A")
+    a.cash = 0
+    a.extra_expenses += 10000                         # 逼出负现金流，且现金不足支付
+    assert F.monthly_cashflow(a) < 0
+    duo.act("A", "BANKRUPTCY_START")
+    # 唯一资产是冻结房，不能变卖 → 直接结算 → 资不抵债出局
+    with pytest.raises(EngineError, match="冻结"):
+        duo.act("A", "BANKRUPTCY_SELL_ASSET", assetId="h3b2b")
+    duo.act("A", "BANKRUPTCY_RESOLVE")
+    a = duo.player("A")
+    assert a.phase == Phase.OUT
+    assert a.installment_receivables == []            # 欠款清零，未兑现一分
+    assert a.real_estates == []                       # 冻结房被银行收走

@@ -59,7 +59,7 @@ export interface Player {
   realEstates: OwnedAssetDto[]
   businesses: OwnedAssetDto[]
   extraLiabilities: { id: string; name: string; amount: number; monthly: number }[]
-  installmentReceivables: { id: string; card_id: string; name: string; total_price: number; monthly_delta: number; duration_months: number; months_elapsed: number }[]
+  installmentReceivables: { id: string; card_id: string; name: string; asset_id: string; total_price: number; monthly_delta: number; duration_months: number; months_elapsed: number }[]
   liabilities: { mortgage: number; school_loan: number; car_loan: number; credit_card: number; extra: number; bank_loan: number }
   fasttrack: { initial_income: number; current_income: number; businesses: { square_id: string; name: string; cashflow: number }[]; charity_forever: boolean }
   derived: Derived

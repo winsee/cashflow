@@ -282,9 +282,10 @@ def _market_events(state: RoomState, drawer: PlayerState, card) -> list[Event]:
         for pl in state.players.values():
             if pl.phase != Phase.RAT_RACE:
                 continue
+            frozen = pl.frozen_asset_ids
             for asset in pl.owned_assets:
-                if not _asset_matches(asset, d):
-                    continue
+                if asset.id in frozen or not _asset_matches(asset, d):
+                    continue                          # 冻结房不在市场上，无法被求购
                 events.append(_ev(
                     "MARKET_PROMPTED", prompt_id=_new_id(), player_id=pl.id,
                     asset_id=asset.id, asset_name=asset.name,
@@ -303,7 +304,9 @@ def _market_events(state: RoomState, drawer: PlayerState, card) -> list[Event]:
                 continue
             if d["appliesTo"] == "DRAWER_ONLY" and pl.id != drawer.id:
                 continue
-            ids = [a.id for a in pl.owned_assets if _asset_matches(a, d)]
+            frozen = pl.frozen_asset_ids
+            ids = [a.id for a in pl.owned_assets
+                   if a.id not in frozen and _asset_matches(a, d)]
             if ids:
                 target_ids[pl.id] = ids
         if target_ids:
@@ -318,8 +321,10 @@ def _market_events(state: RoomState, drawer: PlayerState, card) -> list[Event]:
             for pl in state.players.values():
                 if pl.phase != Phase.RAT_RACE:
                     continue
-                ids = [a.id for a in pl.owned_assets if a.asset_type == target]
-                if ids:
+                frozen = pl.frozen_asset_ids
+                ids = [a.id for a in pl.owned_assets
+                       if a.id not in frozen and a.asset_type == target]
+                if ids:                               # 冻结房免疫强制没收（Q2 裁决）
                     events.append(_ev("ASSETS_SURRENDERED", player_id=pl.id,
                                       asset_ids=ids, card_id=card.id))
         events.append(_ev("CARD_RESOLVED", card_id=card.id))
@@ -329,8 +334,7 @@ def _market_events(state: RoomState, drawer: PlayerState, card) -> list[Event]:
 def _installment_terms(d: dict) -> dict:
     """分期收款的条款，随要约一并下发，成交事件据此挂账。"""
     return {"monthly_delta": d["monthlyCashflowDelta"],
-            "duration_months": d["durationMonths"],
-            "down_payment": d.get("downPayment", 0)}
+            "duration_months": d["durationMonths"]}
 
 
 def _active_card_or_err(state: RoomState, actor_id: str) -> tuple[ActiveCard, PlayerState]:
@@ -665,16 +669,13 @@ def _d_market_sell(state, actor_id, p, lib) -> list[Event]:
         return [_ev("MARKET_DECLINED", prompt_id=prompt.id, player_id=actor_id)]
 
     if pd.get("subtype") == "INSTALLMENT_SALE":
-        # 移交房产但不收全款：挂账 N 个月，期间月现金流反而减少（design/06 §6.4）
-        net = pd["down_payment"] - pd["mortgage"]
-        if net < 0:
-            _require_cash(player, -net)
+        # 房子只是冻结：不收首付、不解押、不移房，成交当下不动任何现金（design/06 §6.4）。
+        # 此后每月 −$500，扣满 $100,000（200 月）时才移交房产并一次性入账。
         return [_ev("INSTALLMENT_SCHEDULED", prompt_id=prompt.id, player_id=actor_id,
                     asset_id=pd["asset_id"], asset_name=pd["asset_name"],
                     card_id=pd["card_id"], receivable_id=_new_id(),
                     total_price=pd["price"], monthly_delta=pd["monthly_delta"],
-                    duration_months=pd["duration_months"],
-                    mortgage=pd["mortgage"], net=net)]
+                    duration_months=pd["duration_months"])]
 
     # 收益 = 卖价 − 抵押贷款；为负时向银行付差额（design/02 §6.1）
     net = pd["price"] - pd["mortgage"]
@@ -815,8 +816,12 @@ def _d_bankruptcy_sell(state, actor_id, p, lib) -> list[Event]:
     if not player.in_bankruptcy:
         raise EngineError("NOT_IN_BANKRUPTCY", "不在破产流程中")
     aid = p["assetId"]
+    frozen = player.frozen_asset_ids
     for a in player.real_estates:
         if a.id == aid:
+            if a.id in frozen:
+                # 冻结房已许诺给亲戚，破产也不能单独变卖；出局时随全部资产被银行收走
+                raise EngineError("ASSET_FROZEN", "该房产处于分期收款冻结中，不能变卖")
             return [_ev("BANKRUPTCY_ASSET_SOLD", player_id=player.id, asset_id=aid,
                         kind="REALESTATE", proceeds=a.down_payment // 2)]
     for a in player.businesses:
@@ -829,26 +834,7 @@ def _d_bankruptcy_sell(state, actor_id, p, lib) -> list[Event]:
         if basis > 0:
             return [_ev("BANKRUPTCY_ASSET_SOLD", player_id=player.id, asset_id=aid,
                         kind="STOCK", symbol=symbol, proceeds=basis // 2)]
-    if aid.startswith("installment:"):
-        rid = aid.split(":", 1)[1]
-        r = next((x for x in player.installment_receivables
-                  if x.id == rid and not x.settled), None)
-        if r is not None:
-            # 已垫付月份的对价按比例兑现，再对半折让给银行
-            value = r.total_price * r.months_elapsed // r.duration_months
-            return [_ev("BANKRUPTCY_ASSET_SOLD", player_id=player.id, asset_id=aid,
-                        kind="INSTALLMENT", receivable_id=rid, proceeds=value // 2)]
     raise EngineError("NO_ASSET", "资产不存在")
-
-
-def installment_liquidation_value(p: PlayerState) -> int:
-    """破产/退出清算时未结清分期收款的折算值：按已扣月数比例结算。
-
-    玩家已经替买家垫了 months_elapsed 个月的现金流，那部分对价应当兑现，
-    余下未到期的部分随资产一并由银行收走（design/07 §5.13）。
-    """
-    return sum(r.total_price * r.months_elapsed // r.duration_months
-               for r in p.installment_receivables if not r.settled)
 
 
 def _d_bankruptcy_resolve(state, actor_id, p, lib) -> list[Event]:
@@ -857,8 +843,11 @@ def _d_bankruptcy_resolve(state, actor_id, p, lib) -> list[Event]:
     if not player.in_bankruptcy:
         raise EngineError("NOT_IN_BANKRUPTCY", "不在破产流程中")
     cf = F.monthly_cashflow(player)
-    has_assets = bool(player.real_estates or player.businesses or player.stocks)
-    if cf < 0 and has_assets:
+    # 冻结房不可变卖，故不计入「还能不能继续卖」的判定，否则只剩冻结房时会死锁
+    frozen = player.frozen_asset_ids
+    sellable = [a for a in player.real_estates if a.id not in frozen]
+    has_sellable = bool(sellable or player.businesses or player.stocks)
+    if cf < 0 and has_sellable:
         raise EngineError("MUST_SELL_MORE", "月现金流仍为负，须继续以首期 50% 向银行变卖资产")
     return [_ev("BANKRUPTCY_RESOLVED", player_id=player.id)]
 
@@ -1187,17 +1176,25 @@ def _a_payday(s: RoomState, p) -> None:
 def _advance_installments(pl: PlayerState, months: int) -> None:
     """结算日 = 过了几个月，分期收款按此计数（design/06 §6.4）。
 
-    一次过多个结算日时若中途到期，把多扣的月份退回，再一次性入账全款。
+    收齐 $100,000 那一刻：移交房产（连同房贷）、一次性入账全款。
+    一次过多个结算日跨过期满时，PAYDAY 已按「持房中」的月现金流算了全部 months，
+    但期满后的月份不该再有这套房的租金、也不该再扣 −$500——把这几个月多算的
+    「本房租金 + monthly_delta」退回。房子移除前先读它的 cashflow。
     """
     for r in pl.installment_receivables:
         if r.settled:
             continue
         before = r.months_elapsed
         r.months_elapsed = min(before + months, r.duration_months)
+        if not r.settled:
+            continue                                 # 未到期：−$500 已随月现金流正确扣除
         overcharged = months - (r.months_elapsed - before)
-        pl.cash -= r.monthly_delta * overcharged     # monthly_delta 为负，等于退回
-        if r.settled:
-            pl.cash += r.total_price                 # 期满：现金流恢复 + 全款到账
+        house = next((a for a in pl.real_estates if a.id == r.asset_id), None)
+        per_month = (house.cashflow if house else 0) + r.monthly_delta
+        pl.cash -= per_month * overcharged           # 退回期满后月份多算的租金与扣款
+        if house is not None:
+            _remove_asset(pl, r.asset_id)            # 全款收齐：房产+房贷一并移交给亲戚
+        pl.cash += r.total_price                     # $100,000 到账
 
 
 def _a_card_drawn(s: RoomState, p) -> None:
@@ -1363,12 +1360,11 @@ def _a_market_declined(s: RoomState, p) -> None:
 def _a_installment_scheduled(s: RoomState, p) -> None:
     _remove_prompt(s, p["prompt_id"])
     pl = s.players[p["player_id"]]
-    pl.cash += p["net"]                    # 首付−抵押；mk-029 无首付故通常为负
-    _remove_asset(pl, p["asset_id"])       # 房产即刻移交
+    # 房子就地冻结：不动现金、不移房、不解押。冻结状态由 receivable.asset_id 派生。
     pl.installment_receivables.append(InstallmentReceivable(
         id=p["receivable_id"], card_id=p["card_id"], name=p["asset_name"],
-        total_price=p["total_price"], monthly_delta=p["monthly_delta"],
-        duration_months=p["duration_months"]))
+        asset_id=p["asset_id"], total_price=p["total_price"],
+        monthly_delta=p["monthly_delta"], duration_months=p["duration_months"]))
 
 
 def _a_cashflow_modified(s: RoomState, p) -> None:
@@ -1468,9 +1464,6 @@ def _a_bankruptcy_asset_sold(s: RoomState, p) -> None:
     pl.cash += p["proceeds"]
     if p["kind"] == "STOCK":
         pl.stocks = [h for h in pl.stocks if h.symbol != p["symbol"]]
-    elif p["kind"] == "INSTALLMENT":
-        pl.installment_receivables = [
-            r for r in pl.installment_receivables if r.id != p["receivable_id"]]
     else:
         _remove_asset(pl, p["asset_id"])     # 对应抵押负债一并注销（随资产行删除）
 
@@ -1501,6 +1494,7 @@ def _a_bankruptcy_resolved(s: RoomState, p) -> None:
     pl.real_estates = []
     pl.businesses = []
     pl.stocks = []
+    pl.installment_receivables = []   # 冻结房与未收欠款一并被银行收走（双重亏损，Q1 裁决）
     pl.cash = 0
     alive = [q for q in s.players.values() if q.phase != Phase.OUT]
     if len(alive) == 1:

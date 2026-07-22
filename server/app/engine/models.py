@@ -71,15 +71,18 @@ class ExtraLiability(BaseModel):
 
 
 class InstallmentReceivable(BaseModel):
-    """分期收款挂账（mk-029 妹夫买房，design/06 §6.4）。
+    """分期收款挂账（mk-029 亲戚分期买房，design/06 §6.4）。
 
-    成交时移交房产、不收首付，卖方月现金流 −$500；每个结算日计一个月，
-    满 200 个月时现金流恢复并一次性入账 $100,000。
+    成交时房子**只是冻结**（仍挂资产负债表，房贷照扣、租金照收），不收首付、不解押；
+    卖方每个结算日额外 −$500，累计扣满 $100,000（= 200 个月）。满期那一刻彻底移交房产
+    （删房+删房贷）、一次性入账 $100,000、−$500 停止。
+    asset_id 指向被冻结的那套房产，据此判定冻结、满期移房、破产收房。
     months_elapsed 追平 duration_months 即视为结清（不再计入月现金流）。
     """
     id: str
     card_id: str
     name: str
+    asset_id: str               # 被冻结的房产 id（满期移交、破产收回都靠它定位）
     total_price: int
     monthly_delta: int          # 负数：收齐前卖方每月现金流反而减少
     duration_months: int
@@ -155,6 +158,15 @@ class PlayerState(BaseModel):
     def owned_assets(self) -> list[OwnedAsset]:
         """房地产 + 企业的合并视图（市场卡匹配、没收、破产变卖都要遍历两者）。"""
         return [*self.real_estates, *self.businesses]
+
+    @property
+    def frozen_asset_ids(self) -> set[str]:
+        """处于分期收款冻结中的房产 id（mk-029）。
+
+        这些房子仍在 real_estates（租金/房贷照常），但对市场卡免疫、破产也不可单独变卖，
+        直到分期结清。冻结状态以 receivable 为唯一真相源，不在资产上另存标志位。
+        """
+        return {r.asset_id for r in self.installment_receivables if not r.settled}
 
 
 class ActiveCard(BaseModel):

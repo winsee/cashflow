@@ -13,6 +13,10 @@ const ftProgress = computed(() => {
   if (d.value.totalExpenses <= 0) return 100
   return Math.min(100, Math.round(d.value.passiveIncome / d.value.totalExpenses * 100))
 })
+
+// 分期收款冻结中的房产 id（mk-029）：房子还挂在报表上，但已许诺给亲戚不能交易
+const frozenIds = computed(() =>
+  new Set((me.value?.installmentReceivables ?? []).map(r => r.asset_id)))
 </script>
 
 <template>
@@ -49,7 +53,7 @@ const ftProgress = computed(() => {
           <tr><td>工资</td><td>{{ fmt(me.salary) }}</td></tr>
           <tr><td>利息</td><td>{{ fmt(d.interestIncome) }}</td></tr>
           <tr><td>股利</td><td>{{ fmt(d.dividendIncome) }}</td></tr>
-          <tr v-for="r in me.realEstates" :key="r.id"><td>🏠 {{ r.name }}</td><td>{{ fmt(r.cashflow) }}</td></tr>
+          <tr v-for="r in me.realEstates" :key="r.id"><td>🏠 {{ r.name }}<span v-if="frozenIds.has(r.id)" class="muted">（分期冻结）</span></td><td>{{ fmt(r.cashflow) }}</td></tr>
           <tr v-for="b in me.businesses" :key="b.id"><td>🏢 {{ b.name }}</td><td>{{ fmt(b.cashflow) }}</td></tr>
           <tr v-for="r in me.installmentReceivables" :key="r.id"><td>📄 {{ r.name }}（分期收款）</td><td>{{ fmt(r.monthly_delta) }}</td></tr>
           <tr class="total"><td>总收入（非工资 {{ fmt(d.passiveIncome) }}）</td><td>{{ fmt(d.totalIncome) }}</td></tr>
@@ -84,7 +88,7 @@ const ftProgress = computed(() => {
             <td>{{ fmt(s.shares * s.cost_per_share) }}</td>
           </tr>
           <tr v-for="r in me.realEstates" :key="r.id">
-            <td>🏠 {{ r.name }}（首期 {{ fmt(r.down_payment) }}）</td><td>{{ fmt(r.cost) }}</td>
+            <td>🏠 {{ r.name }}（首期 {{ fmt(r.down_payment) }}）<span v-if="frozenIds.has(r.id)" class="muted">· 分期冻结，收满 $100,000 前不可交易</span></td><td>{{ fmt(r.cost) }}</td>
           </tr>
           <tr v-for="b in me.businesses" :key="b.id">
             <td>🏢 {{ b.name }}（首期 {{ fmt(b.down_payment) }}）</td><td>{{ fmt(b.cost) }}</td>
