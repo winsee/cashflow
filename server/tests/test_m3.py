@@ -27,14 +27,14 @@ def test_normalize_fullwidth_and_commas():
 def test_match_realestate_by_title_and_numbers():
     text = "3室2厅 出租房\n成本 $50,000 首付 $3,000\n抵押贷款 $47,000 现金流 100"
     top = match_cards(text, SMALL)
-    assert top and top[0].card_id == "sd-house-3b2b-01"
+    assert top and top[0].card_id == "sd-006"
     assert top[0].score >= 0.9
 
 
 def test_match_stock_by_code():
     text = "股票 ON2U 今日价 $30 买进"
     top = match_cards(text, SMALL)
-    assert top and top[0].card_id == "sd-stock-on2u-30"
+    assert top and top[0].card_id == "sd-008"
 
 
 def test_match_below_floor_returns_empty():
@@ -90,9 +90,9 @@ def playing_room():
              client.websocket_connect(f"/ws?token={guest['playerToken']}") as wb:
             wa.receive_json()
             wb.receive_json()
-            _act(wa, "SELECT_PROFESSION", professionId="prof-doctor")
+            _act(wa, "SELECT_PROFESSION", professionId="prof-006")
             wb.receive_json()
-            _act(wb, "SELECT_PROFESSION", professionId="prof-manager")
+            _act(wb, "SELECT_PROFESSION", professionId="prof-010")
             wa.receive_json()
             _act(wa, "SELECT_DREAM", dreamId="ft-d-safari")
             wb.receive_json()
@@ -112,7 +112,7 @@ def _seq_of(client, code, etype):
 
 def test_player_correct_own_card_entry(playing_room):
     client, code, host, guest, wa, wb = playing_room
-    _act(wa, "DRAW_CARD", cardId="sd-house-3b2b-01")
+    _act(wa, "DRAW_CARD", cardId="sd-006")
     wb.receive_json()
     st = _act(wa, "CARD_DECISION", decision="buy")
     me = next(p for p in st["state"]["players"] if p["id"] == host["playerId"])
@@ -146,7 +146,7 @@ def test_recognize_stats_roundtrip(playing_room):
     assert "recognitionId" in d and d["engine"] == "manual"
     rid = d["recognitionId"]
     assert client.post(f"/api/recognize/{rid}/chosen",
-                       json={"cardId": "sd-house-3b2b-01"}).status_code == 200
+                       json={"cardId": "sd-006"}).status_code == 200
     stats = client.get("/api/stats/recognition").json()
     manual = next(s for s in stats if s["engine"] == "manual")
     assert manual["total"] >= 1 and manual["confirmed"] >= 1
@@ -381,8 +381,8 @@ def test_parse_detects_stock_subtype_in_small_deal():
 
 
 def test_parse_no_fields_keeps_requested_subtype():
-    d = parse_fields(["完全无关的一段文字"], "SMALL_DEAL", "LOSS_EVENT")
-    assert d["subtype"] == "LOSS_EVENT"
+    d = parse_fields(["完全无关的一段文字"], "SMALL_DEAL", "EXPENSE_EVENT")
+    assert d["subtype"] == "EXPENSE_EVENT"
     assert d["fields"] == {}
 
 

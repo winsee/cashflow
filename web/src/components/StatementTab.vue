@@ -47,10 +47,11 @@ const ftProgress = computed(() => {
       <table class="fin">
         <tbody>
           <tr><td>工资</td><td>{{ fmt(me.salary) }}</td></tr>
-          <tr><td>利息</td><td>{{ fmt(me.interestIncome) }}</td></tr>
+          <tr><td>利息</td><td>{{ fmt(d.interestIncome) }}</td></tr>
           <tr><td>股利</td><td>{{ fmt(d.dividendIncome) }}</td></tr>
           <tr v-for="r in me.realEstates" :key="r.id"><td>🏠 {{ r.name }}</td><td>{{ fmt(r.cashflow) }}</td></tr>
           <tr v-for="b in me.businesses" :key="b.id"><td>🏢 {{ b.name }}</td><td>{{ fmt(b.cashflow) }}</td></tr>
+          <tr v-for="r in me.installmentReceivables" :key="r.id"><td>📄 {{ r.name }}（分期收款）</td><td>{{ fmt(r.monthly_delta) }}</td></tr>
           <tr class="total"><td>总收入（非工资 {{ fmt(d.passiveIncome) }}）</td><td>{{ fmt(d.totalIncome) }}</td></tr>
         </tbody>
       </table>

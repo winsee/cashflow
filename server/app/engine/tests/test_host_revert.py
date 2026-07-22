@@ -28,8 +28,8 @@ def _setup(mgr):
     def act(actor, atype, **payload):
         return asyncio.run(sess.handle_action(actor, None, atype, payload))
 
-    act(a, "SELECT_PROFESSION", professionId="prof-doctor")
-    act(b, "SELECT_PROFESSION", professionId="prof-manager")
+    act(a, "SELECT_PROFESSION", professionId="prof-006")
+    act(b, "SELECT_PROFESSION", professionId="prof-010")
     act(a, "SELECT_DREAM", dreamId="ft-d-safari")
     act(b, "SELECT_DREAM", dreamId="ft-d-jet")
     act(a, "SET_TURN_ORDER", order=[a, b])

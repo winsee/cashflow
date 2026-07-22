@@ -41,11 +41,16 @@ def _runtime_json(dst: Path, name: str) -> list[dict]:
     return json.loads((dst / "cards" / name).read_text(encoding="utf-8"))
 
 
-def _card(cid, title, amount=100, keywords=None):
-    c = {"id": cid, "deck": "DOODAD", "subtype": "CASH",
-         "title": title, "data": {"amount": amount}}
+def _card(cid, title, amount=100, keywords=None, key=None, duplicate_of=None):
+    """构造一张 v3 形态的卡（key/source/raw 是 schema v3 的必填字段）。"""
+    c = {"id": cid, "key": key or cid, "deck": "DOODAD", "subtype": "CASH",
+         "title": title, "data": {"amount": amount},
+         "source": {"sheetNo": int(cid.rpartition("-")[2]), "image": ""},
+         "raw": {"title": title}}
     if keywords:
         c["ocr_keywords"] = keywords
+    if duplicate_of:
+        c["duplicateOf"] = duplicate_of
     return c
 
 
@@ -56,26 +61,56 @@ def _write_doodad(dst: Path, cards: list[dict]):
 
 # ---------------- 加载层去重（运行时库启动校验） ----------------
 
-def test_loader_rejects_identical_title_and_data(tmp_data):
-    _write_doodad(tmp_data, [_card("dd-a", "买游艇", 17000), _card("dd-b", "买游艇", 17000)])
-    with pytest.raises(DataValidationError, match="重复卡"):
+def test_loader_accepts_tagged_deck_duplicates(tmp_data):
+    """实体牌堆本来就有 9 组共 20 张完全相同的卡，按实际张数入库才不改抽牌概率。
+
+    合法形态 = 共用 key + 第 2 张起 duplicateOf 指向首张（design/06 §5）。
+    """
+    _write_doodad(tmp_data, [
+        _card("dd-901", "买游艇", 17000, ["游艇"], key="boat-17k"),
+        _card("dd-902", "买游艇", 17000, ["游艇"], key="boat-17k", duplicate_of="dd-901"),
+    ])
+    lib = load_library(tmp_data)
+    assert {"dd-901", "dd-902"} <= set(lib.cards)          # 两张都在，不去重
+    assert lib.cards["dd-902"].duplicate_of == "dd-901"
+    assert lib.cards["dd-901"].key == lib.cards["dd-902"].key
+
+
+def test_loader_rejects_untagged_duplicate(tmp_data):
+    """同 key 同数值却没标 duplicateOf = 真·录入重复，仍要拦。"""
+    _write_doodad(tmp_data, [
+        _card("dd-901", "买游艇", 17000, key="boat-17k"),
+        _card("dd-902", "买游艇", 17000, key="boat-17k"),
+    ])
+    with pytest.raises(DataValidationError, match="duplicateOf"):
+        load_library(tmp_data)
+
+
+def test_loader_rejects_same_key_diff_data(tmp_data):
+    """共用 key 表示同内容；数值不同却共用 key 会让重复卡归组失真。"""
+    _write_doodad(tmp_data, [
+        _card("dd-901", "买游艇", 17000, key="boat"),
+        _card("dd-902", "买游艇", 25000, key="boat"),
+    ])
+    with pytest.raises(DataValidationError, match="数值不一致"):
         load_library(tmp_data)
 
 
 def test_loader_same_title_diff_data_requires_keywords(tmp_data):
-    _write_doodad(tmp_data, [_card("dd-a", "买游艇", 17000), _card("dd-b", "买游艇", 25000)])
+    _write_doodad(tmp_data, [_card("dd-901", "买游艇", 17000),
+                             _card("dd-902", "买游艇", 25000)])
     with pytest.raises(DataValidationError, match="区分关键词"):
         load_library(tmp_data)
     _write_doodad(tmp_data, [
-        _card("dd-a", "买游艇", 17000, ["17,000"]),
-        _card("dd-b", "买游艇", 25000, ["25,000"]),
+        _card("dd-901", "买游艇", 17000, ["17,000"]),
+        _card("dd-902", "买游艇", 25000, ["25,000"]),
     ])
     lib = load_library(tmp_data)
-    assert lib.cards["dd-a"].title == lib.cards["dd-b"].title
+    assert lib.cards["dd-901"].title == lib.cards["dd-902"].title
 
 
 def test_loader_rejects_duplicate_id_across_decks(tmp_data):
-    _write_doodad(tmp_data, [_card("mk-offer-2b1b-55k", "某支出", 100)])
+    _write_doodad(tmp_data, [_card("mk-003", "某支出", 100)])
     with pytest.raises(DataValidationError, match="id 重复"):
         load_library(tmp_data)
 
@@ -90,8 +125,9 @@ def test_loader_ok_with_all_decks_empty(tmp_data):
 # ---------------- 录入库接口 ----------------
 
 def _post(client, **kw):
+    # 金额取真实牌叠里没有的值：录入库播种自 194 张全量库，撞上会被重复卡护栏拦下
     body = {"id": "", "deck": "DOODAD", "subtype": "CASH",
-            "title": "测试卡", "data": {"amount": 100}, "ocr_keywords": []}
+            "title": "测试卡", "data": {"amount": 12345}, "ocr_keywords": []}
     body.update(kw)
     return client.post("/api/entry/cards", json=body)
 
@@ -104,24 +140,24 @@ def test_staging_seeded_from_runtime(tmp_data):
 
 def test_api_auto_id_and_dup_rejection(tmp_data):
     with TestClient(app) as client:
-        r1 = _post(client, title="新支出A", data={"amount": 300})
+        r1 = _post(client, title="新支出A", data={"amount": 12300})
         assert r1.status_code == 200
         id1 = r1.json()["id"]
         assert id1.startswith("dd-") and id1.split("-")[1].isdigit()
 
-        r2 = _post(client, title="新支出B", data={"amount": 400})
+        r2 = _post(client, title="新支出B", data={"amount": 12400})
         id2 = r2.json()["id"]
         assert id2 != id1
 
-        # 标题+数值全同（不同 id）→ 拒绝，录入库不变
+        # 数值全同又没标 duplicateOf → 当作录入重复拒绝，录入库不变
         before = _entry_json(tmp_data, "doodad.json")
-        r3 = _post(client, title="新支出A", data={"amount": 300})
+        r3 = _post(client, title="新支出A", data={"amount": 12300})
         assert r3.status_code == 400
         assert "重复卡" in r3.json()["message"]
         assert _entry_json(tmp_data, "doodad.json") == before
 
         # 同 id 重复提交 = 编辑，不误判为重复卡
-        r4 = _post(client, id=id1, title="新支出A", data={"amount": 300})
+        r4 = _post(client, id=id1, title="新支出A", data={"amount": 12300})
         assert r4.status_code == 200
         assert r4.json()["replaced"] is True
 
@@ -147,8 +183,9 @@ def test_api_same_title_multiversion_needs_keywords(tmp_data):
 
 def test_api_rejects_id_used_by_other_deck(tmp_data):
     with TestClient(app) as client:
-        r = _post(client, id="dd-boat", deck="MARKET", subtype="BUYER_OFFER",
-                  title="求购", data={"targetAssetType": "3室2厅", "pricePerUnit": 65000})
+        r = _post(client, id="dd-001", deck="MARKET", subtype="BUYER_OFFER",
+                  title="求购", data={"targetAssetType": "3室2厅",
+                                     "priceBasis": "PER_UNIT", "price": 65000})
         assert r.status_code == 400
         assert "占用" in r.json()["message"]
 
@@ -156,7 +193,7 @@ def test_api_rejects_id_used_by_other_deck(tmp_data):
 def test_api_price_range(tmp_data):
     with TestClient(app) as client:
         stock = {"symbol": "OK4U", "price": 20, "dividendPerShare": 0,
-                 "priceRange": [30, 5]}
+                 "roiPct": 0, "buyerScope": "DRAWER_ONLY", "priceRange": [30, 5]}
         r1 = _post(client, deck="SMALL_DEAL", subtype="STOCK_OFFER",
                    title="OK4U 20元", data=stock)
         assert r1.status_code == 400
@@ -220,9 +257,10 @@ def test_publish_rejects_invalid_staging_and_keeps_runtime(tmp_data):
     with TestClient(app) as client:
         client.get("/api/entry/cards", params={"deck": "DOODAD"})   # 触发播种
         runtime_before = _runtime_json(tmp_data, "doodad.json")
-        # 直接把录入库文件改坏（模拟手工编辑出错）：两张完全相同的卡
+        # 直接把录入库文件改坏（模拟手工编辑出错）：同 key 同数值却没标 duplicateOf
         (tmp_data / "entry" / "cards" / "doodad.json").write_text(
-            json.dumps([_card("dd-x", "坏卡", 1), _card("dd-y", "坏卡", 1)],
+            json.dumps([_card("dd-901", "坏卡", 1, key="bad"),
+                        _card("dd-902", "坏卡", 1, key="bad")],
                        ensure_ascii=False), encoding="utf-8")
         for path in ("/api/entry/publish/preview",):
             assert client.get(path).status_code == 400

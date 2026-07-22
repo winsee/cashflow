@@ -1,6 +1,10 @@
 // 与服务端 serialize() 对应的类型
 export interface Derived {
+  interestIncome: number
   dividendIncome: number
+  realEstateIncome: number
+  businessIncome: number
+  installmentCashflow: number
   passiveIncome: number
   totalIncome: number
   childExpense: number
@@ -9,6 +13,22 @@ export interface Derived {
   totalExpenses: number
   monthlyCashflow: number
   canEnterFasttrack: boolean
+}
+
+export interface OwnedAssetDto {
+  id: string
+  asset_type: string
+  name: string
+  cost: number
+  down_payment: number
+  mortgage: number
+  cashflow: number
+  // v3 规格字段：决定求购卡按套/按间/按枚计价（design/06 §3.2）
+  rooms?: number | null
+  units?: number | null
+  quantity?: number | null
+  business_kind?: string | null
+  income_category?: string | null
 }
 
 export interface Player {
@@ -35,10 +55,11 @@ export interface Player {
   otherExpenses: number
   perChildExpense: number
   interestIncome: number
-  stocks: { symbol: string; shares: number; cost_per_share: number; dividend_per_share: number }[]
-  realEstates: { id: string; asset_type: string; name: string; cost: number; down_payment: number; mortgage: number; cashflow: number }[]
-  businesses: { id: string; asset_type: string; name: string; cost: number; down_payment: number; mortgage: number; cashflow: number }[]
+  stocks: { symbol: string; shares: number; cost_per_share: number; dividend_per_share: number; income_category?: string }[]
+  realEstates: OwnedAssetDto[]
+  businesses: OwnedAssetDto[]
   extraLiabilities: { id: string; name: string; amount: number; monthly: number }[]
+  installmentReceivables: { id: string; card_id: string; name: string; total_price: number; monthly_delta: number; duration_months: number; months_elapsed: number }[]
   liabilities: { mortgage: number; school_loan: number; car_loan: number; credit_card: number; extra: number; bank_loan: number }
   fasttrack: { initial_income: number; current_income: number; businesses: { square_id: string; name: string; cashflow: number }[]; charity_forever: boolean }
   derived: Derived

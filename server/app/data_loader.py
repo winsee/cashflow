@@ -35,6 +35,9 @@ class Card:
     title: str
     data: dict[str, Any]
     ocr_keywords: tuple[str, ...] = ()
+    key: str = ""                      # 同内容重复卡共用；识别去重按它归组
+    duplicate_of: str | None = None    # 指向组内首张（牌堆构成，非录入错误）
+    raw: dict[str, Any] = field(default_factory=dict)   # 卡面原文，纯线上版据此渲染
 
 
 @dataclass(frozen=True)
@@ -115,25 +118,50 @@ def _business_validate_card(card: Card, source: str) -> None:
 
 
 def _content_key(item: dict) -> str:
-    """卡牌内容签名：子类型 + 全部数值（与标题一起构成重复卡判定，design 决策：
-    标题+数值全同 = 重复卡；同名不同值 = 多版本卡，须每张有 ocr_keywords 区分。"""
+    """卡牌内容签名：子类型 + 全部数值。"""
     return item["subtype"] + "|" + json.dumps(item["data"], sort_keys=True, ensure_ascii=False)
 
 
 def _check_deck_duplicates(items: list[dict], source: str) -> None:
+    """重复卡判定（design/06 §5、design/07 §2.1）。
+
+    实体牌堆里本来就有 9 组共 20 张完全相同的卡，它们直接决定抽牌概率，
+    **必须按实际张数入库**，洗牌时不得按 key 去重。因此「重复」不是错误，
+    但必须显式标注：同 key + 第 2 张起 duplicateOf 指向首张。缺标注才报错。
+
+    归组依据是 key 而非数值签名：sd-003/sd-040 是两张不同的实体卡（「市场强劲」/
+    「低利率」两种剧情），数值恰好相同但各自独立，不构成重复卡。
+    """
+    by_key: dict[str, list[dict]] = {}
+    for it in items:
+        by_key.setdefault(it["key"], []).append(it)
+    for key, group in by_key.items():
+        if len(group) == 1:
+            continue
+        first, rest = group[0], group[1:]
+        sigs = {_content_key(it) for it in group}
+        if len(sigs) > 1:
+            ids = " / ".join(it["id"] for it in group)
+            raise DataValidationError(
+                f"{source} 同 key「{key}」的卡（{ids}）数值不一致："
+                f"共用 key 表示是同内容重复卡，数值不同请改用不同的 key")
+        for it in rest:
+            dup = it.get("duplicateOf")
+            if not dup:
+                raise DataValidationError(
+                    f"{source} 卡「{it['title']}」({it['id']}) 与 {first['id']} 同 key 同数值："
+                    f"若确为牌堆重复卡请标注 duplicateOf: {first['id']}，否则是录入重复，请删除")
+            if dup != first["id"]:
+                raise DataValidationError(
+                    f"{source} 卡 {it['id']} 的 duplicateOf 指向 {dup}，应指向组内首张 {first['id']}")
+
+    # 同名不同值 = 多版本卡（如 MYT4U 的 6 种价位），须每张有区分关键词供识别打分
     by_title: dict[str, list[dict]] = {}
     for it in items:
         by_title.setdefault(it["title"], []).append(it)
     for title, group in by_title.items():
         if len(group) == 1:
             continue
-        seen: dict[str, str] = {}
-        for it in group:
-            key = _content_key(it)
-            if key in seen:
-                raise DataValidationError(
-                    f"{source} 重复卡「{title}」({seen[key]} / {it['id']})：标题与数值完全相同，不能入库")
-            seen[key] = it["id"]
         for it in group:
             if not it.get("ocr_keywords"):
                 raise DataValidationError(
@@ -158,6 +186,9 @@ def load_library(data_dir: Path | None = None) -> CardLibrary:
                 title=item["title"],
                 data=item["data"],
                 ocr_keywords=tuple(item.get("ocr_keywords", ())),
+                key=item.get("key", ""),
+                duplicate_of=item.get("duplicateOf"),
+                raw=item.get("raw", {}),
             )
             if card.deck != deck:
                 raise DataValidationError(f"{rel} 卡 {card.id}: deck 字段 {card.deck} 与文件不符（应为 {deck}）")

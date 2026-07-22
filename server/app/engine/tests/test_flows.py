@@ -29,16 +29,16 @@ def test_setup_grants(duo):
 def test_profession_unique_across_players(game):
     game.act(None, "JOIN", player_id="A", nickname="阿呆", is_host=True)
     game.act(None, "JOIN", player_id="B", nickname="阿瓜")
-    game.act("A", "SELECT_PROFESSION", professionId="prof-doctor")
+    game.act("A", "SELECT_PROFESSION", professionId="prof-006")
     with pytest.raises(EngineError) as ei:
-        game.act("B", "SELECT_PROFESSION", professionId="prof-doctor")
+        game.act("B", "SELECT_PROFESSION", professionId="prof-006")
     assert ei.value.code == "PROFESSION_TAKEN"
     # 自己重复选同一职业不算冲突
-    game.act("A", "SELECT_PROFESSION", professionId="prof-doctor")
+    game.act("A", "SELECT_PROFESSION", professionId="prof-006")
     # A 换选后让出的职业可被 B 选走
-    game.act("A", "SELECT_PROFESSION", professionId="prof-manager")
-    game.act("B", "SELECT_PROFESSION", professionId="prof-doctor")
-    assert game.player("B").profession_id == "prof-doctor"
+    game.act("A", "SELECT_PROFESSION", professionId="prof-010")
+    game.act("B", "SELECT_PROFESSION", professionId="prof-006")
+    assert game.player("B").profession_id == "prof-006"
 
 
 def test_dream_unique_across_players(game):
@@ -57,7 +57,7 @@ def test_dream_unique_across_players(game):
 # ---------- 买房 → 市场卡（§6.1、§6.3） ----------
 
 def test_buy_house_then_inflation_surrender(duo):
-    duo.act("A", "DRAW_CARD", cardId="sd-house-3b2b-01")
+    duo.act("A", "DRAW_CARD", cardId="sd-006")
     duo.act("A", "CARD_DECISION", decision="buy")
     a = duo.player("A")
     assert a.cash == 3950 - 3000
@@ -66,7 +66,7 @@ def test_buy_house_then_inflation_surrender(duo):
     duo.act("A", "END_TURN")
 
     # B 抽到通胀：A 的 3室2厅 全部交回银行，无补偿
-    duo.act("B", "DRAW_CARD", cardId="mk-evt-inflation")
+    duo.act("B", "DRAW_CARD", cardId="mk-002")
     a = duo.player("A")
     assert a.real_estates == []
     assert a.cash == 950
@@ -78,7 +78,7 @@ def test_market_buyer_offer_sell(duo):
     duo.state.players["B"].real_estates.append(RealEstate(
         id="r-test", card_id="x", asset_type="2室1厅", name="2室1厅出租房",
         cost=45000, down_payment=5000, mortgage=40000, cashflow=150))
-    duo.act("A", "DRAW_CARD", cardId="mk-offer-2b1b-55k")
+    duo.act("A", "DRAW_CARD", cardId="mk-003")
     prompts = [p for p in duo.state.prompts if p.kind == "MARKET_SELL"]
     assert len(prompts) == 1 and prompts[0].target_player_id == "B"
     cash_before = duo.player("B").cash
@@ -93,7 +93,7 @@ def test_market_multiple_offer(duo):
     duo.state.players["B"].businesses.append(OwnedBusiness(
         id="b-lp", card_id="x", asset_type="有限合伙", name="有限合伙",
         cost=5000, down_payment=5000, mortgage=0, cashflow=200))
-    duo.act("A", "DRAW_CARD", cardId="mk-multi-lp-3x")
+    duo.act("A", "DRAW_CARD", cardId="mk-001")
     pr = duo.state.prompts[0]
     assert pr.payload["price"] == 15000              # 原价 3 倍
     duo.act("B", "MARKET_SELL", promptId=pr.id, accept=True)
@@ -105,7 +105,7 @@ def test_market_multiple_offer(duo):
 def test_stock_buy_sell_window_and_merge(duo):
     duo.state.players["B"].stocks.append(
         StockHolding(symbol="ON2U", shares=20, cost_per_share=10))
-    duo.act("A", "DRAW_CARD", cardId="sd-stock-on2u-30")
+    duo.act("A", "DRAW_CARD", cardId="sd-008")
     duo.act("A", "STOCK_BUY", qty=10)
     assert duo.player("A").cash == 3950 - 300
     # 广播卖出窗口：B 按今日价格卖出
@@ -125,7 +125,7 @@ def test_preferred_stock_dividend_into_passive_income(duo):
     """优先股（每股月分红 $10）买入后，分红计入被动收入（§6.2）。"""
     a = duo.player("A")
     passive_before = F.passive_income(a)
-    duo.act("A", "DRAW_CARD", cardId="sd-005")
+    duo.act("A", "DRAW_CARD", cardId="sd-001")
     duo.act("A", "STOCK_BUY", qty=2)                 # 2 股 × $1,200 = $2,400
     a = duo.player("A")
     assert a.cash == 3950 - 2400
@@ -137,7 +137,7 @@ def test_preferred_stock_dividend_into_passive_income(duo):
 def test_stock_merge_2_to_1(duo):
     duo.state.players["A"].stocks.append(StockHolding(symbol="MYT4U", shares=11, cost_per_share=10))
     duo.state.players["B"].stocks.append(StockHolding(symbol="MYT4U", shares=4, cost_per_share=20))
-    duo.act("A", "DRAW_CARD", cardId="sd-stockevt-myt4u")
+    duo.act("A", "DRAW_CARD", cardId="sd-009")
     duo.act("A", "CARD_DECISION", decision="apply")
     assert duo.player("A").stocks[0].shares == 5     # 11 → 5（每两股并一股，零头舍去）
     assert duo.player("B").stocks[0].shares == 2
@@ -146,7 +146,7 @@ def test_stock_merge_2_to_1(duo):
 # ---------- 额外支出卡（§6.4） ----------
 
 def test_doodad_installment_boat(duo):
-    duo.act("A", "DRAW_CARD", cardId="dd-boat")
+    duo.act("A", "DRAW_CARD", cardId="dd-001")
     exp_before = F.total_expenses(duo.player("A"))
     duo.act("A", "CARD_DECISION", decision="pay")
     a = duo.player("A")
@@ -157,7 +157,7 @@ def test_doodad_installment_boat(duo):
 
 
 def test_doodad_credit_option(duo):
-    duo.act("A", "DRAW_CARD", cardId="dd-tv")
+    duo.act("A", "DRAW_CARD", cardId="dd-003")
     duo.act("A", "CARD_DECISION", decision="credit")
     a = duo.player("A")
     assert a.cash == 3950                            # 现金不动
@@ -166,12 +166,12 @@ def test_doodad_credit_option(duo):
 
 
 def test_doodad_conditional_cash_no_children(duo):
-    duo.act("A", "DRAW_CARD", cardId="dd-wedding")
+    duo.act("A", "DRAW_CARD", cardId="dd-002")
     pv = E.settlement_preview(duo.state, duo.lib)
     assert pv == {"due": 0, "note": "无孩子，无需支付", "waived": True}
     evs = duo.act("A", "CARD_DECISION", decision="pay")
     assert duo.player("A").cash == 3950              # 无孩子不付
-    assert evs[0]["payload"]["title"] == "参加婚礼"   # 日志需能显示卡名与豁免原因
+    assert evs[0]["payload"]["title"] == "为女儿举行婚礼"   # 日志需能显示卡名与豁免原因
     assert evs[0]["payload"]["note"] == "无孩子，无需支付"
     assert E.settlement_preview(duo.state, duo.lib) is None   # 已结算不再有预览
 
@@ -179,7 +179,7 @@ def test_doodad_conditional_cash_no_children(duo):
 def test_doodad_conditional_cash_with_children(duo):
     duo.act("A", "ADD_CHILD")
     _cycle(duo)
-    duo.act("A", "DRAW_CARD", cardId="dd-wedding")
+    duo.act("A", "DRAW_CARD", cardId="dd-002")
     pv = E.settlement_preview(duo.state, duo.lib)
     assert pv["due"] == 2000 and not pv["waived"]
     evs = duo.act("A", "CARD_DECISION", decision="pay")
@@ -189,29 +189,30 @@ def test_doodad_conditional_cash_with_children(duo):
 
 def test_settlement_preview_by_subtype(duo):
     # 分期卡：预览首付 + 负债/月供说明
-    duo.act("A", "DRAW_CARD", cardId="dd-boat")
+    duo.act("A", "DRAW_CARD", cardId="dd-001")
     pv = E.settlement_preview(duo.state, duo.lib)
     assert pv["due"] == 1000 and "17,000" in pv["note"] and not pv["waived"]
     duo.act("A", "CARD_DECISION", decision="pay")
     _cycle(duo)
     # 维修卡：无相关房产 → 豁免；持有后按处数计
-    duo.act("A", "DRAW_CARD", cardId="bd-evt-sewer")
+    duo.act("A", "DRAW_CARD", cardId="bd-003")
     assert E.settlement_preview(duo.state, duo.lib) == {
         "due": 0, "note": "无相关房产，无需支付", "waived": True}
+    # v3 词表：类型统一为「公寓」，房间数放 rooms（bd-003 只针对 8 室）
     duo.player("A").real_estates.append(RealEstate(
-        id="re1", card_id="x", asset_type="8室公寓", name="8室公寓",
+        id="re1", card_id="x", asset_type="公寓", rooms=8, name="8室公寓",
         cost=220000, down_payment=20000, mortgage=200000, cashflow=1700))
     pv = E.settlement_preview(duo.state, duo.lib)
     assert pv["due"] == 2000 and not pv["waived"]
     duo.act("A", "CARD_DECISION", decision="pay")
     _cycle(duo)
     # 机会卡有独立交互面板：无预览
-    duo.act("A", "DRAW_CARD", cardId="sd-house-3b2b-01")
+    duo.act("A", "DRAW_CARD", cardId="sd-006")
     assert E.settlement_preview(duo.state, duo.lib) is None
 
 
 def test_forced_card_blocks_end_turn(duo):
-    duo.act("A", "DRAW_CARD", cardId="dd-boat")
+    duo.act("A", "DRAW_CARD", cardId="dd-001")
     with pytest.raises(EngineError, match="强制卡牌"):
         duo.act("A", "END_TURN")
 
@@ -289,7 +290,7 @@ def test_pay_off_car_loan(duo):
 # ---------- 机会卡转卖（§6.5 / FR-15） ----------
 
 def test_resell_opportunity(duo):
-    duo.act("A", "DRAW_CARD", cardId="sd-house-3b2b-01")
+    duo.act("A", "DRAW_CARD", cardId="sd-006")
     duo.act("A", "CARD_DECISION", decision="resell", toPlayerId="B", price=500)
     pr = duo.state.prompts[0]
     assert pr.kind == "RESELL_CONFIRM" and pr.target_player_id == "B"
@@ -518,14 +519,14 @@ def test_children_cap(duo):
 # ---------- 回合防呆：每回合一格 / 一次结算（§5 防误操作） ----------
 
 def test_draw_twice_same_turn_blocked(duo):
-    duo.act("A", "DRAW_CARD", cardId="sd-house-3b2b-01")
+    duo.act("A", "DRAW_CARD", cardId="sd-006")
     duo.act("A", "CARD_DECISION", decision="pass")
     with pytest.raises(EngineError) as ei:
-        duo.act("A", "DRAW_CARD", cardId="dd-boat")
+        duo.act("A", "DRAW_CARD", cardId="dd-001")
     assert ei.value.code == "SQUARE_USED"
     # 结束回合后标志复位，下一玩家可正常抽卡
     duo.act("A", "END_TURN")
-    duo.act("B", "DRAW_CARD", cardId="sd-house-3b2b-01")
+    duo.act("B", "DRAW_CARD", cardId="sd-006")
     duo.act("B", "CARD_DECISION", decision="pass")
 
 
@@ -536,7 +537,7 @@ def test_payday_once_per_turn(duo):
         duo.act("A", "PAYDAY")
     assert ei.value.code == "PAYDAY_DONE"
     # 结算日与停留格互不占用：同回合仍可声明停留格
-    duo.act("A", "DRAW_CARD", cardId="sd-house-3b2b-01")
+    duo.act("A", "DRAW_CARD", cardId="sd-006")
     duo.act("A", "CARD_DECISION", decision="pass")
 
 
@@ -544,7 +545,7 @@ def test_square_events_mutually_exclusive(duo):
     duo.act("A", "ADD_CHILD")
     for action in ("CHARITY", "UNEMPLOYMENT", "DRAW_CARD"):
         with pytest.raises(EngineError) as ei:
-            duo.act("A", action, cardId="dd-boat")
+            duo.act("A", action, cardId="dd-001")
         assert ei.value.code == "SQUARE_USED"
     duo.act("A", "END_TURN")
     assert not duo.state.turn_square_used

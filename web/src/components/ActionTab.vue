@@ -77,6 +77,15 @@ const sellableShares = computed(() => {
   return me.value.stocks.filter(s => s.symbol === sym).reduce((a, s) => a + s.shares, 0)
 })
 
+// 「每个人都能以此价格购买」的卡（优先股 2BIG、银行存单 CD），非抽卡人也能买
+const canBuyThisStock = computed(() =>
+  ac.value?.subtype === 'STOCK_OFFER' && activeCardInfo.value?.data.buyerScope === 'ALL')
+
+// bd-031 比萨饼特许专卖店是全库唯一无市场买家的资产：标注出来，免得被当成 bug
+const NO_MARKET_BUYER_TYPES = ['特许专卖店']
+const noMarketBuyer = computed(() =>
+  !!activeCardInfo.value && NO_MARKET_BUYER_TYPES.includes(activeCardInfo.value.data.assetType))
+
 const bankruptable = computed(() =>
   me.value && me.value.derived.monthlyCashflow < 0 &&
   me.value.cash + me.value.derived.monthlyCashflow < 0)
@@ -360,25 +369,17 @@ async function hostEndTurn() {
         <h2>🃏 {{ activeCardInfo.title }}</h2>
         <p class="muted">{{ DECKS[ac.deck] }}</p>
 
-        <template v-if="ac.subtype === 'REALESTATE' || ac.subtype === 'BUSINESS'">
+        <template v-if="ac.subtype === 'REALESTATE' || ac.subtype === 'BUSINESS' || ac.subtype === 'COLLECTIBLE'">
           <p>首付 {{ fmt(activeCardInfo.data.downPayment) }} · 成本 {{ fmt(activeCardInfo.data.cost) }}
-            · 月现金流 +{{ fmt(activeCardInfo.data.cashflow) }}</p>
+            · 月现金流 {{ activeCardInfo.data.cashflow < 0 ? '' : '+' }}{{ fmt(activeCardInfo.data.cashflow) }}</p>
+          <p v-if="activeCardInfo.data.rooms" class="muted">{{ activeCardInfo.data.rooms }} 室公寓（求购卡可能按间计价）</p>
+          <p v-if="activeCardInfo.data.units" class="muted">{{ activeCardInfo.data.units }} 套公寓楼（求购卡可能按套计价）</p>
+          <p v-if="activeCardInfo.data.quantity" class="muted">共 {{ activeCardInfo.data.quantity }} 枚（求购卡按枚计价）</p>
+          <p v-if="noMarketBuyer" class="muted">⚠️ 全套市场卡里没有求购此类资产的买家，只能持有或私下转让给其他玩家</p>
           <div class="row wrap">
             <button @click="decideBuy">买入</button>
             <button class="ghost" @click="decidePass()">放弃</button>
             <button class="gold" @click="showResell = !showResell">转卖给玩家</button>
-          </div>
-          <div v-if="showResell" class="card inner">
-            <label>转卖对象（价格线下议定）</label>
-            <select v-model="resellTo">
-              <option v-for="p in others" :key="p.id" :value="p.id">{{ p.nickname }}</option>
-            </select>
-            <label>转让费（对方还需按卡面价购买资产）</label>
-            <input type="number" v-model.number="resellPrice" min="0" />
-            <button class="block" :disabled="!resellTo"
-                    @click="game.act('CARD_DECISION', { decision: 'resell', toPlayerId: resellTo, price: resellPrice }).then(ok => ok && (showResell = false, activeCardInfo = null))">
-              发起转卖（待对方确认）
-            </button>
           </div>
         </template>
 
@@ -393,8 +394,19 @@ async function hostEndTurn() {
           <button class="ghost block" @click="decidePass(true)">不买了/结束报价</button>
         </template>
 
+        <template v-else-if="ac.subtype === 'DICE_GAMBLE'">
+          <p>投入 {{ fmt(activeCardInfo.data.downPayment) }}，掷 {{ activeCardInfo.data.diceCount }} 粒骰子：
+            点数 {{ activeCardInfo.data.winCondition }} 得 {{ fmt(activeCardInfo.data.payout) }}，否则没有收入</p>
+          <p class="muted">骰子由服务端掷出并记入日志，结果不可重掷</p>
+          <div class="row wrap">
+            <button @click="decideBuy">接受这笔生意</button>
+            <button class="ghost" @click="decidePass()">放弃</button>
+            <button class="gold" @click="showResell = !showResell">转卖给玩家</button>
+          </div>
+        </template>
+
         <template v-else-if="ac.subtype === 'STOCK_EVENT'">
-          <p>按卡面对全员执行拆股/并股</p>
+          <p>按卡面对全员执行拆股/并股（总成本不变，此时不能交易）</p>
           <button class="block" @click="game.act('CARD_DECISION', { decision: 'apply' }).then(ok => ok && (activeCardInfo = null))">执行</button>
         </template>
 
@@ -419,16 +431,33 @@ async function hostEndTurn() {
           </button>
         </template>
 
+        <!-- 转卖表单：机会卡（含赌局）都可让给其他玩家（说明书 p8） -->
+        <div v-if="showResell" class="card inner">
+          <label>转卖对象（价格线下议定）</label>
+          <select v-model="resellTo">
+            <option v-for="p in others" :key="p.id" :value="p.id">{{ p.nickname }}</option>
+          </select>
+          <label>转让费（对方还需按卡面价购买资产）</label>
+          <input type="number" v-model.number="resellPrice" min="0" />
+          <button class="block" :disabled="!resellTo"
+                  @click="game.act('CARD_DECISION', { decision: 'resell', toPlayerId: resellTo, price: resellPrice }).then(ok => ok && (showResell = false, activeCardInfo = null))">
+            发起转卖（待对方确认）
+          </button>
+        </div>
+
         <button class="ghost small" style="margin-top:10px" @click="undoDraw">↩️ 选错卡？撤销重选</button>
       </div>
 
-      <!-- 股票卖出窗口（非抽卡人） -->
+      <!-- 股票交易窗口（非抽卡人）：卖出人人可用，买入看 buyerScope -->
       <div v-if="ac && ac.subtype === 'STOCK_OFFER' && !iAmDrawer" class="card" style="border-color:var(--gold)">
-        <h2>📈 股票卖出窗口</h2>
-        <p class="muted">{{ game.currentPlayer?.nickname }} 抽到股票报价，你可按今日价格卖出该股持仓</p>
+        <h2>📈 股票交易窗口</h2>
+        <p class="muted">
+          {{ game.currentPlayer?.nickname }} 抽到股票报价，你可按今日价格卖出该股持仓<template v-if="canBuyThisStock">；这张卡注明人人可买，你也能买入</template>
+        </p>
         <div class="row">
           <input type="number" v-model.number="stockQty" min="1" />
           <button @click="stockSell">卖出</button>
+          <button v-if="canBuyThisStock" class="gold" @click="stockBuy">买入</button>
         </div>
       </div>
 

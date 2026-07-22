@@ -13,8 +13,8 @@ def _setup_duo(lib) -> Game:
     g = Game(lib)
     g.act(None, "JOIN", player_id="A", nickname="阿呆", is_host=True)
     g.act(None, "JOIN", player_id="B", nickname="阿瓜")
-    g.act("A", "SELECT_PROFESSION", professionId="prof-doctor")
-    g.act("B", "SELECT_PROFESSION", professionId="prof-manager")
+    g.act("A", "SELECT_PROFESSION", professionId="prof-006")
+    g.act("B", "SELECT_PROFESSION", professionId="prof-010")
     g.act("A", "SELECT_DREAM", dreamId="ft-d-safari")
     g.act("B", "SELECT_DREAM", dreamId="ft-d-jet")
     g.act("A", "SET_TURN_ORDER", order=["A", "B"])
@@ -31,12 +31,12 @@ _ACTIONS = [
     ("REPAY_LOAN", {"amount": 1000}),
     ("ADD_CHILD", {}),
     ("CHARITY", {}),
-    ("DRAW_CARD", {"cardId": "dd-boat"}),
-    ("DRAW_CARD", {"cardId": "dd-tv"}),
-    ("DRAW_CARD", {"cardId": "dd-wedding"}),
-    ("DRAW_CARD", {"cardId": "sd-house-3b2b-01"}),
-    ("DRAW_CARD", {"cardId": "sd-stock-on2u-30"}),
-    ("DRAW_CARD", {"cardId": "mk-evt-inflation"}),
+    ("DRAW_CARD", {"cardId": "dd-001"}),
+    ("DRAW_CARD", {"cardId": "dd-003"}),
+    ("DRAW_CARD", {"cardId": "dd-002"}),
+    ("DRAW_CARD", {"cardId": "sd-006"}),
+    ("DRAW_CARD", {"cardId": "sd-008"}),
+    ("DRAW_CARD", {"cardId": "mk-002"}),
     ("CARD_DECISION", {"decision": "pay"}),
     ("CARD_DECISION", {"decision": "buy"}),
     ("CARD_DECISION", {"decision": "credit"}),
@@ -75,14 +75,14 @@ def test_replay_equals_final_state_long_flow(lib):
     """确定性长流程：全事件重放 == 最终状态。"""
     g = _setup_duo(lib)
     g.act("A", "TAKE_LOAN", amount=2000)
-    g.act("A", "DRAW_CARD", cardId="sd-house-3b2b-01")
+    g.act("A", "DRAW_CARD", cardId="sd-006")
     g.act("A", "CARD_DECISION", decision="buy")
     g.act("A", "PAYDAY")
     g.act("A", "END_TURN")
-    g.act("B", "DRAW_CARD", cardId="dd-tv")
+    g.act("B", "DRAW_CARD", cardId="dd-003")
     g.act("B", "CARD_DECISION", decision="credit")
     g.act("B", "END_TURN")
-    g.act("A", "DRAW_CARD", cardId="mk-evt-inflation")
+    g.act("A", "DRAW_CARD", cardId="mk-002")
     g.act("A", "REPAY_LOAN", amount=1000)
     g.act("A", "END_TURN")
     g.act("B", "CHARITY")                    # 每回合只停一格：慈善放到 B 的下一回合

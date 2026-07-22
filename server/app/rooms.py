@@ -175,6 +175,7 @@ class RoomSession:
                 "realEstates": [a.model_dump() for a in p.real_estates],
                 "businesses": [a.model_dump() for a in p.businesses],
                 "extraLiabilities": [l.model_dump() for l in p.extra_liabilities],
+                "installmentReceivables": [r.model_dump() for r in p.installment_receivables],
                 "liabilities": p.liabilities.model_dump(),
                 "fasttrack": p.fasttrack.model_dump(),
                 "derived": F.derived(p),

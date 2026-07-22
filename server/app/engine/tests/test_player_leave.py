@@ -14,8 +14,8 @@ from ..models import Phase, RoomStatus
 def _setup_duo(game):
     game.act(None, "JOIN", player_id="A", nickname="房主", is_host=True)
     game.act(None, "JOIN", player_id="B", nickname="玩家")
-    game.act("A", "SELECT_PROFESSION", professionId="prof-doctor")
-    game.act("B", "SELECT_PROFESSION", professionId="prof-manager")
+    game.act("A", "SELECT_PROFESSION", professionId="prof-006")
+    game.act("B", "SELECT_PROFESSION", professionId="prof-010")
     game.act("A", "SELECT_DREAM", dreamId="ft-d-safari")
     game.act("B", "SELECT_DREAM", dreamId="ft-d-jet")
 
@@ -26,7 +26,7 @@ def test_leave_lobby_releases_player_name_profession_and_dream(game):
 
     assert "B" not in game.state.players
     game.act(None, "JOIN", player_id="C", nickname="玩家")
-    game.act("C", "SELECT_PROFESSION", professionId="prof-manager")
+    game.act("C", "SELECT_PROFESSION", professionId="prof-010")
     game.act("C", "SELECT_DREAM", dreamId="ft-d-jet")
 
 
@@ -84,7 +84,7 @@ def test_host_leave_lobby_alone_empties_room_without_error(game):
 def test_current_player_leave_clears_pending_work_advances_and_replays(duo):
     duo.act("A", "TRANSFER_REQUEST", toPlayerId="B", amount=1000, reason="测试")
     duo.act("A", "END_TURN")
-    duo.act("B", "DRAW_CARD", cardId="dd-tv")
+    duo.act("B", "DRAW_CARD", cardId="dd-003")
 
     duo.act("B", "LEAVE_GAME")
 

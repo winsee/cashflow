@@ -86,17 +86,37 @@ _ALIASES: dict[str, list[tuple[list[str], list[str]]]] = {
         (["交易范围", "价格区间", "价格范围"], ["priceRange"]),
     ],
     "STOCK_EVENT": [],
-    "LOSS_EVENT": [
-        (["金额", "损失", "支付"], ["amount"]),
-    ],
+    # v3：LOSS_EVENT 已并入 EXPENSE_EVENT，两者字段形状本就相同
     "EXPENSE_EVENT": [
         (["每套", "每所", "每栋", "每间", "每处"], ["amountPerUnit"]),
+        (["金额", "损失", "支付", "费用"], ["amount"]),
+    ],
+    "COLLECTIBLE": [
+        (["成本"], ["cost"]),
+        (["首期支付", "首付"], ["downPayment"]),
+        (["枚数", "件数", "数量"], ["quantity"]),
+    ],
+    "DICE_GAMBLE": [
+        (["成本", "投入", "支付"], ["downPayment"]),
+        (["获得", "赔付", "收益"], ["payout"]),
     ],
     "BUYER_OFFER": [
-        (["每套价格", "每套", "每所", "每处", "价格"], ["pricePerUnit"]),
+        (["每间房", "每间"], ["price"]),
+        (["每盎司", "每枚"], ["price"]),
+        (["每套价格", "每套", "每所", "每处", "价格"], ["price"]),
     ],
     "MULTIPLE_OFFER": [
         (["倍数", "倍"], ["multiple"]),
+    ],
+    "PREMIUM_OFFER": [
+        (["溢价", "高于", "加价"], ["premiumOverCost"]),
+    ],
+    "INSTALLMENT_SALE": [
+        (["总价", "售价", "价格"], ["totalPrice"]),
+        (["每月", "月供", "月现金流"], ["monthlyCashflowDelta"]),
+    ],
+    "CASHFLOW_MODIFIER": [
+        (["每月", "月现金流", "增加"], ["cashflowDelta"]),
     ],
     "ECONOMY_EVENT": [],
     "CASH": [
@@ -115,9 +135,11 @@ _ALIASES: dict[str, list[tuple[list[str], list[str]]]] = {
 
 # 与前端 entry-fields.ts SUBTYPES 保持一致，用于同叠内 subtype 自动探测
 DECK_SUBTYPES: dict[str, list[str]] = {
-    "SMALL_DEAL": ["REALESTATE", "STOCK_OFFER", "STOCK_EVENT", "LOSS_EVENT"],
+    "SMALL_DEAL": ["REALESTATE", "BUSINESS", "COLLECTIBLE", "DICE_GAMBLE",
+                   "STOCK_OFFER", "STOCK_EVENT", "EXPENSE_EVENT"],
     "BIG_DEAL": ["REALESTATE", "BUSINESS", "EXPENSE_EVENT"],
-    "MARKET": ["BUYER_OFFER", "MULTIPLE_OFFER", "ECONOMY_EVENT"],
+    "MARKET": ["BUYER_OFFER", "MULTIPLE_OFFER", "PREMIUM_OFFER",
+               "INSTALLMENT_SALE", "CASHFLOW_MODIFIER", "ECONOMY_EVENT"],
     "DOODAD": ["CASH", "CREDIT_OPTION", "INSTALLMENT"],
     "PROFESSION": ["PROFESSION"],
 }

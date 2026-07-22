@@ -10,6 +10,7 @@ Event = {"type": str, "payload": dict}。金额一律非负整数美元。
 """
 from __future__ import annotations
 
+import random
 import uuid
 from typing import Any
 
@@ -17,8 +18,9 @@ from ..data_loader import CardLibrary
 from . import formulas as F
 from .errors import EngineError
 from .models import (
-    ActiveCard, ExtraLiability, FastTrackHolding, OwnedBusiness, Phase,
-    PlayerState, Prompt, RealEstate, RoomState, RoomStatus, StockHolding,
+    ActiveCard, ExtraLiability, FastTrackHolding, InstallmentReceivable,
+    OwnedBusiness, Phase, PlayerState, Prompt, RealEstate, RoomState,
+    RoomStatus, StockHolding,
 )
 
 Event = dict[str, Any]
@@ -173,7 +175,7 @@ def _d_end_turn(state, actor_id, p, lib) -> list[Event]:
     _require_no_bankruptcy(player)
     ac = state.active_card
     if ac and not ac.resolved and ac.subtype in (
-            "LOSS_EVENT", "EXPENSE_EVENT", "CASH", "CREDIT_OPTION", "INSTALLMENT", "STOCK_EVENT"):
+            "EXPENSE_EVENT", "CASH", "CREDIT_OPTION", "INSTALLMENT", "STOCK_EVENT"):
         raise EngineError("CARD_UNRESOLVED", "本回合的强制卡牌尚未结算，不能结束回合")
     return [_ev("TURN_ENDED", player_id=player.id)]
 
@@ -221,36 +223,114 @@ def _d_draw_card(state, actor_id, p, lib) -> list[Event]:
     return events
 
 
+_SELL_OFFER_SUBTYPES = ("BUYER_OFFER", "MULTIPLE_OFFER", "PREMIUM_OFFER", "INSTALLMENT_SALE")
+
+
+def _asset_matches(asset, d: dict) -> bool:
+    """求购卡是否指向该资产（design/06 §6.2、§6.5）。
+
+    targetAssetType 与 targetBusinessKind 二选一必填，两者都给时须同时满足
+    （mk-025 只收「自建企业」名下的小型机械公司）；只给 targetBusinessKind 时
+    按企业类型跨 assetType 匹配（mk-035 同时命中洗车店与自动化企业）。
+    """
+    target_type = d.get("targetAssetType")
+    target_kind = d.get("targetBusinessKind")
+    if target_type is not None and asset.asset_type != target_type:
+        return False
+    if target_kind is not None and asset.business_kind != target_kind:
+        return False
+    if target_type is None and target_kind is None:
+        return False
+    min_units = d.get("minUnits")
+    if min_units is not None and (asset.units or 1) < min_units:
+        return False
+    return _asset_condition_met(asset, d.get("assetCondition"))
+
+
+def _offer_price(subtype: str, d: dict, asset) -> int:
+    """求购卡对该资产的成交价。
+
+    ⚠️ 三种计价基准算错最大差 13 倍（design/07 §2.4）：
+    同一张 8 室公寓，PER_UNIT $25,000 只值 2.5 万，PER_ROOM $40,000 值 32 万。
+    """
+    if subtype == "MULTIPLE_OFFER":
+        return int(asset.cost * d["multiple"])
+    if subtype == "PREMIUM_OFFER":
+        return asset.cost + d["premiumOverCost"]
+    if subtype == "INSTALLMENT_SALE":
+        return d["totalPrice"]
+    basis = d["priceBasis"]
+    if basis == "PER_UNIT":
+        return d["price"] * (asset.units or 1)      # 无 units = 整个资产算一份
+    if basis == "PER_ROOM":
+        return d["price"] * (asset.rooms or 1)
+    if basis == "PER_PIECE":
+        return d["price"] * (asset.quantity or 1)
+    raise EngineError("BAD_PRICE_BASIS", f"未知计价基准: {basis}")
+
+
 def _market_events(state: RoomState, drawer: PlayerState, card) -> list[Event]:
-    """市场风云：按 targetAssetType 找出受影响玩家（design/02 §6.3）。"""
+    """市场风云：找出受影响玩家并推送要约（design/02 §6.3）。
+
+    ⚠️ 只推要约、绝不自动成交，也不得因「卖了会亏」而过滤或隐藏要约——
+    玩家可能为套现渡过破产危机而主动贱卖（design/06 §6.5）。
+    """
     d = card.data
-    target = d.get("targetAssetType", "")
     events: list[Event] = []
-    if card.subtype in ("BUYER_OFFER", "MULTIPLE_OFFER"):
+
+    if card.subtype in _SELL_OFFER_SUBTYPES:
         for pl in state.players.values():
             if pl.phase != Phase.RAT_RACE:
                 continue
-            for asset in [*pl.real_estates, *pl.businesses]:
-                if asset.asset_type == target:
-                    price = (d["pricePerUnit"] if card.subtype == "BUYER_OFFER"
-                             else int(asset.cost * d["multiple"]))
-                    events.append(_ev(
-                        "MARKET_PROMPTED", prompt_id=_new_id(), player_id=pl.id,
-                        asset_id=asset.id, asset_name=asset.name, price=price,
-                        mortgage=asset.mortgage, card_id=card.id))
+            for asset in pl.owned_assets:
+                if not _asset_matches(asset, d):
+                    continue
+                events.append(_ev(
+                    "MARKET_PROMPTED", prompt_id=_new_id(), player_id=pl.id,
+                    asset_id=asset.id, asset_name=asset.name,
+                    price=_offer_price(card.subtype, d, asset),
+                    mortgage=asset.mortgage, card_id=card.id,
+                    subtype=card.subtype,
+                    **(_installment_terms(d) if card.subtype == "INSTALLMENT_SALE" else {})))
         if not events:
             events.append(_ev("CARD_RESOLVED", card_id=card.id, note="无人持有相关资产"))
+
+    elif card.subtype == "CASHFLOW_MODIFIER":
+        # 不转移资产，只改所有符合条件的持有者名下资产条目的月现金流
+        target_ids = {}
+        for pl in state.players.values():
+            if pl.phase != Phase.RAT_RACE:
+                continue
+            if d["appliesTo"] == "DRAWER_ONLY" and pl.id != drawer.id:
+                continue
+            ids = [a.id for a in pl.owned_assets if _asset_matches(a, d)]
+            if ids:
+                target_ids[pl.id] = ids
+        if target_ids:
+            events.append(_ev("CASHFLOW_MODIFIED", card_id=card.id,
+                              delta=d["cashflowDelta"], targets=target_ids))
+        events.append(_ev("CARD_RESOLVED", card_id=card.id,
+                          **({} if target_ids else {"note": "无人持有相关资产"})))
+
     elif card.subtype == "ECONOMY_EVENT":
         if d.get("kind") == "FORCED_SURRENDER":
+            target = d.get("targetAssetType")
             for pl in state.players.values():
                 if pl.phase != Phase.RAT_RACE:
                     continue
-                ids = [a.id for a in [*pl.real_estates, *pl.businesses] if a.asset_type == target]
+                ids = [a.id for a in pl.owned_assets if a.asset_type == target]
                 if ids:
                     events.append(_ev("ASSETS_SURRENDERED", player_id=pl.id,
                                       asset_ids=ids, card_id=card.id))
         events.append(_ev("CARD_RESOLVED", card_id=card.id))
     return events
+
+
+def _installment_terms(d: dict) -> dict:
+    """分期收款的条款，随要约一并下发，成交事件据此挂账。"""
+    return {"monthly_delta": d["monthlyCashflowDelta"],
+            "duration_months": d["durationMonths"],
+            "down_payment": d.get("downPayment", 0)}
 
 
 def _active_card_or_err(state: RoomState, actor_id: str) -> tuple[ActiveCard, PlayerState]:
@@ -269,23 +349,25 @@ def _d_card_decision(state, actor_id, p, lib) -> list[Event]:
     decision = p.get("decision")
     d = card.data
 
-    if ac.subtype in ("REALESTATE", "BUSINESS"):
+    if ac.subtype in ("REALESTATE", "BUSINESS", "COLLECTIBLE"):
         if decision == "pass":
             return [_ev("CARD_PASSED", player_id=player.id, card_id=card.id)]
         if decision == "buy":
             _require_cash(player, d["downPayment"])
             return [_asset_bought_event(player.id, card)]
         if decision == "resell":
-            to_id = p["toPlayerId"]
-            fee = int(p.get("price", 0))
-            if to_id == player.id or to_id not in state.players:
-                raise EngineError("BAD_TARGET", "转卖对象无效")
-            if fee < 0:
-                raise EngineError("BAD_AMOUNT", "转让费不能为负")
-            return [_ev("RESELL_OFFERED", prompt_id=_new_id(), card_id=card.id,
-                        from_player_id=player.id, to_player_id=to_id, fee=fee,
-                        down_payment=d["downPayment"], title=card.title)]
+            return _resell_offer_events(state, player, card, p)
         raise EngineError("BAD_DECISION", "该卡只能 买 / 放弃 / 转卖")
+
+    if ac.subtype == "DICE_GAMBLE":
+        if decision == "pass":
+            return [_ev("CARD_PASSED", player_id=player.id, card_id=card.id)]
+        if decision == "buy":
+            _require_cash(player, d["downPayment"])
+            return [_dice_gamble_event(player.id, card)]
+        if decision == "resell":
+            return _resell_offer_events(state, player, card, p)
+        raise EngineError("BAD_DECISION", "该卡只能 接受 / 放弃 / 转卖")
 
     if ac.subtype == "STOCK_OFFER":
         if decision == "pass":
@@ -297,22 +379,15 @@ def _d_card_decision(state, actor_id, p, lib) -> list[Event]:
         return [_ev("SHARES_ADJUSTED", card_id=card.id, symbol=d["symbol"],
                     ratio_num=num, ratio_den=den)]
 
-    if ac.subtype == "LOSS_EVENT":
-        amount, note = _conditional_amount(player, d)
-        _require_cash(player, amount)
-        return [_ev("LOSS_PAID", player_id=player.id, card_id=card.id, amount=amount,
-                    title=card.title, **({"note": note} if amount == 0 and note else {}))]
-
     if ac.subtype == "EXPENSE_EVENT":
-        units = sum(1 for a in player.real_estates if a.asset_type == d["targetAssetType"])
-        amount = units * d["amountPerUnit"]
+        amount, note, units = _expense_due(player, d)
         _require_cash(player, amount)
         return [_ev("EXPENSE_EVENT_PAID", player_id=player.id, card_id=card.id,
                     amount=amount, units=units, title=card.title,
-                    **({"note": "无相关房产，无需支付"} if units == 0 else {}))]
+                    **({"note": note} if amount == 0 and note else {}))]
 
     if ac.subtype == "CASH":
-        amount, note = _conditional_amount(player, d)
+        amount, note, _ = _expense_due(player, d)
         _require_cash(player, amount)
         return [_ev("DOODAD_PAID", player_id=player.id, card_id=card.id,
                     amount=amount, method="cash", title=card.title,
@@ -337,33 +412,74 @@ def _d_card_decision(state, actor_id, p, lib) -> list[Event]:
     raise EngineError("BAD_CARD", f"未支持的卡类型: {ac.subtype}")
 
 
-def _condition_met(p: PlayerState, condition: str | None) -> bool:
+def _payer_condition_met(p: PlayerState, condition: str | None) -> bool:
+    """判定「玩家」是否够格支付（v3 的 payerCondition，区别于判定资产的 assetCondition）。"""
     if not condition:
         return True
     if condition == "hasChildren":
         return p.child_count > 0
     if condition == "hasRentalProperty":
         return len(p.real_estates) > 0
-    raise EngineError("BAD_CONDITION", f"未知条件: {condition}")
+    if condition == "hasRealEstate":
+        return len(p.real_estates) > 0
+    raise EngineError("BAD_CONDITION", f"未知玩家条件: {condition}")
+
+
+def _asset_condition_met(asset, condition: str | None) -> bool:
+    """判定「资产」是否够格被求购（v3 的 assetCondition，仅 mk-032 求购旅馆用）。"""
+    if not condition:
+        return True
+    if condition == "cashflowPositive":
+        return asset.cashflow > 0
+    raise EngineError("BAD_CONDITION", f"未知资产条件: {condition}")
 
 
 _CONDITION_NOTES = {
-    # condition -> (需付说明, 豁免说明)
+    # payerCondition -> (需付说明, 豁免说明)
     "hasChildren": ("有孩子才需支付", "无孩子，无需支付"),
     "hasRentalProperty": ("有出租房产才需支付", "无出租房产，无需支付"),
+    "hasRealEstate": ("有房地产才需支付", "无房地产，无需支付"),
 }
 
 
-def _conditional_amount(p: PlayerState, d: dict) -> tuple[int, str]:
-    """条件卡（CASH/LOSS_EVENT）应付金额与中文说明；决策与预览共用，避免两处逻辑漂移。"""
-    cond = d.get("condition")
-    if not cond:
-        return d["amount"], ""
-    require_note, waived_note = _CONDITION_NOTES.get(
-        cond, (f"满足条件（{cond}）才需支付", f"未满足条件（{cond}），无需支付"))
-    if _condition_met(p, cond):
-        return d["amount"], require_note
-    return 0, waived_note
+def _matching_units(p: PlayerState, d: dict) -> int:
+    """按 targetAssetType（+ 可选 targetRooms）数出玩家名下的相关房产套数。"""
+    target = d.get("targetAssetType")
+    rooms = d.get("targetRooms")
+    return sum(1 for a in p.real_estates
+               if a.asset_type == target and (rooms is None or a.rooms == rooms))
+
+
+def _expense_due(p: PlayerState, d: dict) -> tuple[int, str, int]:
+    """强制支出卡（EXPENSE_EVENT / CASH）的应付金额、中文说明、相关房产数。
+
+    决策与预览共用，避免两处逻辑漂移。三种计量方式互斥：
+    - amountPerUnit：按相关房产套数计（chargeOnce=true 时封顶一套，bd-003 卡面明示）
+    - amountPerChild：按孩子数计（dd-021「为每个小孩花费 $50」）
+    - amount：固定金额
+    """
+    cond = d.get("payerCondition")
+    if not _payer_condition_met(p, cond):
+        _, waived = _CONDITION_NOTES.get(
+            cond, ("", f"未满足条件（{cond}），无需支付"))
+        return 0, waived, 0
+    require_note = _CONDITION_NOTES.get(cond, ("", ""))[0] if cond else ""
+
+    if "amountPerUnit" in d:
+        units = _matching_units(p, d)
+        if units == 0:
+            return 0, "无相关房产，无需支付", 0
+        billed = 1 if d.get("chargeOnce") else units
+        per = d["amountPerUnit"]
+        note = (f"持有 {units} 套，卡面注明只付一套 × ${per:,}" if d.get("chargeOnce")
+                else f"相关房产 {units} 处 × ${per:,}")
+        return billed * per, note, units
+
+    if "amountPerChild" in d:
+        n = p.child_count
+        return n * d["amountPerChild"], f"{n} 个小孩 × ${d['amountPerChild']:,}", 0
+
+    return d["amount"], require_note, 0
 
 
 def settlement_preview(state: RoomState, lib: CardLibrary) -> dict[str, Any] | None:
@@ -376,17 +492,15 @@ def settlement_preview(state: RoomState, lib: CardLibrary) -> dict[str, Any] | N
         return None
     try:
         d = lib.get(ac.card_id).data
-        if ac.subtype in ("CASH", "LOSS_EVENT"):
-            due, note = _conditional_amount(player, d)
-            return {"due": due, "note": note,
-                    "waived": due == 0 and bool(d.get("condition"))}
-        if ac.subtype == "EXPENSE_EVENT":
-            units = sum(1 for a in player.real_estates
-                        if a.asset_type == d["targetAssetType"])
-            due = units * d["amountPerUnit"]
-            note = (f"相关房产 {units} 处 × ${d['amountPerUnit']:,}" if units
-                    else "无相关房产，无需支付")
-            return {"due": due, "note": note, "waived": units == 0}
+        if ac.subtype in ("CASH", "EXPENSE_EVENT"):
+            due, note, _ = _expense_due(player, d)
+            return {"due": due, "note": note, "waived": due == 0}
+        if ac.subtype == "DICE_GAMBLE":
+            return {"due": d["downPayment"],
+                    "note": (f"投入 ${d['downPayment']:,} 后掷 {d['diceCount']} 粒骰子，"
+                             f"{_DICE_WIN_DESC.get(d['winCondition'], d['winCondition'])}"
+                             f"可得 ${d['payout']:,}"),
+                    "waived": False}
         if ac.subtype == "CREDIT_OPTION":
             return {"due": d["amount"],
                     "note": f"可改用信用卡支付（月供 +${d['creditMonthly']:,}）",
@@ -401,13 +515,71 @@ def settlement_preview(state: RoomState, lib: CardLibrary) -> dict[str, Any] | N
     return None       # 机会卡/股票等有独立交互面板，无需预览
 
 
-def _asset_bought_event(player_id: str, card) -> Event:
+def _resell_offer_events(state: RoomState, player: PlayerState, card, p: dict) -> list[Event]:
+    """把机会卡转卖给其他玩家（说明书 p8：抽卡人可把生意让给别人）。"""
+    to_id = p["toPlayerId"]
+    fee = int(p.get("price", 0))
+    if to_id == player.id or to_id not in state.players:
+        raise EngineError("BAD_TARGET", "转卖对象无效")
+    if fee < 0:
+        raise EngineError("BAD_AMOUNT", "转让费不能为负")
+    return [_ev("RESELL_OFFERED", prompt_id=_new_id(), card_id=card.id,
+                from_player_id=player.id, to_player_id=to_id, fee=fee,
+                down_payment=card.data["downPayment"], title=card.title)]
+
+
+# ---------- 骰子赌局（sd-013 嫂子借钱） ----------
+
+_dice_rng = random.Random()
+
+_DICE_WIN_DESC = {">3": "点数大于 3 时"}
+
+_DICE_OPS = {
+    ">=": lambda a, b: a >= b, "<=": lambda a, b: a <= b,
+    ">": lambda a, b: a > b, "<": lambda a, b: a < b, "==": lambda a, b: a == b,
+}
+
+
+def seed_dice(seed: int | None) -> None:
+    """固定骰子序列，仅供测试与复盘使用；正式对局不调用。"""
+    global _dice_rng
+    _dice_rng = random.Random(seed)
+
+
+def _dice_win(total: int, condition: str) -> bool:
+    for op, fn in _DICE_OPS.items():
+        if condition.startswith(op):
+            return fn(total, int(condition[len(op):]))
+    raise EngineError("BAD_CONDITION", f"未知胜负条件: {condition}")
+
+
+def _dice_gamble_event(player_id: str, card) -> Event:
+    """服务端掷骰并把点数写进事件流：结果可重放、不可重掷（design/06 §4.1）。"""
     d = card.data
+    rolls = [_dice_rng.randint(1, 6) for _ in range(d["diceCount"])]
+    total = sum(rolls)
+    won = _dice_win(total, d["winCondition"])
+    return _ev("DICE_GAMBLE_RESOLVED", player_id=player_id, card_id=card.id,
+               stake=d["downPayment"], rolls=rolls, total=total, won=won,
+               payout=d["payout"] if won else 0, title=card.title)
+
+
+def _asset_bought_event(player_id: str, card) -> Event:
+    """买入事件携带全部结算数值与规格字段，回放不依赖卡库。
+
+    规格字段（rooms/units/quantity/businessKind）决定日后求购卡怎么计价，
+    必须随资产落库，否则按间/按套/按枚计价无从算起。
+    """
+    d = card.data
+    spec = {k: d[src] for k, src in
+            (("rooms", "rooms"), ("units", "units"), ("quantity", "quantity"),
+             ("business_kind", "businessKind"), ("income_category", "incomeCategory"))
+            if src in d}
     return _ev("ASSET_BOUGHT", player_id=player_id, card_id=card.id,
                asset_id=_new_id(), kind="REALESTATE" if card.subtype == "REALESTATE" else "BUSINESS",
                asset_type=d.get("assetType", "企业"), name=card.title,
                cost=d["cost"], down_payment=d["downPayment"],
-               mortgage=d.get("mortgage", 0), cashflow=d["cashflow"])
+               mortgage=d.get("mortgage", 0), cashflow=d["cashflow"], **spec)
 
 
 def _d_resell_confirm(state, actor_id, p, lib) -> list[Event]:
@@ -419,10 +591,13 @@ def _d_resell_confirm(state, actor_id, p, lib) -> list[Event]:
     buyer = _get_player(state, actor_id)
     card = lib.get(pd["card_id"])
     _require_cash(buyer, pd["fee"] + card.data["downPayment"])
+    # 赌局转卖后由买家掷骰承担盈亏，不产生资产条目
+    settle = (_dice_gamble_event(actor_id, card) if card.subtype == "DICE_GAMBLE"
+              else _asset_bought_event(actor_id, card))
     return [_ev("RESELL_CONFIRMED", prompt_id=prompt.id, card_id=card.id,
                 from_player_id=pd["from_player_id"], to_player_id=actor_id,
                 fee=pd["fee"]),
-            _asset_bought_event(actor_id, card)]
+            settle]
 
 
 # ---------- 股票（design/02 §6.2） ----------
@@ -436,10 +611,13 @@ def _stock_card(state: RoomState, lib) -> tuple[ActiveCard, dict]:
 
 def _d_stock_buy(state, actor_id, p, lib) -> list[Event]:
     ac, d = _stock_card(state, lib)
-    if ac.drawer_id != actor_id:
-        raise EngineError("NOT_DRAWER", "只有抽卡人能按今日价格买入")
+    # buyerScope 决定买入窗口对谁开放；卖出侧一律所有人可卖（design/06 §3.3）
+    if d.get("buyerScope", "DRAWER_ONLY") == "DRAWER_ONLY" and ac.drawer_id != actor_id:
+        raise EngineError("NOT_DRAWER", "这张卡只有抽卡人能按此价格买入")
     player = _get_player(state, actor_id)
     _require_no_bankruptcy(player)
+    if player.phase != Phase.RAT_RACE:
+        raise EngineError("WRONG_PHASE", "只有老鼠赛跑阶段的玩家可交易")
     qty = int(p["qty"])
     if qty <= 0:
         raise EngineError("BAD_AMOUNT", "股数须为正整数")
@@ -447,7 +625,8 @@ def _d_stock_buy(state, actor_id, p, lib) -> list[Event]:
     _require_cash(player, cost)
     return [_ev("STOCK_BOUGHT", player_id=actor_id, card_id=ac.card_id,
                 symbol=d["symbol"], qty=qty, price=d["price"],
-                dividend_per_share=d.get("dividendPerShare", 0), cost=cost)]
+                dividend_per_share=d.get("dividendPerShare", 0),
+                income_category=d.get("incomeCategory", "DIVIDEND"), cost=cost)]
 
 
 def _d_stock_sell(state, actor_id, p, lib) -> list[Event]:
@@ -484,6 +663,19 @@ def _d_market_sell(state, actor_id, p, lib) -> list[Event]:
     pd = prompt.payload
     if not p.get("accept"):
         return [_ev("MARKET_DECLINED", prompt_id=prompt.id, player_id=actor_id)]
+
+    if pd.get("subtype") == "INSTALLMENT_SALE":
+        # 移交房产但不收全款：挂账 N 个月，期间月现金流反而减少（design/06 §6.4）
+        net = pd["down_payment"] - pd["mortgage"]
+        if net < 0:
+            _require_cash(player, -net)
+        return [_ev("INSTALLMENT_SCHEDULED", prompt_id=prompt.id, player_id=actor_id,
+                    asset_id=pd["asset_id"], asset_name=pd["asset_name"],
+                    card_id=pd["card_id"], receivable_id=_new_id(),
+                    total_price=pd["price"], monthly_delta=pd["monthly_delta"],
+                    duration_months=pd["duration_months"],
+                    mortgage=pd["mortgage"], net=net)]
+
     # 收益 = 卖价 − 抵押贷款；为负时向银行付差额（design/02 §6.1）
     net = pd["price"] - pd["mortgage"]
     if net < 0:
@@ -637,7 +829,26 @@ def _d_bankruptcy_sell(state, actor_id, p, lib) -> list[Event]:
         if basis > 0:
             return [_ev("BANKRUPTCY_ASSET_SOLD", player_id=player.id, asset_id=aid,
                         kind="STOCK", symbol=symbol, proceeds=basis // 2)]
+    if aid.startswith("installment:"):
+        rid = aid.split(":", 1)[1]
+        r = next((x for x in player.installment_receivables
+                  if x.id == rid and not x.settled), None)
+        if r is not None:
+            # 已垫付月份的对价按比例兑现，再对半折让给银行
+            value = r.total_price * r.months_elapsed // r.duration_months
+            return [_ev("BANKRUPTCY_ASSET_SOLD", player_id=player.id, asset_id=aid,
+                        kind="INSTALLMENT", receivable_id=rid, proceeds=value // 2)]
     raise EngineError("NO_ASSET", "资产不存在")
+
+
+def installment_liquidation_value(p: PlayerState) -> int:
+    """破产/退出清算时未结清分期收款的折算值：按已扣月数比例结算。
+
+    玩家已经替买家垫了 months_elapsed 个月的现金流，那部分对价应当兑现，
+    余下未到期的部分随资产一并由银行收走（design/07 §5.13）。
+    """
+    return sum(r.total_price * r.months_elapsed // r.duration_months
+               for r in p.installment_receivables if not r.settled)
 
 
 def _d_bankruptcy_resolve(state, actor_id, p, lib) -> list[Event]:
@@ -969,7 +1180,24 @@ def _advance_turn(s: RoomState) -> None:
 def _a_payday(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash += p["cashflow"] * p["times"]
+    _advance_installments(pl, p["times"])
     s.turn_payday_used = True
+
+
+def _advance_installments(pl: PlayerState, months: int) -> None:
+    """结算日 = 过了几个月，分期收款按此计数（design/06 §6.4）。
+
+    一次过多个结算日时若中途到期，把多扣的月份退回，再一次性入账全款。
+    """
+    for r in pl.installment_receivables:
+        if r.settled:
+            continue
+        before = r.months_elapsed
+        r.months_elapsed = min(before + months, r.duration_months)
+        overcharged = months - (r.months_elapsed - before)
+        pl.cash -= r.monthly_delta * overcharged     # monthly_delta 为负，等于退回
+        if r.settled:
+            pl.cash += r.total_price                 # 期满：现金流恢复 + 全款到账
 
 
 def _a_card_drawn(s: RoomState, p) -> None:
@@ -998,16 +1226,14 @@ def _mark_resolved(s: RoomState) -> None:
 def _a_asset_bought(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["down_payment"]
-    if p["kind"] == "REALESTATE":
-        pl.real_estates.append(RealEstate(
-            id=p["asset_id"], card_id=p["card_id"], asset_type=p["asset_type"],
-            name=p["name"], cost=p["cost"], down_payment=p["down_payment"],
-            mortgage=p["mortgage"], cashflow=p["cashflow"]))
-    else:
-        pl.businesses.append(OwnedBusiness(
-            id=p["asset_id"], card_id=p["card_id"], asset_type=p["asset_type"],
-            name=p["name"], cost=p["cost"], down_payment=p["down_payment"],
-            mortgage=p["mortgage"], cashflow=p["cashflow"]))
+    model = RealEstate if p["kind"] == "REALESTATE" else OwnedBusiness
+    target = pl.real_estates if p["kind"] == "REALESTATE" else pl.businesses
+    target.append(model(
+        id=p["asset_id"], card_id=p["card_id"], asset_type=p["asset_type"],
+        name=p["name"], cost=p["cost"], down_payment=p["down_payment"],
+        mortgage=p["mortgage"], cashflow=p["cashflow"],
+        rooms=p.get("rooms"), units=p.get("units"), quantity=p.get("quantity"),
+        business_kind=p.get("business_kind"), income_category=p.get("income_category")))
     if s.active_card and s.active_card.card_id == p["card_id"]:
         s.active_card.resolved = True
 
@@ -1043,9 +1269,10 @@ def _a_stock_bought(s: RoomState, p) -> None:
             h.shares += p["qty"]
             break
     else:
-        pl.stocks.append(StockHolding(symbol=p["symbol"], shares=p["qty"],
-                                      cost_per_share=p["price"],
-                                      dividend_per_share=p["dividend_per_share"]))
+        pl.stocks.append(StockHolding(
+            symbol=p["symbol"], shares=p["qty"], cost_per_share=p["price"],
+            dividend_per_share=p["dividend_per_share"],
+            income_category=p.get("income_category", "DIVIDEND")))
 
 
 def _a_stock_sold(s: RoomState, p) -> None:
@@ -1064,12 +1291,19 @@ def _a_stock_sold(s: RoomState, p) -> None:
 
 
 def _a_shares_adjusted(s: RoomState, p) -> None:
+    """并股/拆股：股数按比例增减，**总成本不变**（design/06 §3.0，该规则是固有的）。
+
+    单价随之反向调整，否则破产清算按 shares × cost_per_share 估值会凭空少算一半。
+    """
     num, den = p["ratio_num"], p["ratio_den"]   # "2:1" → 每2股并1股
     for pl in s.players.values():
         kept = []
         for h in pl.stocks:
             if h.symbol == p["symbol"]:
+                total_cost = h.shares * h.cost_per_share
                 h.shares = h.shares * den // num
+                if h.shares > 0:
+                    h.cost_per_share = total_cost // h.shares
             if h.shares > 0:
                 kept.append(h)
         pl.stocks = kept
@@ -1124,6 +1358,34 @@ def _a_market_sold(s: RoomState, p) -> None:
 
 def _a_market_declined(s: RoomState, p) -> None:
     _remove_prompt(s, p["prompt_id"])
+
+
+def _a_installment_scheduled(s: RoomState, p) -> None:
+    _remove_prompt(s, p["prompt_id"])
+    pl = s.players[p["player_id"]]
+    pl.cash += p["net"]                    # 首付−抵押；mk-029 无首付故通常为负
+    _remove_asset(pl, p["asset_id"])       # 房产即刻移交
+    pl.installment_receivables.append(InstallmentReceivable(
+        id=p["receivable_id"], card_id=p["card_id"], name=p["asset_name"],
+        total_price=p["total_price"], monthly_delta=p["monthly_delta"],
+        duration_months=p["duration_months"]))
+
+
+def _a_cashflow_modified(s: RoomState, p) -> None:
+    """给资产条目本身改月现金流，不是改玩家总账（design/06 §4.1）。"""
+    delta = p["delta"]
+    for pid, asset_ids in p["targets"].items():
+        pl = s.players[pid]
+        for asset in pl.owned_assets:
+            if asset.id in asset_ids:
+                asset.cashflow += delta
+
+
+def _a_dice_gamble_resolved(s: RoomState, p) -> None:
+    pl = s.players[p["player_id"]]
+    pl.cash -= p["stake"]
+    pl.cash += p["payout"]                 # 未中奖时 payout=0，血本无归
+    _mark_resolved(s)
 
 
 def _a_assets_surrendered(s: RoomState, p) -> None:
@@ -1206,6 +1468,9 @@ def _a_bankruptcy_asset_sold(s: RoomState, p) -> None:
     pl.cash += p["proceeds"]
     if p["kind"] == "STOCK":
         pl.stocks = [h for h in pl.stocks if h.symbol != p["symbol"]]
+    elif p["kind"] == "INSTALLMENT":
+        pl.installment_receivables = [
+            r for r in pl.installment_receivables if r.id != p["receivable_id"]]
     else:
         _remove_asset(pl, p["asset_id"])     # 对应抵押负债一并注销（随资产行删除）
 
@@ -1393,6 +1658,9 @@ _APPLIERS = {
     "MARKET_PROMPTED": _a_market_prompted,
     "MARKET_SOLD": _a_market_sold,
     "MARKET_DECLINED": _a_market_declined,
+    "INSTALLMENT_SCHEDULED": _a_installment_scheduled,
+    "CASHFLOW_MODIFIED": _a_cashflow_modified,
+    "DICE_GAMBLE_RESOLVED": _a_dice_gamble_resolved,
     "ASSETS_SURRENDERED": _a_assets_surrendered,
     "LOAN_TAKEN": _a_loan_taken,
     "LOAN_REPAID": _a_loan_repaid,

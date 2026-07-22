@@ -67,7 +67,7 @@ def test_remove_current_player_advances_turn(duo):
     """移除当前玩家：清 TA 的提示与未结算卡、回合推进；两人局只剩一人按规则判胜。"""
     duo.act("A", "TRANSFER_REQUEST", toPlayerId="B", amount=1000, reason="测试")
     duo.act("A", "END_TURN")                          # 轮到 B
-    duo.act("B", "DRAW_CARD", cardId="dd-tv")         # B 留下未结算的强制卡
+    duo.act("B", "DRAW_CARD", cardId="dd-003")         # B 留下未结算的强制卡
     assert duo.state.active_card is not None
     duo.act("A", "HOST_REMOVE_PLAYER", playerId="B")
     b = duo.player("B")
@@ -99,7 +99,7 @@ def test_host_end_turn_advances(duo):
 def test_host_end_turn_discards_unresolved_card(duo):
     """当前玩家留着未结算的强制卡：本人结束被拒，房主代结束时卡作废并推进。"""
     duo.act("A", "END_TURN")
-    duo.act("B", "DRAW_CARD", cardId="dd-tv")
+    duo.act("B", "DRAW_CARD", cardId="dd-003")
     with pytest.raises(EngineError) as ei:
         duo.act("B", "END_TURN")
     assert ei.value.code == "CARD_UNRESOLVED"

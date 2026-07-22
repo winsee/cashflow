@@ -29,28 +29,37 @@ class StockHolding(BaseModel):
     shares: int
     cost_per_share: int
     dividend_per_share: int = 0
+    income_category: str = "DIVIDEND"   # DIVIDEND | INTEREST（记录卡收入栏，说明书 p7）
 
 
-class RealEstate(BaseModel):
+class OwnedAsset(BaseModel):
+    """已持有资产的共同形状（design/06 §3.2、§3.4）。
+
+    rooms / units / quantity 三个规格字段决定求购卡的计价基准：
+    同一张 8 室公寓遇 PER_UNIT $25,000 只值 2.5 万、遇 PER_ROOM $40,000 值 32 万。
+    """
     id: str                 # 房间内唯一资产 id
     card_id: str
-    asset_type: str         # "3室2厅" 等，市场卡匹配用
-    name: str
-    cost: int
-    down_payment: int
-    mortgage: int           # 对应负债·房地产抵押贷款
-    cashflow: int           # 损益表·房地产收入行
-
-
-class OwnedBusiness(BaseModel):
-    id: str
-    card_id: str
-    asset_type: str = "企业"
+    asset_type: str         # 受控词表（"3室2厅"/"公寓"/"自建企业"…），市场卡匹配用
     name: str
     cost: int
     down_payment: int
     mortgage: int = 0
-    cashflow: int
+    cashflow: int = 0
+
+    rooms: int | None = None            # 公寓房间数 2/4/8，PER_ROOM 计价
+    units: int | None = None            # 公寓楼套数 12/24/60，PER_UNIT 计价与 minUnits 门槛
+    quantity: int | None = None         # 收藏品枚数，PER_PIECE 计价
+    business_kind: str | None = None    # 企业细分类型，跨 assetType 的指名求购匹配
+    income_category: str | None = None  # REAL_ESTATE | BUSINESS，现金流记入哪一行
+
+
+class RealEstate(OwnedAsset):
+    """损益表·房地产收入行；mortgage 对应负债·房地产抵押贷款。"""
+
+
+class OwnedBusiness(OwnedAsset):
+    asset_type: str = "企业"
 
 
 class ExtraLiability(BaseModel):
@@ -59,6 +68,26 @@ class ExtraLiability(BaseModel):
     name: str
     amount: int
     monthly: int
+
+
+class InstallmentReceivable(BaseModel):
+    """分期收款挂账（mk-029 妹夫买房，design/06 §6.4）。
+
+    成交时移交房产、不收首付，卖方月现金流 −$500；每个结算日计一个月，
+    满 200 个月时现金流恢复并一次性入账 $100,000。
+    months_elapsed 追平 duration_months 即视为结清（不再计入月现金流）。
+    """
+    id: str
+    card_id: str
+    name: str
+    total_price: int
+    monthly_delta: int          # 负数：收齐前卖方每月现金流反而减少
+    duration_months: int
+    months_elapsed: int = 0
+
+    @property
+    def settled(self) -> bool:
+        return self.months_elapsed >= self.duration_months
 
 
 class Liabilities(BaseModel):
@@ -113,6 +142,7 @@ class PlayerState(BaseModel):
     businesses: list[OwnedBusiness] = Field(default_factory=list)
     extra_liabilities: list[ExtraLiability] = Field(default_factory=list)
     liabilities: Liabilities = Field(default_factory=Liabilities)
+    installment_receivables: list[InstallmentReceivable] = Field(default_factory=list)
 
     charity_turns: int = 0       # 老鼠赛跑 0..3
     charity_just_donated: bool = False   # 捐款当轮不消耗慈善轮数
@@ -120,6 +150,11 @@ class PlayerState(BaseModel):
     dream_id: str | None = None
     in_bankruptcy: bool = False
     fasttrack: FastTrackState = Field(default_factory=FastTrackState)
+
+    @property
+    def owned_assets(self) -> list[OwnedAsset]:
+        """房地产 + 企业的合并视图（市场卡匹配、没收、破产变卖都要遍历两者）。"""
+        return [*self.real_estates, *self.businesses]
 
 
 class ActiveCard(BaseModel):

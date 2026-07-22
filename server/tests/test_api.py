@@ -38,7 +38,7 @@ def test_full_room_flow():
 
         r = client.get("/api/cards", params={"deck": "PROFESSION"})
         profs = r.json()
-        assert {p["id"] for p in profs} >= {"prof-doctor", "prof-manager"}
+        assert {p["id"] for p in profs} >= {"prof-006", "prof-010"}
 
         with client.websocket_connect(f"/ws?token={host['playerToken']}") as wa, \
              client.websocket_connect(f"/ws?token={guest['playerToken']}") as wb:
@@ -46,9 +46,9 @@ def test_full_room_flow():
             assert snap["type"] == "snapshot" and snap["you"] == host["playerId"]
             wb.receive_json()
 
-            _act(wa, "SELECT_PROFESSION", professionId="prof-doctor")
+            _act(wa, "SELECT_PROFESSION", professionId="prof-006")
             wb.receive_json()   # 广播同步
-            _act(wb, "SELECT_PROFESSION", professionId="prof-manager")
+            _act(wb, "SELECT_PROFESSION", professionId="prof-010")
             wa.receive_json()
             _act(wa, "SELECT_DREAM", dreamId="ft-d-safari")
             wb.receive_json()
@@ -63,7 +63,7 @@ def test_full_room_flow():
             wb.receive_json()
 
             # 房主回合：抽小生意买房 → 结算 → 结束回合
-            _act(wa, "DRAW_CARD", cardId="sd-house-3b2b-01")
+            _act(wa, "DRAW_CARD", cardId="sd-006")
             wb.receive_json()
             st = _act(wa, "CARD_DECISION", decision="buy")
             me = next(p for p in st["state"]["players"] if p["id"] == host["playerId"])
@@ -160,8 +160,8 @@ def test_host_revert():
         with client.websocket_connect(f"/ws?token={host['playerToken']}") as wa, \
              client.websocket_connect(f"/ws?token={guest['playerToken']}") as wb:
             wa.receive_json(); wb.receive_json()
-            _act(wa, "SELECT_PROFESSION", professionId="prof-doctor"); wb.receive_json()
-            _act(wb, "SELECT_PROFESSION", professionId="prof-manager"); wa.receive_json()
+            _act(wa, "SELECT_PROFESSION", professionId="prof-006"); wb.receive_json()
+            _act(wb, "SELECT_PROFESSION", professionId="prof-010"); wa.receive_json()
             _act(wa, "SELECT_DREAM", dreamId="ft-d-safari"); wb.receive_json()
             _act(wb, "SELECT_DREAM", dreamId="ft-d-jet"); wa.receive_json()
             _act(wa, "SET_TURN_ORDER", order=[host["playerId"], guest["playerId"]]); wb.receive_json()
@@ -189,15 +189,15 @@ def test_forced_card_settle_preview():
         with client.websocket_connect(f"/ws?token={host['playerToken']}") as wa, \
              client.websocket_connect(f"/ws?token={guest['playerToken']}") as wb:
             wa.receive_json(); wb.receive_json()
-            _act(wa, "SELECT_PROFESSION", professionId="prof-doctor"); wb.receive_json()
-            _act(wb, "SELECT_PROFESSION", professionId="prof-manager"); wa.receive_json()
+            _act(wa, "SELECT_PROFESSION", professionId="prof-006"); wb.receive_json()
+            _act(wb, "SELECT_PROFESSION", professionId="prof-010"); wa.receive_json()
             _act(wa, "SELECT_DREAM", dreamId="ft-d-safari"); wb.receive_json()
             _act(wb, "SELECT_DREAM", dreamId="ft-d-jet"); wa.receive_json()
             _act(wa, "SET_TURN_ORDER", order=[host["playerId"], guest["playerId"]]); wb.receive_json()
             _act(wa, "START_GAME"); wb.receive_json()
 
-            # 无孩子抽「参加婚礼」：预览显示豁免，结算后现金不变
-            st = _act(wa, "DRAW_CARD", cardId="dd-wedding"); wb.receive_json()
+            # 无孩子抽「为女儿举行婚礼」：预览显示豁免，结算后现金不变
+            st = _act(wa, "DRAW_CARD", cardId="dd-002"); wb.receive_json()
             assert st["state"]["activeCard"]["settlePreview"] == {
                 "due": 0, "note": "无孩子，无需支付", "waived": True}
             st = _act(wa, "CARD_DECISION", decision="pay"); wb.receive_json()
@@ -205,5 +205,5 @@ def test_forced_card_settle_preview():
             assert me["cash"] == 3950
         paid = [e for e in client.get(f"/api/rooms/{code}/log").json()
                 if e["type"] == "DOODAD_PAID"]
-        assert paid[0]["payload"]["title"] == "参加婚礼"
+        assert paid[0]["payload"]["title"] == "为女儿举行婚礼"
         assert paid[0]["payload"]["note"] == "无孩子，无需支付"

@@ -6,8 +6,10 @@
 - 点「发布」（POST /publish）才把录入库整体校验后拷入运行时库并热重载；
   也可手动把 entry/cards 下文件拷到 cards 下重启服务（手动导入）。
 - id 由服务端自动生成（前缀+递增序号）；校验与启动加载同一套规则（JSON
-  Schema + 业务校验 + 去重：标题+数值全同 = 重复卡拒绝；同名多版本须每张有
-  ocr_keywords，design/04 §4/§6）。
+  Schema v3 + 业务校验 + 重复卡判定）。**重复卡是合法的**——实体牌堆里本来就有
+  9 组共 20 张完全相同的卡，直接决定抽牌概率；它们靠 key 归组、duplicateOf
+  标注，未标注的同内容卡才当作录入重复拒绝（design/06 §5、design/07 §2.1）。
+  同名多版本卡（如 MYT4U 的 6 种价位）仍须每张有 ocr_keywords 供识别区分。
 - 并发约束：本模块 handler 全同步无 await，单进程单 worker（deploy 现状）下在
   事件循环上原子执行，多人同时录入不会产生读改写竞争。部署勿开多 worker。
 """
@@ -121,6 +123,59 @@ class CardBody(BaseModel):
     title: str
     data: dict
     ocr_keywords: list[str] = []
+    # v3 双轨字段：raw 存卡面原文（纯线上版据此渲染卡面），key 用于重复卡归组
+    key: str = ""
+    raw: dict | None = None
+    source: dict | None = None
+    duplicateOf: str | None = None
+
+
+def _sheet_no(card_id: str) -> int:
+    """从 id 尾号取实体牌叠内编号；非数字尾号时退回 1。"""
+    tail = card_id.rpartition("-")[2]
+    return int(tail) if tail.isdigit() else 1
+
+
+def _fill_v3_defaults(item: dict, card_id: str, siblings: list[dict]) -> None:
+    """补齐 v3 必填字段，让录入工具的表单不必逐个手填（schema v3 要求 key/source/raw）。
+
+    key 默认取 id（天然唯一）；标注了 duplicateOf 的卡改用目标卡的 key，
+    这样 9 组真实重复卡在录入侧也能正确归组。
+    """
+    item["id"] = card_id
+    dup = item.get("duplicateOf")
+    if dup:
+        target = next((c for c in siblings if c["id"] == dup), None)
+        if target is None:
+            raise DataValidationError(f"duplicateOf 指向的卡不存在: {dup}")
+        item["key"] = target["key"]
+    elif not item.get("key"):
+        item["key"] = card_id
+    if not item.get("source"):
+        item["source"] = {"sheetNo": _sheet_no(card_id), "image": ""}
+    if not item.get("raw"):
+        item["raw"] = {"title": item["title"]}
+    for k in ("duplicateOf", "source", "raw"):
+        if item.get(k) is None:
+            item.pop(k, None)
+
+
+def _reject_untagged_duplicate(item: dict, cards: list[dict]) -> None:
+    """真·录入重复的护栏（design/07 §2.1）。
+
+    重复卡本身是合法的——实体牌堆里就有 9 组共 20 张完全相同的卡，直接决定抽牌
+    概率。但必须显式标注 duplicateOf，否则视为手滑录了两遍。
+    """
+    if item.get("duplicateOf"):
+        return
+    sig = (item["subtype"], json.dumps(item["data"], sort_keys=True, ensure_ascii=False))
+    for c in cards:
+        if c["id"] == item["id"]:
+            continue
+        if (c["subtype"], json.dumps(c["data"], sort_keys=True, ensure_ascii=False)) == sig:
+            raise DataValidationError(
+                f"重复卡「{item['title']}」与 {c['id']} 数值完全相同："
+                f"如确为牌堆里的重复卡，请填 duplicateOf: {c['id']}；否则请修改数值")
 
 
 @router.post("/cards")
@@ -137,15 +192,17 @@ async def upsert_card(body: CardBody, request: Request):
         if rt is not None and rt.deck != body.deck:
             raise DataValidationError(f"id {card_id} 已被运行时库牌叠 {rt.deck} 占用")
 
+    path = _entry_file(body.deck)
+    cards = _load_file(path)
+
     item = body.model_dump()
-    item["id"] = card_id
+    _fill_v3_defaults(item, card_id, cards)
     _validate_schema([item], "card.schema.json", "录入卡牌")
     _business_validate_card(
         Card(id=card_id, deck=body.deck, subtype=body.subtype,
              title=body.title, data=body.data), "录入卡牌")
+    _reject_untagged_duplicate(item, cards)
 
-    path = _entry_file(body.deck)
-    cards = _load_file(path)
     replaced = False
     for i, c in enumerate(cards):
         if c["id"] == card_id:
