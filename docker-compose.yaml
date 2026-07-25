@@ -6,8 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    environment:
-      CASHFLOW_HTTPS: "off"          # 本地不再需要自签 HTTPS
+    # 镜像默认 CASHFLOW_HTTPS=off（只跑 HTTP 8000），本地不再需要自签 HTTPS
     ports:
       - "8000:8000"
     volumes:

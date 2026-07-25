@@ -26,7 +26,8 @@ COPY server/manual_pages ./manual_pages
 COPY --from=webbuild /web/dist ./webdist
 ENV CASHFLOW_DB=/data/cashflow.db \
     CASHFLOW_WEB_DIST=/srv/webdist \
-    CASHFLOW_MANUAL_DIR=/srv/manual_pages
+    CASHFLOW_MANUAL_DIR=/srv/manual_pages \
+    CASHFLOW_HTTPS=off
 VOLUME ["/data"]
 # 只跑 HTTP 8000；云端 TLS 由反向代理终止（CASHFLOW_HTTPS=off）
 EXPOSE 8000

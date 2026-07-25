@@ -75,12 +75,13 @@ docker compose up -d --build
 ```bash
 docker pull winsee2017/cashflow:latest     # 或 ghcr.io/winsee2017/cashflow:latest
 docker run -d --name cashflow \
-  -e CASHFLOW_HTTPS=off \
   -p 127.0.0.1:8000:8000 \                  # 反代与容器不同机时改为 -p 8000:8000
   -v cashflow-data:/data \
   --restart unless-stopped \
   winsee2017/cashflow:latest
 ```
+
+镜像默认 `CASHFLOW_HTTPS=off`（只跑 HTTP 8000，TLS 由反代终止），不需要额外传环境变量；要让容器自己起自签 HTTPS 才需 `-e CASHFLOW_HTTPS=on -p 8443:8443`。
 
 拉 ghcr 上的私有包需先 `docker login ghcr.io`（用户名 winsee2017 + PAT，勾 `read:packages`）；把包设为 public 或改用 Docker Hub 则免登录。
 
