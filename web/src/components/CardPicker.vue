@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { keyNumbers } from '../cardinfo'
+import { canvasToBlob, cropScanFrame, ensureOcr, ocrBroken, ocrSupported, recognizeImage,
+         terminateOcr } from '../ocr'
 import { useGame } from '../store'
 import type { CardDto } from '../types'
 
@@ -20,16 +22,28 @@ const videoEl = ref<HTMLVideoElement>()
 const scanSupported = window.isSecureContext && !!navigator.mediaDevices?.getUserMedia
 const scanning = ref(false)
 const scanStatus = ref('')
+const ocrHint = ref('')          // 模型下载/引擎启动进度（首次约 5MB，别让人以为卡死）
+// 手机上一帧要 1~3s，没有「正在识别」的反馈玩家会以为卡死了，一直挪卡反而更认不出
+const busy = ref(false)
 const liveCands = ref<{ card: CardDto; score: number }[]>([])
 let stream: MediaStream | null = null
 let lastRecognitionId = 0
-// 连续硬失败（超时 / 服务不可用 / 网络断）计数：不能一直每 1.2s 空转发帧，
+// 识别在哪跑（design/08 §3.2 的降级链）：
+// browser（手机上跑 tesseract.js，服务端零内存开销）→ server（服务端 PaddleOCR，
+// 只有内存充裕的局域网部署装了）→ 手动检索（永远可用的兜底）
+let engine: 'browser' | 'server' = ocrSupported() ? 'browser' : 'server'
+// 连续硬失败（超时 / 服务不可用 / 网络断）计数：不能一直空转发帧，
 // 小内存云端实例上那等于持续把服务器往 OOM 上推
 let failStreak = 0
 const MAX_FAIL_STREAK = 3
 
 /** 识别一次的结果：reason 由服务端给（见 RecognizeOutcome），前端据此分文案 */
 type RecogResult = { hit: boolean; reason: string; status: number; ms: number }
+
+/** 不算「硬失败」的 reason：接着扫下一帧就行，不计入停扫计数 */
+const SOFT_REASONS = ['no_match', 'no_text', 'no_session', 'no_frame', 'ocr_fallback']
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 async function search() {
   cards.value = await game.fetchCards(props.deck, q.value)
@@ -39,13 +53,24 @@ onMounted(async () => {
   allCards.value = await game.fetchCards(props.deck)
   if (scanSupported) startScan()
 })
-onBeforeUnmount(stopScan)
+onBeforeUnmount(() => { stopScan(); terminateOcr() })
 
 function cardById(id: string): CardDto | undefined {
   return allCards.value.find(c => c.id === id) ?? cards.value.find(c => c.id === id)
 }
 
-/** 识别请求：扫描帧与拍照文件共用 */
+/** 候选渲染：两条识别路线返回同一个形状，这里统一收口 */
+function applyCandidates(d: any, status: number): RecogResult {
+  lastRecognitionId = d.recognitionId ?? 0
+  const found = (d.candidates ?? [])
+    .map((c: any) => ({ card: cardById(c.card_id), score: c.score }))
+    .filter((x: any) => x.card)
+  liveCands.value = found
+  return { hit: found.length > 0, reason: d.reason ?? (found.length ? 'ok' : 'no_match'),
+           status, ms: d.durationMs ?? 0 }
+}
+
+/** 服务端识别：整张图片传上去，服务器跑 OCR（局域网 WITH_OCR=1 部署才有） */
 async function recognizeBlob(blob: Blob): Promise<RecogResult> {
   if (!game.session) return { hit: false, reason: 'no_session', status: 0, ms: 0 }
   const fd = new FormData()
@@ -53,14 +78,22 @@ async function recognizeBlob(blob: Blob): Promise<RecogResult> {
   fd.append('deckHint', props.deck)
   const r = await fetch(`/api/rooms/${game.session.roomCode}/recognize`, { method: 'POST', body: fd })
   if (!r.ok) return { hit: false, reason: 'http', status: r.status, ms: 0 }
-  const d = await r.json()
-  lastRecognitionId = d.recognitionId ?? 0
-  const found = (d.candidates ?? [])
-    .map((c: any) => ({ card: cardById(c.card_id), score: c.score }))
-    .filter((x: any) => x.card)
-  liveCands.value = found
-  return { hit: found.length > 0, reason: d.reason ?? (found.length ? 'ok' : 'no_match'),
-           status: r.status, ms: d.durationMs ?? 0 }
+  return applyCandidates(await r.json(), r.status)
+}
+
+/** 浏览器端识别：手机跑 OCR，只把文本发给服务端做封闭集匹配（design/08） */
+async function recognizeByBrowser(image: HTMLCanvasElement | Blob): Promise<RecogResult> {
+  if (!game.session) return { hit: false, reason: 'no_session', status: 0, ms: 0 }
+  const { text, ms } = await recognizeImage(image, p => {
+    ocrHint.value = p.progress >= 1 ? '' : p.status
+  })
+  ocrHint.value = ''
+  const r = await fetch(`/api/rooms/${game.session.roomCode}/recognize-text`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: text.slice(0, 4000), deckHint: props.deck, clientMs: ms }),
+  })
+  if (!r.ok) return { hit: false, reason: 'http', status: r.status, ms }
+  return applyCandidates(await r.json(), r.status)
 }
 
 /** 硬失败文案：区分「服务器没装/没开 OCR」「太慢超时」「服务挂了」，
@@ -68,7 +101,8 @@ async function recognizeBlob(blob: Blob): Promise<RecogResult> {
 function failText(res: RecogResult): string {
   if (res.reason === 'timeout')
     return `服务器识别超时（${Math.max(1, Math.round(res.ms / 1000))}s）`
-  if (res.reason === 'unavailable') return '服务器未启用识别'
+  if (res.reason === 'unavailable')
+    return ocrBroken() ? '本机和服务器都没法识别' : '服务器未启用识别'
   if (res.reason === 'http') return `识别服务暂时不可用（HTTP ${res.status}）`
   if (res.reason.startsWith('error:')) return `服务器识别出错（${res.reason.slice(6)}）`
   return '识别请求发送失败，请检查网络'
@@ -87,6 +121,11 @@ function pick(card: CardDto) {
 }
 
 async function startScan() {
+  // 模型下载与「请求摄像头权限」并行：首次约 5MB，别等到第一帧才开始下
+  if (engine === 'browser') {
+    ensureOcr(p => { ocrHint.value = p.progress >= 1 ? '' : p.status })
+      .catch(() => { engine = 'server'; ocrHint.value = '' })
+  }
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1280 } },
@@ -114,62 +153,91 @@ function stopScan() {
   stream = null
 }
 
-function grabFrame(): Promise<Blob | null> {
-  return new Promise((resolve) => {
-    const v = videoEl.value
-    if (!v || !v.videoWidth) { resolve(null); return }
-    const scale = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight))
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(v.videoWidth * scale)
-    canvas.height = Math.round(v.videoHeight * scale)
-    canvas.getContext('2d')!.drawImage(v, 0, 0, canvas.width, canvas.height)
-    canvas.toBlob(b => resolve(b), 'image/jpeg', 0.8)
-  })
+/** 服务端识别用：整帧压成 JPEG（服务端自己会找卡面） */
+async function grabFrame(): Promise<Blob | null> {
+  const v = videoEl.value
+  if (!v || !v.videoWidth) return null
+  const scale = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(v.videoWidth * scale)
+  canvas.height = Math.round(v.videoHeight * scale)
+  canvas.getContext('2d')!.drawImage(v, 0, 0, canvas.width, canvas.height)
+  return canvasToBlob(canvas)
 }
 
-/** 连续识别循环：上一帧返回后间隔 1.2s 再发下一帧，避免压垮服务器 OCR。
+/** 扫一帧：浏览器端 OCR 跑不起来就就地降级到服务端识别，本帧作废，下一帧接着来 */
+async function scanOnce(): Promise<RecogResult> {
+  if (engine === 'browser') {
+    const canvas = cropScanFrame(videoEl.value)   // 只认扫描框里那块，别把桌面文字也认进来
+    if (!canvas) return { hit: false, reason: 'no_frame', status: 0, ms: 0 }
+    try {
+      return await recognizeByBrowser(canvas)
+    } catch {
+      engine = 'server'
+      ocrHint.value = ''
+      scanStatus.value = '本机识别不可用，改用服务器识别…'
+      return { hit: false, reason: 'ocr_fallback', status: 0, ms: 0 }
+    }
+  }
+  const blob = await grabFrame()
+  if (!blob) return { hit: false, reason: 'no_frame', status: 0, ms: 0 }
+  return recognizeBlob(blob)
+}
+
+/** 连续识别循环。
+ *  浏览器端 OCR 不占服务器资源，识别完直接扫下一帧；走服务端识别时保留 1.2s 保护间隔。
  *  硬失败（超时/服务不可用/网络断）连续 MAX_FAIL_STREAK 次就停扫并说明白原因，
  *  「服务器未启用识别」则一次就停——再扫多少帧都不会有结果。 */
 async function scanLoop() {
   while (scanning.value) {
-    const blob = await grabFrame()
-    if (blob) {
-      let res: RecogResult
-      try {
-        res = await recognizeBlob(blob)
-      } catch {
-        res = { hit: false, reason: 'network', status: 0, ms: 0 }
-      }
-      if (!scanning.value) break
-      if (res.hit) {
-        failStreak = 0
-        scanStatus.value = '识别到候选，点击确认'
-      } else if (res.reason === 'no_match' || res.reason === 'no_text' || res.reason === 'no_session') {
-        failStreak = 0
-        scanStatus.value = res.reason === 'no_text'
-          ? '没看清卡面文字，靠近些或换个光线'
-          : '未识别到，调整角度/光线试试'
-      } else {
-        failStreak++
-        scanStatus.value = failText(res)
-        if (res.reason === 'unavailable' || failStreak >= MAX_FAIL_STREAK) {
-          game.lastError = `${failText(res)}，请手动检索选卡`
-          stopScan()
-          break
-        }
+    let res: RecogResult
+    busy.value = true
+    try {
+      res = await scanOnce()
+    } catch {
+      res = { hit: false, reason: 'network', status: 0, ms: 0 }
+    } finally {
+      busy.value = false
+    }
+    if (!scanning.value) break
+    if (res.hit) {
+      failStreak = 0
+      scanStatus.value = '识别到候选，点击确认'
+    } else if (SOFT_REASONS.includes(res.reason)) {
+      failStreak = 0
+      if (res.reason === 'no_text') scanStatus.value = '没看清卡面文字，靠近些或换个光线'
+      else if (res.reason === 'no_match') scanStatus.value = '未识别到，调整角度/光线试试'
+    } else {
+      failStreak++
+      scanStatus.value = failText(res)
+      if (res.reason === 'unavailable' || failStreak >= MAX_FAIL_STREAK) {
+        game.lastError = `${failText(res)}，请手动检索选卡`
+        stopScan()
+        break
       }
     }
-    await new Promise(r => setTimeout(r, 1200))
+    // 帧间隔：认出候选后让玩家看清再扫（顺带省电），没认出就立刻再来一帧；
+    // 服务端识别一律 1.2s，避免把小内存实例压垮
+    if (engine === 'server') await sleep(1200)
+    else if (res.hit) await sleep(800)
+    else if (res.reason === 'no_frame') await sleep(200)
   }
 }
 
-/** 系统相机拍照兜底（非安全上下文或摄像头被拒时） */
+/** 系统相机拍照兜底（非安全上下文或摄像头被拒时）：同样优先在本机识别 */
 async function onPhoto(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
   recognizing.value = true
   try {
-    const res = await recognizeBlob(file)
+    let res: RecogResult
+    try {
+      res = engine === 'browser' ? await recognizeByBrowser(file) : await recognizeBlob(file)
+    } catch {
+      engine = 'server'
+      ocrHint.value = ''
+      res = await recognizeBlob(file)
+    }
     if (!res.hit) {
       game.lastError = (res.reason === 'no_match' || res.reason === 'no_text')
         ? '这张没认出来，请手动检索选卡'
@@ -194,7 +262,9 @@ function close() { stopScan(); emit('close') }
       <div v-if="scanning" class="scan-area">
         <video ref="videoEl" autoplay playsinline muted></video>
         <div class="scan-frame"></div>
-        <div class="scan-status">{{ scanStatus }}</div>
+        <div class="scan-status">
+          <span v-if="busy" class="scan-dot"></span>{{ ocrHint || scanStatus }}
+        </div>
       </div>
       <div v-if="scanning && liveCands.length" class="scan-cands">
         <div v-for="x in liveCands" :key="x.card.id" class="list-item" @click="pick(x.card)">
@@ -211,13 +281,13 @@ function close() { stopScan(); emit('close') }
         <button v-if="scanSupported && !scanning" class="small ghost" @click="startScan">📷 扫描</button>
         <button v-else-if="scanning" class="small ghost" @click="stopScan">停止扫描</button>
         <button v-else class="small ghost" :disabled="recognizing" @click="fileInput?.click()">
-          {{ recognizing ? '识别中…' : '📷 拍照' }}
+          {{ recognizing ? (ocrHint || '识别中…') : '📷 拍照' }}
         </button>
         <input ref="fileInput" type="file" accept="image/*" capture="environment"
                style="display:none" @change="onPhoto" />
       </div>
       <p v-if="!scanSupported" class="muted" style="margin:0 0 8px">
-        想要实时扫描框？<a href="/trust" target="_blank">开启扫描识别（一次性信任证书）</a>
+        拍照识别照常可用（在本机识别）。想要实时扫描框？<a href="/trust" target="_blank">开启扫描识别（一次性信任证书）</a>
       </p>
       <div v-for="c in cards" :key="c.id" class="list-item" @click="pick(c)">
         <b>{{ c.title }}</b>
@@ -244,6 +314,7 @@ function close() { stopScan(); emit('close') }
 }
 .scan-frame {
   position: absolute;
+  /* 改这里必须同步改 src/ocr.ts 的 SCAN_INSET：OCR 只认框里那块，两边对不上就框偏 */
   inset: 12% 18%;
   border: 2px solid rgba(80, 200, 120, 0.9);
   border-radius: 10px;
@@ -259,6 +330,18 @@ function close() { stopScan(); emit('close') }
   color: #fff;
   font-size: 13px;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.scan-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: rgb(80, 200, 120);
+  animation: scan-pulse 1s ease-in-out infinite;
+}
+@keyframes scan-pulse {
+  50% { opacity: 0.25; }
 }
 .scan-cands {
   margin-bottom: 8px;

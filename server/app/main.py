@@ -18,7 +18,8 @@ from . import diag
 from .api.entry import router as entry_router
 from .data_loader import DataValidationError, load_library
 from .engine.errors import EngineError
-from .recognize.base import default_chain
+from .recognize.base import Candidate, default_chain
+from .recognize.matcher import match_cards
 from .rooms import RoomManager
 from .store.db import Database
 
@@ -221,6 +222,40 @@ async def recognize(code: str, image: UploadFile = File(...),
     return {"candidates": [vars(c) for c in top], "engine": out.engine,
             "reason": out.reason, "textLen": out.text_len,
             "recognitionId": stat_id, "durationMs": duration_ms}
+
+
+class RecognizeTextBody(BaseModel):
+    # 限长：公网端点，别让人塞大文本进来空耗 CPU（正常一张卡 OCR 出来 100~300 字）
+    text: str = Field(max_length=4000)
+    deckHint: str | None = Field(default=None, max_length=20)
+    clientMs: int = Field(default=0, ge=0, le=600_000)   # 手机端 OCR 耗时，进统计
+
+
+@app.post("/api/rooms/{code}/recognize-text")
+async def recognize_text(code: str, body: RecognizeTextBody):
+    """浏览器端 OCR 的匹配接口（design/08）：手机跑识别，服务端只做封闭集打分。
+
+    与 `/recognize` 的唯一区别是 OCR 在哪跑——候选、reason、统计口径完全一致，
+    前端两条路可以共用一套渲染。服务端这里是纯字符串计算，不加载任何模型，
+    512MB 的云主机也扛得住（服务端 PaddleOCR 在那种机器上必被 OOM 杀掉）。
+    """
+    sess = app.state.manager.get(code.upper())
+    lib = app.state.lib
+    cards = lib.by_deck(body.deckHint) if body.deckHint else list(lib.cards.values())
+    t0 = time.monotonic()
+    top = [Candidate(m.card_id, m.title, m.score, "browser")
+           for m in match_cards(body.text, cards)]
+    match_ms = int((time.monotonic() - t0) * 1000)
+    # 这条路不会有 timeout / unavailable：识别已经在手机上跑完了
+    reason = "ok" if top else ("no_match" if body.text.strip() else "no_text")
+    # 耗时按手机端 OCR 计，/api/stats/recognition 上才能和服务端引擎横向比
+    stat_id = app.state.manager.db.add_recog_stat(
+        sess.room_id, body.deckHint, "browser", body.clientMs or match_ms,
+        [c.card_id for c in top])
+    return {"candidates": [vars(c) for c in top], "engine": "browser",
+            "reason": reason, "textLen": len(body.text),
+            "recognitionId": stat_id, "durationMs": body.clientMs,
+            "matchMs": match_ms}
 
 
 class ChosenBody(BaseModel):

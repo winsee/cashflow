@@ -17,6 +17,9 @@ server/certs/
 # 前端
 web/node_modules/
 web/dist/
+# tesseract.js 运行时资源（~12MB，构建期由 scripts/sync-tesseract-assets.mjs 从
+# node_modules 拷进来，prebuild 钩子自动跑，不进 git）
+web/public/tesseract/
 
 
 # 卡片原始高清照片（313MB，仅本地保留，仓库里放 docs/实体卡片/ 的压缩版）

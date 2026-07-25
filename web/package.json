@@ -4,17 +4,25 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "sync-tesseract": "node scripts/sync-tesseract-assets.mjs",
+    "predev": "npm run sync-tesseract",
     "dev": "vite",
+    "prebuild": "npm run sync-tesseract",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "ocr-bench": "node scripts/ocr-bench.mjs",
+    "ocr-smoke": "node scripts/ocr-smoke.mjs"
   },
   "dependencies": {
     "pinia": "^2.2.0",
+    "tesseract.js": "^7.0.0",
     "vue": "^3.5.0",
     "vue-router": "^4.4.0"
   },
   "devDependencies": {
+    "@tesseract.js-data/chi_sim": "^1.0.0",
     "@vitejs/plugin-vue": "^5.2.0",
+    "puppeteer-core": "^24.43.1",
     "typescript": "^5.6.0",
     "vite": "^6.0.0"
   }

@@ -16,16 +16,20 @@ subtype（骰子赌局/收藏品/溢价收购/现金流调整/分期收款）、
 
 交接文档：[design/07-v3卡库实现交接.md](design/07-v3卡库实现交接.md)（不兼容清单与实施顺序，已全部完成）。
 
-**云端识别已停用，待改浏览器端 OCR。** 服务端 PaddleOCR 在 512MB 云主机上一跑识别就 OOM
-（实测 `exit 137`），镜像因此改为默认不装（`WITH_OCR=0`，压缩 519MB → 62MB）：云端扫描返回
-`unavailable`，手机端明确提示转手动检索并停扫。改用手机浏览器跑 OCR 的方案**已验证可行**
-（tesseract.js 对实拍卡面 8/8 命中，0.6–1s/帧，服务端零内存开销），**方案见 design/08，尚未开发**。
-局域网自建仍可 `--build-arg WITH_OCR=1` 用服务端 PaddleOCR。排障用 `/api/health` 与
-`/api/health/ocr-probe`（见 README「扫描识别排障」）。
+**浏览器端 OCR 已实现（design/08）。** 服务端 PaddleOCR 在 512MB 云主机上一跑识别就 OOM
+（实测 `exit 137`），识别因此搬到手机浏览器（tesseract.js + WASM），服务端只做封闭集匹配
+（`POST /api/rooms/{code}/recognize-text`，20~80ms，零 OCR 内存开销）。资源自托管在
+`/tesseract/`（构建期由 `web/scripts/sync-tesseract-assets.mjs` 生成，不进 git，不依赖 CDN）。
+离线验收：194 张实拍图，四个游戏牌堆严格 Top-3 全部 100%（职业卡 4 张认不出，但它不走扫描）。
+测试 **413 passed / 1 skipped**。降级链：浏览器 OCR → 服务端 PaddleOCR（仅
+`--build-arg WITH_OCR=1` 的局域网部署）→ 手动检索。
+
+**还差两项要人在现场做**：真机取景帧命中率（design/08 §6.2）、云端端到端（§6.5，
+本地 512MB 容器已验证通过）。服务端 OCR 排障仍用 `/api/health` 与 `/api/health/ocr-probe`。
 
 ## 开发必读（按顺序）
 
-1. [design/08-浏览器端OCR方案.md](design/08-浏览器端OCR方案.md) — **当前任务的起点**：可行性实测数据、方案设计、验收标准
+1. [design/08-浏览器端OCR方案.md](design/08-浏览器端OCR方案.md) — 浏览器端 OCR 的实现、实测数据、剩余验收项
 2. [design/06-卡牌数字化结果与设计修订.md](design/06-卡牌数字化结果与设计修订.md) — 194 张卡的字段设计定稿、17 个 subtype、已定案的裁决点
 3. [design/02-游戏规则引擎规格.md](design/02-游戏规则引擎规格.md) — **规则的唯一权威**：公式、状态机、卡牌效果、测试要求。不确定处回查说明书（`python tools/render_manual.py` 渲染成图）
 4. [design/00-文档索引.md](design/00-文档索引.md) — 全部文档索引与关键决策速览
@@ -45,7 +49,7 @@ subtype（骰子赌局/收藏品/溢价收购/现金流调整/分期收款）、
 - **卡库双轨**：`raw` 存卡面原文逐字转录（纯线上版据此渲染卡面，不得省略）+ `data` 存结构化数值（引擎唯一取数来源）
 - **重复卡是真实牌堆构成**：实体牌堆有 9 组共 20 张完全相同的卡，直接决定抽牌概率，**必须按实际张数入库**，靠 `key` 归组、`duplicateOf` 标注
 - **字段设计三原则**：能推出的不存（如 `effects` 由 subtype 推）；一个字段只有一种语义；通用规则不逐卡标注（如银行贷款是全局规则）
-- **识别**：封闭集匹配（OCR 认出"是哪张卡"，数值取库），本地 PaddleOCR，云端只留接口不实现；手动选卡是永远可用的兜底
+- **识别**：封闭集匹配（OCR 认出"是哪张卡"，数值取库）；OCR 跑在手机浏览器上（服务端零内存开销），服务端 PaddleOCR 退为局域网可选降级档，云端 OCR API 只留接口不实现；手动选卡是永远可用的兜底
 - **无实体现金**：App 即银行+记录卡，玩家现金显示在"银行储蓄"栏
 - **一切按说明书规则**（含进快车道时现金交回银行）；App 内要有说明书查看入口（/manual）
 - **开发顺序**：M0 录入工具与数据文件 → M1 无 OCR 可完整玩一局老鼠赛跑 → M2 快车道/破产/交易 → M3 OCR → M4 云部署
@@ -70,6 +74,7 @@ subtype（骰子赌局/收藏品/溢价收购/现金流调整/分期收款）、
 
 ## 环境备注
 
-- 开发机 Windows 11，shell 是 PowerShell（5.1，无 `&&`）；根目录用系统 Python 跑 `tools/*.py`，**server 必须用 `server\.venv\Scripts\python.exe`**（项目锁 3.12，PaddleOCR 兼容性）
+- 开发机 Windows 11，shell 是 PowerShell（5.1，无 `&&`）；根目录用系统 Python 跑 `tools/*.py`，**server 必须用 `server\.venv\Scripts\python.exe`**（项目锁 3.12，PaddleOCR 兼容性）。`tools/eval_browser_ocr.py` 要 import server 的模块，也得用 venv 的 python
+- 识别相关的三个 npm 脚本都在 `web/` 下跑：`ocr-bench`（194 张实拍图跑 OCR）、`ocr-smoke`（真实浏览器冒烟，用系统装的 Edge）、`sync-tesseract`（构建期自动跑，一般不用手动）
 - 设计文档与代码注释、UI 文案一律中文
 - `build/` 是工具产物（裁剪图、核对页、说明书渲染图），不进 git，可随时重新生成

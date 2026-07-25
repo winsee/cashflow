@@ -182,6 +182,63 @@ def test_recognize_stats_roundtrip(playing_room):
     assert manual["total"] >= 1 and manual["confirmed"] >= 1
 
 
+# ---------------- 浏览器端 OCR：/recognize-text（design/08） ----------------
+
+_FRAME_TEXT = "3室2厅 出租房\n成本 $50,000 首付 $3,000\n抵押贷款 $47,000 现金流 100"
+
+
+def test_recognize_text_returns_candidates(playing_room):
+    client, code, *_ = playing_room
+    d = client.post(f"/api/rooms/{code}/recognize-text",
+                    json={"text": _FRAME_TEXT, "deckHint": "SMALL_DEAL",
+                          "clientMs": 820}).json()
+    assert d["reason"] == "ok" and d["engine"] == "browser"
+    assert d["candidates"][0]["card_id"] == "sd-006"
+    assert d["candidates"][0]["engine"] == "browser"
+    assert len(d["candidates"]) <= 3
+    assert d["durationMs"] == 820          # 统计的是手机端 OCR 耗时，不是服务端打分
+
+
+def test_recognize_text_stats_engine_is_browser(playing_room):
+    client, code, *_ = playing_room
+    rid = client.post(f"/api/rooms/{code}/recognize-text",
+                      json={"text": _FRAME_TEXT, "deckHint": "SMALL_DEAL",
+                            "clientMs": 900}).json()["recognitionId"]
+    assert client.post(f"/api/recognize/{rid}/chosen",
+                       json={"cardId": "sd-006"}).status_code == 200
+    row = next(s for s in client.get("/api/stats/recognition").json()
+               if s["engine"] == "browser")
+    assert row["total"] >= 1 and row["hits"] >= 1 and row["avgMs"] >= 1
+
+
+def test_recognize_text_reason_no_text_and_no_match(playing_room):
+    client, code, *_ = playing_room
+
+    def reason(text):
+        return client.post(f"/api/rooms/{code}/recognize-text",
+                           json={"text": text, "deckHint": "SMALL_DEAL"}).json()["reason"]
+
+    # 认出了字但没卡过阈值 ≠ 一个字都没认出来：前端据此分文案（对焦 vs 换角度）
+    assert reason("") == "no_text"
+    assert reason("   \n ") == "no_text"
+    assert reason("完全无关的文字内容 abcdefg") == "no_match"
+
+
+def test_recognize_text_rejects_oversized_text(playing_room):
+    client, code, *_ = playing_room
+    r = client.post(f"/api/rooms/{code}/recognize-text",
+                    json={"text": "卡" * 4001, "deckHint": "SMALL_DEAL"})
+    assert r.status_code == 422
+
+
+def test_recognize_text_without_deck_hint_searches_all_decks(playing_room):
+    client, code, *_ = playing_room
+    d = client.post(f"/api/rooms/{code}/recognize-text",
+                    json={"text": _FRAME_TEXT}).json()
+    assert d["reason"] == "ok"
+    assert any(c["card_id"] == "sd-006" for c in d["candidates"])
+
+
 def test_entry_ocr_unavailable_without_paddle(playing_room):
     client, *_ = playing_room
     import app.recognize.local_ocr as lo

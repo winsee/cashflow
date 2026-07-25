@@ -1,0 +1,19 @@
+# 构建上下文瘦身。web/node_modules 必须排除：Dockerfile 先 npm install（Linux 版
+# esbuild/rollup 二进制），之后的 COPY web/ 会用开发机的 Windows 版盖掉它，vite build 直接崩。
+web/node_modules/
+web/dist/
+# 由 npm 的 prebuild 钩子在镜像里重新生成（scripts/sync-tesseract-assets.mjs）
+web/public/tesseract/
+
+server/.venv/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+server/cashflow.db*
+server/certs/
+server/uvicorn.*.log
+
+.git/
+build/
+docs/
+design/
