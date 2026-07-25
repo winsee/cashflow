@@ -49,7 +49,20 @@ cd server
 
 ## Docker 部署
 
-镜像发布在 GitHub Packages：打 `v*` tag（或在 Actions 手动触发 `publish-image`）会自动构建含本地 OCR 的完整镜像并推送到 `ghcr.io/winsee2017/cashflow`（`.github/workflows/publish-image.yml`）。
+镜像同时发布在两处，内容完全一致（同一 digest），按拉取方便挑一个即可：
+
+- Docker Hub：`winsee2017/cashflow`（免登录直接拉）
+- GitHub Packages：`ghcr.io/winsee2017/cashflow`
+
+打 `v*` tag（或在 Actions 手动触发 `publish-image`）会自动构建含本地 OCR 的完整镜像并推送到这两处（`.github/workflows/publish-image.yml`）。推 Docker Hub 需要在仓库 Settings → Secrets 里配 `DOCKERHUB_USERNAME` 与 `DOCKERHUB_TOKEN`（Docker Hub 的 Access Token，权限 Read & Write）；没配时 workflow 自动跳过 Docker Hub，只推 ghcr。
+
+本机手动推一版（不走 CI）：
+
+```powershell
+docker build --build-arg WITH_OCR=1 -t winsee2017/cashflow:latest -t winsee2017/cashflow:0.1.0 .
+docker push winsee2017/cashflow:latest
+docker push winsee2017/cashflow:0.1.0
+```
 
 **本地**（构建当前代码并启动，改完即测）：
 
@@ -57,18 +70,19 @@ cd server
 docker compose up -d --build
 ```
 
-**云端**（不用 compose，直接 `docker run` 拉取 ghcr 镜像；TLS 交给反向代理）：
+**云端**（不用 compose，直接 `docker run` 拉镜像；TLS 交给反向代理）：
 
 ```bash
-docker login ghcr.io                       # 首次：用户名 winsee2017 + PAT(勾 read:packages)；把包设为 public 则可免登录
-docker pull ghcr.io/winsee2017/cashflow:latest
+docker pull winsee2017/cashflow:latest     # 或 ghcr.io/winsee2017/cashflow:latest
 docker run -d --name cashflow \
   -e CASHFLOW_HTTPS=off \
   -p 127.0.0.1:8000:8000 \                  # 反代与容器不同机时改为 -p 8000:8000
   -v cashflow-data:/data \
   --restart unless-stopped \
-  ghcr.io/winsee2017/cashflow:latest
+  winsee2017/cashflow:latest
 ```
+
+拉 ghcr 上的私有包需先 `docker login ghcr.io`（用户名 winsee2017 + PAT，勾 `read:packages`）；把包设为 public 或改用 Docker Hub 则免登录。
 
 云端由反向代理（nginx/caddy 等）持有真实证书，把 443 转发到 `127.0.0.1:8000`，玩家直接访问 `https://<域名>`，扫描识别在真实 HTTPS 下即可用，无需自签证书或 `/trust`。镜像默认内置本地 OCR 与模型（离线可用，约 2GB）；不需要 OCR 时 `docker build --build-arg WITH_OCR=0` 得到精简镜像。云端房间 24 小时无活动自动归档（事件流留在数据库里可导出查账，但不再可加入）。
 
@@ -94,7 +108,7 @@ server/manual_pages/  说明书扫描页图片，App 内「📖 说明书」直�
 web/                  Vue3 + Vite + TS + Pinia（手机端 PWA）
 Dockerfile            单镜像构建（前端内嵌，默认含本地 OCR）
 docker-compose.yaml   本地构建 + 启动（云端用 docker run，见「Docker 部署」）
-.github/workflows/    publish-image：打 tag 自动构建并推送镜像到 ghcr.io
+.github/workflows/    publish-image：打 tag 自动构建并推送镜像到 Docker Hub 与 ghcr.io
 design/               设计文档（需求、规则引擎规格、架构、卡库设计）
 tools/                卡库校验、说明书渲染等命令行工具
 ```
