@@ -4,7 +4,7 @@
     "key": "lp-sale-3x",
     "deck": "MARKET",
     "subtype": "MULTIPLE_OFFER",
-    "title": "有限合伙人公司出售（三倍）",
+    "title": "有限合伙人公司出售",
     "source": {
       "sheetNo": 1,
       "image": "docs/实体卡片/市场风云/1.jpg"
@@ -62,7 +62,7 @@
     "key": "buy-2b1b-55k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购两室一厅公寓（$55,000/套）",
+    "title": "求购两室一厅公寓",
     "source": {
       "sheetNo": 3,
       "image": "docs/实体卡片/市场风云/3.jpg"
@@ -91,7 +91,7 @@
     "key": "buy-2b1b-65k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购两室一厅公寓（$65,000/套）",
+    "title": "求购两室一厅公寓",
     "source": {
       "sheetNo": 4,
       "image": "docs/实体卡片/市场风云/4.jpg"
@@ -120,7 +120,7 @@
     "key": "lp-sale-2x",
     "deck": "MARKET",
     "subtype": "MULTIPLE_OFFER",
-    "title": "有限合伙人公司出售（两倍）",
+    "title": "有限合伙人公司出售",
     "source": {
       "sheetNo": 5,
       "image": "docs/实体卡片/市场风云/5.jpg"
@@ -148,7 +148,7 @@
     "key": "rate-drop-3b2b-premium-50k",
     "deck": "MARKET",
     "subtype": "PREMIUM_OFFER",
-    "title": "利率下降（三室两厅溢价$50,000）",
+    "title": "利率下降",
     "source": {
       "sheetNo": 6,
       "image": "docs/实体卡片/市场风云/6.jpg"
@@ -178,7 +178,7 @@
     "key": "gold-krugerrand-600",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "黄金价格飙升（克鲁格金币 $600/盎司）",
+    "title": "黄金价格飙升",
     "source": {
       "sheetNo": 7,
       "image": "docs/实体卡片/市场风云/7.jpg"
@@ -209,7 +209,7 @@
     "key": "small-biz-boost-250",
     "deck": "MARKET",
     "subtype": "CASHFLOW_MODIFIER",
-    "title": "小企业经营业绩提升（+$250/月）",
+    "title": "小企业经营业绩提升",
     "source": {
       "sheetNo": 8,
       "image": "docs/实体卡片/市场风云/8.jpg"
@@ -239,7 +239,7 @@
     "key": "small-biz-boost-400",
     "deck": "MARKET",
     "subtype": "CASHFLOW_MODIFIER",
-    "title": "小企业经营业绩提升（+$400/月）",
+    "title": "小企业经营业绩提升",
     "source": {
       "sheetNo": 9,
       "image": "docs/实体卡片/市场风云/9.jpg"
@@ -271,7 +271,7 @@
     "key": "collector-coin-5000",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "收藏家求购金币（$5,000/枚）",
+    "title": "收藏家求购金币",
     "source": {
       "sheetNo": 10,
       "image": "docs/实体卡片/市场风云/10.jpg"
@@ -302,7 +302,7 @@
     "key": "buy-land-20acre-200k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购20英亩土地（$200,000）",
+    "title": "求购20英亩土地",
     "source": {
       "sheetNo": 11,
       "image": "docs/实体卡片/市场风云/11.jpg"
@@ -332,7 +332,7 @@
     "key": "buy-3b2b-135k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购三室两厅住宅（$135,000/套）",
+    "title": "求购三室两厅住宅",
     "source": {
       "sheetNo": 12,
       "image": "docs/实体卡片/市场风云/12.jpg"
@@ -361,7 +361,7 @@
     "key": "buy-mall-100k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购购物商场（$100,000）",
+    "title": "求购购物商场",
     "source": {
       "sheetNo": 13,
       "image": "docs/实体卡片/市场风云/13.jpg"
@@ -391,7 +391,7 @@
     "key": "buy-3b2b-135k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购三室两厅住宅（$135,000/套）",
+    "title": "求购三室两厅住宅",
     "source": {
       "sheetNo": 14,
       "image": "docs/实体卡片/市场风云/14.jpg"
@@ -421,7 +421,7 @@
     "key": "buy-aptbldg-30k-min12",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓房（12套以上，$30,000/套）",
+    "title": "求购公寓房",
     "source": {
       "sheetNo": 15,
       "image": "docs/实体卡片/市场风云/15.jpg"
@@ -453,7 +453,7 @@
     "key": "buy-3b2b-100k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购三室两厅住宅（$100,000/套）",
+    "title": "求购三室两厅住宅",
     "source": {
       "sheetNo": 16,
       "image": "docs/实体卡片/市场风云/16.jpg"
@@ -482,7 +482,7 @@
     "key": "buy-3b2b-90k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购三室两厅住宅（$90,000/套）",
+    "title": "求购三室两厅住宅",
     "source": {
       "sheetNo": 17,
       "image": "docs/实体卡片/市场风云/17.jpg"
@@ -511,7 +511,7 @@
     "key": "buy-aptbldg-25k-any",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓房（不论大小，$25,000/套）",
+    "title": "求购公寓房",
     "source": {
       "sheetNo": 18,
       "image": "docs/实体卡片/市场风云/18.jpg"
@@ -542,7 +542,7 @@
     "key": "buy-3b2b-65k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购三室两厅住宅（$65,000/套）",
+    "title": "求购三室两厅住宅",
     "source": {
       "sheetNo": 19,
       "image": "docs/实体卡片/市场风云/19.jpg"
@@ -571,7 +571,7 @@
     "key": "buy-apt-perroom-40k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓（$40,000/间房）",
+    "title": "求购公寓",
     "source": {
       "sheetNo": 20,
       "image": "docs/实体卡片/市场风云/20.jpg"
@@ -602,7 +602,7 @@
     "key": "buy-apt-perroom-25k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓（$25,000/间房）",
+    "title": "求购公寓",
     "source": {
       "sheetNo": 21,
       "image": "docs/实体卡片/市场风云/21.jpg"
@@ -632,7 +632,7 @@
     "key": "buy-apt-perroom-25k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓（$25,000/间房）",
+    "title": "求购公寓",
     "source": {
       "sheetNo": 22,
       "image": "docs/实体卡片/市场风云/22.jpg"
@@ -663,7 +663,7 @@
     "key": "lp-sale-2x",
     "deck": "MARKET",
     "subtype": "MULTIPLE_OFFER",
-    "title": "有限合伙人公司出售（两倍）",
+    "title": "有限合伙人公司出售",
     "source": {
       "sheetNo": 23,
       "image": "docs/实体卡片/市场风云/23.jpg"
@@ -692,7 +692,7 @@
     "key": "buy-apt-perroom-30k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓（$30,000/间房）",
+    "title": "求购公寓",
     "source": {
       "sheetNo": 24,
       "image": "docs/实体卡片/市场风云/24.jpg"
@@ -722,7 +722,7 @@
     "key": "buy-machine-co-50k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "小机械公司购买者（$50,000）",
+    "title": "小机械公司购买者",
     "source": {
       "sheetNo": 25,
       "image": "docs/实体卡片/市场风云/25.jpg"
@@ -753,7 +753,7 @@
     "key": "buy-land-10acre-river-150k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "建筑商求购土地（10英亩带河流 $150,000）",
+    "title": "建筑商求购土地",
     "source": {
       "sheetNo": 26,
       "image": "docs/实体卡片/市场风云/26.jpg"
@@ -784,7 +784,7 @@
     "key": "buy-apt-perroom-30k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓（$30,000/间房）",
+    "title": "求购公寓",
     "source": {
       "sheetNo": 27,
       "image": "docs/实体卡片/市场风云/27.jpg"
@@ -815,7 +815,7 @@
     "key": "buy-2b1b-45k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购两室一厅公寓（$45,000/套）",
+    "title": "求购两室一厅公寓",
     "source": {
       "sheetNo": 28,
       "image": "docs/实体卡片/市场风云/28.jpg"
@@ -844,7 +844,7 @@
     "key": "buy-3b2b-installment-100k",
     "deck": "MARKET",
     "subtype": "INSTALLMENT_SALE",
-    "title": "求购三室两厅住宅（分期收款 $100,000）",
+    "title": "求购三室两厅住宅",
     "source": {
       "sheetNo": 29,
       "image": "docs/实体卡片/市场风云/29.jpg"
@@ -881,7 +881,7 @@
     "key": "buy-3b2b-110k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购三室两厅住宅（$110,000/套）",
+    "title": "求购三室两厅住宅",
     "source": {
       "sheetNo": 30,
       "image": "docs/实体卡片/市场风云/30.jpg"
@@ -910,7 +910,7 @@
     "key": "buy-aptbldg-45k-any",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓房（不论大小，$45,000/套）",
+    "title": "求购公寓房",
     "source": {
       "sheetNo": 31,
       "image": "docs/实体卡片/市场风云/31.jpg"
@@ -941,7 +941,7 @@
     "key": "buy-bnb-250k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购旅馆（$250,000）",
+    "title": "求购旅馆",
     "source": {
       "sheetNo": 32,
       "image": "docs/实体卡片/市场风云/32.jpg"
@@ -973,7 +973,7 @@
     "key": "buy-software-co-100k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购软件公司（$100,000）",
+    "title": "求购软件公司",
     "source": {
       "sheetNo": 33,
       "image": "docs/实体卡片/市场风云/33.jpg"
@@ -1003,7 +1003,7 @@
     "key": "buy-3b2b-100k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购三室两厅住宅（$100,000/套）",
+    "title": "求购三室两厅住宅",
     "source": {
       "sheetNo": 34,
       "image": "docs/实体卡片/市场风云/34.jpg"
@@ -1033,7 +1033,7 @@
     "key": "buy-carwash-25k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购汽车清洗公司（$25,000）",
+    "title": "求购汽车清洗公司",
     "source": {
       "sheetNo": 35,
       "image": "docs/实体卡片/市场风云/35.jpg"
@@ -1064,7 +1064,7 @@
     "key": "buy-apt-perroom-35k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓（$35,000/间房）",
+    "title": "求购公寓",
     "source": {
       "sheetNo": 36,
       "image": "docs/实体卡片/市场风云/36.jpg"
@@ -1094,7 +1094,7 @@
     "key": "buy-apt-perroom-30k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓（$30,000/间房）",
+    "title": "求购公寓",
     "source": {
       "sheetNo": 37,
       "image": "docs/实体卡片/市场风云/37.jpg"
@@ -1125,7 +1125,7 @@
     "key": "buy-apt-perroom-40k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓（$40,000/间房）",
+    "title": "求购公寓",
     "source": {
       "sheetNo": 38,
       "image": "docs/实体卡片/市场风云/38.jpg"
@@ -1156,7 +1156,7 @@
     "key": "buy-apt-perroom-35k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓（$35,000/间房）",
+    "title": "求购公寓",
     "source": {
       "sheetNo": 39,
       "image": "docs/实体卡片/市场风云/39.jpg"
@@ -1187,7 +1187,7 @@
     "key": "buy-2b1b-55k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购两室一厅公寓（$55,000/套）",
+    "title": "求购两室一厅公寓",
     "source": {
       "sheetNo": 40,
       "image": "docs/实体卡片/市场风云/40.jpg"
@@ -1217,7 +1217,7 @@
     "key": "buy-apt-perroom-35k",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓（$35,000/间房）",
+    "title": "求购公寓",
     "source": {
       "sheetNo": 41,
       "image": "docs/实体卡片/市场风云/41.jpg"
@@ -1248,7 +1248,7 @@
     "key": "buy-aptbldg-40k-any",
     "deck": "MARKET",
     "subtype": "BUYER_OFFER",
-    "title": "求购公寓房（不论大小，$40,000/套）",
+    "title": "求购公寓房",
     "source": {
       "sheetNo": 42,
       "image": "docs/实体卡片/市场风云/42.jpg"

@@ -64,7 +64,7 @@
     "key": "apt2b1b-40k-220",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "待售公寓——2室1厅（成本$40,000）",
+    "title": "待售公寓——2室1厅",
     "source": {
       "sheetNo": 2,
       "image": "docs/实体卡片/小生意/2.jpg"
@@ -121,7 +121,7 @@
     "key": "stock-myt4u-30",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——MYT4U电子公司（$30）",
+    "title": "股票——MYT4U电子公司",
     "source": {
       "sheetNo": 3,
       "image": "docs/实体卡片/小生意/3.jpg"
@@ -174,7 +174,7 @@
     "key": "fund-gro4us-20",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "共同基金——GRO4US基金（$20）",
+    "title": "共同基金——GRO4US基金",
     "source": {
       "sheetNo": 4,
       "image": "docs/实体卡片/小生意/4.jpg"
@@ -228,7 +228,7 @@
     "key": "apt2b1b-40k-140",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "待售公寓——2室1厅（成本$40,000，现金流$140）",
+    "title": "待售公寓——2室1厅",
     "source": {
       "sheetNo": 5,
       "image": "docs/实体卡片/小生意/5.jpg"
@@ -285,7 +285,7 @@
     "key": "house3b2b-50k-100",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "待售居室——3室2厅（成本$50,000）",
+    "title": "待售居室——3室2厅",
     "source": {
       "sheetNo": 6,
       "image": "docs/实体卡片/小生意/6.jpg"
@@ -373,7 +373,7 @@
     "key": "stock-on2u-30",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——ON2U娱乐公司（$30）",
+    "title": "股票——ON2U娱乐公司",
     "source": {
       "sheetNo": 8,
       "image": "docs/实体卡片/小生意/8.jpg"
@@ -426,7 +426,7 @@
     "key": "stockevt-myt4u-reverse",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_EVENT",
-    "title": "股票——MYT4U电子公司（并股 2:1）",
+    "title": "股票——MYT4U电子公司",
     "source": {
       "sheetNo": 9,
       "image": "docs/实体卡片/小生意/9.jpg"
@@ -465,7 +465,7 @@
     "key": "fund-gro4us-40",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "共同基金——GRO4US基金（$40）",
+    "title": "共同基金——GRO4US基金",
     "source": {
       "sheetNo": 10,
       "image": "docs/实体卡片/小生意/10.jpg"
@@ -582,7 +582,7 @@
     "key": "stock-on2u-30-video",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——ON2U娱乐公司（$30，老电影录像）",
+    "title": "股票——ON2U娱乐公司",
     "source": {
       "sheetNo": 12,
       "image": "docs/实体卡片/小生意/12.jpg"
@@ -688,7 +688,7 @@
     "key": "stock-ok4u-40",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——OK4U药业公司（$40）",
+    "title": "股票——OK4U药业公司",
     "source": {
       "sheetNo": 14,
       "image": "docs/实体卡片/小生意/14.jpg"
@@ -741,7 +741,7 @@
     "key": "house3b2b-65k-160",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "待售居室——3室2厅（成本$65,000）",
+    "title": "待售居室——3室2厅",
     "source": {
       "sheetNo": 15,
       "image": "docs/实体卡片/小生意/15.jpg"
@@ -799,7 +799,7 @@
     "key": "stock-myt4u-5-inflation",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——MYT4U电子公司（$5，高通胀）",
+    "title": "股票——MYT4U电子公司",
     "source": {
       "sheetNo": 16,
       "image": "docs/实体卡片/小生意/16.jpg"
@@ -904,7 +904,7 @@
     "key": "sidebiz-machine-3k",
     "deck": "SMALL_DEAL",
     "subtype": "BUSINESS",
-    "title": "兼职办公司（小型机械产品）",
+    "title": "兼职办公司",
     "source": {
       "sheetNo": 18,
       "image": "docs/实体卡片/小生意/18.jpg"
@@ -956,7 +956,7 @@
     "key": "stock-myt4u-20",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——MYT4U电子公司（$20）",
+    "title": "股票——MYT4U电子公司",
     "source": {
       "sheetNo": 19,
       "image": "docs/实体卡片/小生意/19.jpg"
@@ -1009,7 +1009,7 @@
     "key": "stock-on2u-10-park",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——ON2U娱乐公司（$10，主题公园）",
+    "title": "股票——ON2U娱乐公司",
     "source": {
       "sheetNo": 20,
       "image": "docs/实体卡片/小生意/20.jpg"
@@ -1063,7 +1063,7 @@
     "key": "stock-on2u-40-kids",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——ON2U娱乐公司（$40，儿童部票房）",
+    "title": "股票——ON2U娱乐公司",
     "source": {
       "sheetNo": 21,
       "image": "docs/实体卡片/小生意/21.jpg"
@@ -1119,7 +1119,7 @@
     "key": "stock-myt4u-5-rate",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——MYT4U电子公司（$5，高利率）",
+    "title": "股票——MYT4U电子公司",
     "source": {
       "sheetNo": 22,
       "image": "docs/实体卡片/小生意/22.jpg"
@@ -1172,7 +1172,7 @@
     "key": "bigdeal-house3b2b-35k",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "你发现了一宗大买卖（3室2厅，成本$35,000）",
+    "title": "你发现了一宗大买卖",
     "source": {
       "sheetNo": 23,
       "image": "docs/实体卡片/小生意/23.jpg"
@@ -1229,7 +1229,7 @@
     "key": "stock-myt4u-40",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——MYT4U电子公司（$40）",
+    "title": "股票——MYT4U电子公司",
     "source": {
       "sheetNo": 24,
       "image": "docs/实体卡片/小生意/24.jpg"
@@ -1284,7 +1284,7 @@
     "key": "stock-on2u-10-musical",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——ON2U娱乐公司（$10，音乐荒诞剧）",
+    "title": "股票——ON2U娱乐公司",
     "source": {
       "sheetNo": 25,
       "image": "docs/实体卡片/小生意/25.jpg"
@@ -1338,7 +1338,7 @@
     "key": "stock-on2u-20-merger",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——ON2U娱乐公司（$20，兼并）",
+    "title": "股票——ON2U娱乐公司",
     "source": {
       "sheetNo": 26,
       "image": "docs/实体卡片/小生意/26.jpg"
@@ -1392,7 +1392,7 @@
     "key": "fund-gro4us-30-bull",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "共同基金——GRO4US基金（$30，市场看好）",
+    "title": "共同基金——GRO4US基金",
     "source": {
       "sheetNo": 27,
       "image": "docs/实体卡片/小生意/27.jpg"
@@ -1445,7 +1445,7 @@
     "key": "stock-ok4u-1",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——OK4U药业公司（$1，股灾）",
+    "title": "股票——OK4U药业公司",
     "source": {
       "sheetNo": 28,
       "image": "docs/实体卡片/小生意/28.jpg"
@@ -1501,7 +1501,7 @@
     "key": "cd-5000",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "银行存单（CD $5,000）",
+    "title": "银行存单",
     "source": {
       "sheetNo": 29,
       "image": "docs/实体卡片/小生意/29.jpg"
@@ -1561,7 +1561,7 @@
     "key": "stock-ok4u-30",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——OK4U药业公司（$30）",
+    "title": "股票——OK4U药业公司",
     "source": {
       "sheetNo": 30,
       "image": "docs/实体卡片/小生意/30.jpg"
@@ -1615,7 +1615,7 @@
     "key": "house3b2b-50k-zerodown",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "待售居室——3室2厅（零首付，$50,000）",
+    "title": "待售居室——3室2厅",
     "source": {
       "sheetNo": 31,
       "image": "docs/实体卡片/小生意/31.jpg"
@@ -1673,7 +1673,7 @@
     "key": "stock-on2u-20-director",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——ON2U娱乐公司（$20，新导演）",
+    "title": "股票——ON2U娱乐公司",
     "source": {
       "sheetNo": 32,
       "image": "docs/实体卡片/小生意/32.jpg"
@@ -1726,7 +1726,7 @@
     "key": "fund-gro4us-30-lowrate",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "共同基金——GRO4US基金（$30，低利率）",
+    "title": "共同基金——GRO4US基金",
     "source": {
       "sheetNo": 33,
       "image": "docs/实体卡片/小生意/33.jpg"
@@ -1779,7 +1779,7 @@
     "key": "stock-ok4u-5",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——OK4U药业公司（$5，利率变化）",
+    "title": "股票——OK4U药业公司",
     "source": {
       "sheetNo": 34,
       "image": "docs/实体卡片/小生意/34.jpg"
@@ -1832,7 +1832,7 @@
     "key": "apt2b1b-50k-100",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "待售公寓——2室1厅（成本$50,000）",
+    "title": "待售公寓——2室1厅",
     "source": {
       "sheetNo": 35,
       "image": "docs/实体卡片/小生意/35.jpg"
@@ -1890,7 +1890,7 @@
     "key": "rare-coin-500",
     "deck": "SMALL_DEAL",
     "subtype": "COLLECTIBLE",
-    "title": "稀有的金币（$500）",
+    "title": "稀有的金币",
     "source": {
       "sheetNo": 36,
       "image": "docs/实体卡片/小生意/36.jpg"
@@ -1946,7 +1946,7 @@
     "key": "apt2b1b-55k-160",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "待售公寓——2室1厅（成本$55,000）",
+    "title": "待售公寓——2室1厅",
     "source": {
       "sheetNo": 37,
       "image": "docs/实体卡片/小生意/37.jpg"
@@ -2004,7 +2004,7 @@
     "key": "stock-ok4u-20",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——OK4U药业公司（$20，低通胀）",
+    "title": "股票——OK4U药业公司",
     "source": {
       "sheetNo": 38,
       "image": "docs/实体卡片/小生意/38.jpg"
@@ -2057,7 +2057,7 @@
     "key": "house3b2b-50k-200",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "待售居室——3室2厅（成本$50,000，现金流$200）",
+    "title": "待售居室——3室2厅",
     "source": {
       "sheetNo": 39,
       "image": "docs/实体卡片/小生意/39.jpg"
@@ -2115,7 +2115,7 @@
     "key": "stock-myt4u-30-lowrate",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——MYT4U电子公司（$30，低利率）",
+    "title": "股票——MYT4U电子公司",
     "source": {
       "sheetNo": 40,
       "image": "docs/实体卡片/小生意/40.jpg"
@@ -2168,7 +2168,7 @@
     "key": "stockevt-ok4u-reverse",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_EVENT",
-    "title": "股票——OK4U药业公司（并股 2:1）",
+    "title": "股票——OK4U药业公司",
     "source": {
       "sheetNo": 41,
       "image": "docs/实体卡片/小生意/41.jpg"
@@ -2207,7 +2207,7 @@
     "key": "stock-myt4u-10",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——MYT4U电子公司（$10，市场疲软）",
+    "title": "股票——MYT4U电子公司",
     "source": {
       "sheetNo": 42,
       "image": "docs/实体卡片/小生意/42.jpg"
@@ -2260,7 +2260,7 @@
     "key": "bigdeal-house3b2b-45k",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "你发现了一宗大买卖（3室2厅，成本$45,000）",
+    "title": "你发现了一宗大买卖",
     "source": {
       "sheetNo": 43,
       "image": "docs/实体卡片/小生意/43.jpg"
@@ -2317,7 +2317,7 @@
     "key": "stock-ok4u-10-highrate",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——OK4U药业公司（$10，高利率）",
+    "title": "股票——OK4U药业公司",
     "source": {
       "sheetNo": 44,
       "image": "docs/实体卡片/小生意/44.jpg"
@@ -2370,7 +2370,7 @@
     "key": "apt2b1b-60k-neg",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "待售公寓——2室1厅（成本$60,000，负现金流）",
+    "title": "待售公寓——2室1厅",
     "source": {
       "sheetNo": 45,
       "image": "docs/实体卡片/小生意/45.jpg"
@@ -2428,7 +2428,7 @@
     "key": "stockevt-ok4u-split",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_EVENT",
-    "title": "股票——OK4U药业公司（分割 1:2）",
+    "title": "股票——OK4U药业公司",
     "source": {
       "sheetNo": 46,
       "image": "docs/实体卡片/小生意/46.jpg"
@@ -2467,7 +2467,7 @@
     "key": "stock-myt4u-1",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——MYT4U电子公司（$1，贸易战）",
+    "title": "股票——MYT4U电子公司",
     "source": {
       "sheetNo": 47,
       "image": "docs/实体卡片/小生意/47.jpg"
@@ -2523,7 +2523,7 @@
     "key": "stockevt-myt4u-split",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_EVENT",
-    "title": "股票——MYT4U电子公司（分割 1:2）",
+    "title": "股票——MYT4U电子公司",
     "source": {
       "sheetNo": 48,
       "image": "docs/实体卡片/小生意/48.jpg"
@@ -2562,7 +2562,7 @@
     "key": "sidebiz-game-5k",
     "deck": "SMALL_DEAL",
     "subtype": "BUSINESS",
-    "title": "兼职办公司（游戏软件）",
+    "title": "兼职办公司",
     "source": {
       "sheetNo": 49,
       "image": "docs/实体卡片/小生意/49.jpg"
@@ -2614,7 +2614,7 @@
     "key": "cd-4000",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "银行存单（CD $4,000）",
+    "title": "银行存单",
     "source": {
       "sheetNo": 50,
       "image": "docs/实体卡片/小生意/50.jpg"
@@ -2675,7 +2675,7 @@
     "key": "house3b2b-50k-zerodown-neg",
     "deck": "SMALL_DEAL",
     "subtype": "REALESTATE",
-    "title": "待售居室——3室2厅（零首付，负现金流）",
+    "title": "待售居室——3室2厅",
     "source": {
       "sheetNo": 51,
       "image": "docs/实体卡片/小生意/51.jpg"
@@ -2733,7 +2733,7 @@
     "key": "stock-ok4u-50",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——OK4U药业公司（$50，市场繁荣）",
+    "title": "股票——OK4U药业公司",
     "source": {
       "sheetNo": 52,
       "image": "docs/实体卡片/小生意/52.jpg"
@@ -2788,7 +2788,7 @@
     "key": "krugerrand-10x300",
     "deck": "SMALL_DEAL",
     "subtype": "COLLECTIBLE",
-    "title": "朋友需要现金，得赶快给他（克鲁格金币10枚）",
+    "title": "朋友需要现金，得赶快给他",
     "source": {
       "sheetNo": 53,
       "image": "docs/实体卡片/小生意/53.jpg"
@@ -2842,7 +2842,7 @@
     "key": "stock-ok4u-10-inflation",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——OK4U药业公司（$10，通胀恐慌）",
+    "title": "股票——OK4U药业公司",
     "source": {
       "sheetNo": 54,
       "image": "docs/实体卡片/小生意/54.jpg"
@@ -2895,7 +2895,7 @@
     "key": "fund-gro4us-10",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "共同基金——GRO4US基金（$10）",
+    "title": "共同基金——GRO4US基金",
     "source": {
       "sheetNo": 55,
       "image": "docs/实体卡片/小生意/55.jpg"
@@ -2948,7 +2948,7 @@
     "key": "stock-on2u-5",
     "deck": "SMALL_DEAL",
     "subtype": "STOCK_OFFER",
-    "title": "股票——ON2U娱乐公司（$5，购片员被解雇）",
+    "title": "股票——ON2U娱乐公司",
     "source": {
       "sheetNo": 56,
       "image": "docs/实体卡片/小生意/56.jpg"

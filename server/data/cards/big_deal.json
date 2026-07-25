@@ -4,7 +4,7 @@
     "key": "apt2-60k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "2室公寓待售（成本$60,000）",
+    "title": "2室公寓待售",
     "source": {
       "sheetNo": 1,
       "image": "docs/实体卡片/大买卖/1.jpg"
@@ -62,7 +62,7 @@
     "key": "apt4-125k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "4室公寓待售（成本$125,000）",
+    "title": "4室公寓待售",
     "source": {
       "sheetNo": 2,
       "image": "docs/实体卡片/大买卖/2.jpg"
@@ -152,7 +152,7 @@
     "key": "biz-arcade-100k",
     "deck": "BIG_DEAL",
     "subtype": "BUSINESS",
-    "title": "自动化企业待售（录像机和弹子球机）",
+    "title": "自动化企业待售",
     "source": {
       "sheetNo": 4,
       "image": "docs/实体卡片/大买卖/4.jpg"
@@ -191,7 +191,8 @@
       "cashflow": 1600,
       "roiPct": 96,
       "priceIndeterminate": true,
-      "incomeCategory": "BUSINESS"
+      "incomeCategory": "BUSINESS",
+      "businessKind": "录像机和弹子球机"
     },
     "ocr_keywords": [
       "自动化企业待售",
@@ -206,7 +207,7 @@
     "key": "apt4-140k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "4室公寓待售（成本$140,000）",
+    "title": "4室公寓待售",
     "source": {
       "sheetNo": 5,
       "image": "docs/实体卡片/大买卖/5.jpg"
@@ -264,7 +265,7 @@
     "key": "aptbldg-24u-575k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "公寓住宅待售（2栋24套，成本$575,000）",
+    "title": "公寓住宅待售",
     "source": {
       "sheetNo": 6,
       "image": "docs/实体卡片/大买卖/6.jpg"
@@ -322,7 +323,7 @@
     "key": "lp-carrental-30k",
     "deck": "BIG_DEAL",
     "subtype": "BUSINESS",
-    "title": "征求有限责任合伙人（旧车出租）",
+    "title": "征求有限责任合伙人",
     "source": {
       "sheetNo": 7,
       "image": "docs/实体卡片/大买卖/7.jpg"
@@ -364,7 +365,8 @@
         60000,
         90000
       ],
-      "incomeCategory": "BUSINESS"
+      "incomeCategory": "BUSINESS",
+      "businessKind": "旧车出租"
     },
     "ocr_keywords": [
       "征求有限责任合伙人",
@@ -378,7 +380,7 @@
     "key": "house3b2b-125k-neg",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "3室2厅住宅待售（成本$125,000，负现金流）",
+    "title": "3室2厅住宅待售",
     "source": {
       "sheetNo": 8,
       "image": "docs/实体卡片/大买卖/8.jpg"
@@ -435,7 +437,7 @@
     "key": "house3b2b-65k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "3室2厅住宅待售（成本$65,000）",
+    "title": "3室2厅住宅待售",
     "source": {
       "sheetNo": 9,
       "image": "docs/实体卡片/大买卖/9.jpg"
@@ -492,7 +494,7 @@
     "key": "biz-payphone-200k",
     "deck": "BIG_DEAL",
     "subtype": "BUSINESS",
-    "title": "自动化企业待售（投币电话厂）",
+    "title": "自动化企业待售",
     "source": {
       "sheetNo": 10,
       "image": "docs/实体卡片/大买卖/10.jpg"
@@ -531,7 +533,8 @@
       "cashflow": 2700,
       "roiPct": 81,
       "priceIndeterminate": true,
-      "incomeCategory": "BUSINESS"
+      "incomeCategory": "BUSINESS",
+      "businessKind": "投币电话厂"
     },
     "ocr_keywords": [
       "自动化企业待售",
@@ -545,7 +548,7 @@
     "key": "apt4-80k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "4室公寓待售（成本$80,000）",
+    "title": "4室公寓待售",
     "source": {
       "sheetNo": 11,
       "image": "docs/实体卡片/大买卖/11.jpg"
@@ -603,7 +606,7 @@
     "key": "apt4-100k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "4室公寓待售（成本$100,000）",
+    "title": "4室公寓待售",
     "source": {
       "sheetNo": 12,
       "image": "docs/实体卡片/大买卖/12.jpg"
@@ -661,7 +664,7 @@
     "key": "house3b2b-70k-divorce",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "3室2厅住宅待售（成本$70,000，离婚）",
+    "title": "3室2厅住宅待售",
     "source": {
       "sheetNo": 13,
       "image": "docs/实体卡片/大买卖/13.jpg"
@@ -774,7 +777,7 @@
     "key": "aptbldg-12u-350k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "公寓住宅待售（12套，成本$350,000）",
+    "title": "公寓住宅待售",
     "source": {
       "sheetNo": 15,
       "image": "docs/实体卡片/大买卖/15.jpg"
@@ -832,7 +835,7 @@
     "key": "biz-laundry-150k",
     "deck": "BIG_DEAL",
     "subtype": "BUSINESS",
-    "title": "自动化企业待售（自动洗衣店）",
+    "title": "自动化企业待售",
     "source": {
       "sheetNo": 16,
       "image": "docs/实体卡片/大买卖/16.jpg"
@@ -871,7 +874,8 @@
       "cashflow": 2500,
       "roiPct": 100,
       "priceIndeterminate": true,
-      "incomeCategory": "BUSINESS"
+      "incomeCategory": "BUSINESS",
+      "businessKind": "自动洗衣店"
     },
     "ocr_keywords": [
       "自动化企业待售",
@@ -885,7 +889,7 @@
     "key": "apt2-45k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "2室公寓待售（成本$45,000）",
+    "title": "2室公寓待售",
     "source": {
       "sheetNo": 17,
       "image": "docs/实体卡片/大买卖/17.jpg"
@@ -943,7 +947,7 @@
     "key": "aptcomplex-60u-1200k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "组合公寓待售（60套，成本$1,200,000）",
+    "title": "组合公寓待售",
     "source": {
       "sheetNo": 18,
       "image": "docs/实体卡片/大买卖/18.jpg"
@@ -1001,7 +1005,7 @@
     "key": "apt2-50k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "2室公寓待售（成本$50,000）",
+    "title": "2室公寓待售",
     "source": {
       "sheetNo": 19,
       "image": "docs/实体卡片/大买卖/19.jpg"
@@ -1059,7 +1063,7 @@
     "key": "mall-50k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "小型购物商场待售（成本$50,000）",
+    "title": "小型购物商场待售",
     "source": {
       "sheetNo": 20,
       "image": "docs/实体卡片/大买卖/20.jpg"
@@ -1115,7 +1119,7 @@
     "key": "aptbldg-24u-550k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "公寓住宅待售（24套旧楼房，成本$550,000）",
+    "title": "公寓住宅待售",
     "source": {
       "sheetNo": 21,
       "image": "docs/实体卡片/大买卖/21.jpg"
@@ -1173,7 +1177,7 @@
     "key": "lp-clinic-25k",
     "deck": "BIG_DEAL",
     "subtype": "BUSINESS",
-    "title": "征求有限责任合伙人（医生诊所）",
+    "title": "征求有限责任合伙人",
     "source": {
       "sheetNo": 22,
       "image": "docs/实体卡片/大买卖/22.jpg"
@@ -1215,7 +1219,8 @@
         50000,
         75000
       ],
-      "incomeCategory": "BUSINESS"
+      "incomeCategory": "BUSINESS",
+      "businessKind": "医生诊所"
     },
     "ocr_keywords": [
       "征求有限责任合伙人",
@@ -1230,7 +1235,7 @@
     "key": "biz-carwash4-125k",
     "deck": "BIG_DEAL",
     "subtype": "BUSINESS",
-    "title": "自动化企业待售（4家投币式洗车店）",
+    "title": "自动化企业待售",
     "source": {
       "sheetNo": 23,
       "image": "docs/实体卡片/大买卖/23.jpg"
@@ -1286,7 +1291,7 @@
     "key": "apt2-70k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "2室公寓待售（成本$70,000）",
+    "title": "2室公寓待售",
     "source": {
       "sheetNo": 24,
       "image": "docs/实体卡片/大买卖/24.jpg"
@@ -1344,7 +1349,7 @@
     "key": "apt4-90k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "4室公寓待售（成本$90,000）",
+    "title": "4室公寓待售",
     "source": {
       "sheetNo": 25,
       "image": "docs/实体卡片/大买卖/25.jpg"
@@ -1402,7 +1407,7 @@
     "key": "house3b2b-80k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "3室2厅住宅待售（成本$80,000）",
+    "title": "3室2厅住宅待售",
     "source": {
       "sheetNo": 26,
       "image": "docs/实体卡片/大买卖/26.jpg"
@@ -1459,7 +1464,7 @@
     "key": "apt8-220k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "8室公寓待售（成本$220,000）",
+    "title": "8室公寓待售",
     "source": {
       "sheetNo": 27,
       "image": "docs/实体卡片/大买卖/27.jpg"
@@ -1517,7 +1522,7 @@
     "key": "apt4-80k-tax",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "4室公寓待售（成本$80,000，拖延纳税）",
+    "title": "4室公寓待售",
     "source": {
       "sheetNo": 28,
       "image": "docs/实体卡片/大买卖/28.jpg"
@@ -1575,7 +1580,7 @@
     "key": "apt8-160k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "8室公寓待售（成本$160,000）",
+    "title": "8室公寓待售",
     "source": {
       "sheetNo": 29,
       "image": "docs/实体卡片/大买卖/29.jpg"
@@ -1633,7 +1638,7 @@
     "key": "lp-pizza-20k",
     "deck": "BIG_DEAL",
     "subtype": "BUSINESS",
-    "title": "征求有限责任合伙人（比萨饼连锁店）",
+    "title": "征求有限责任合伙人",
     "source": {
       "sheetNo": 30,
       "image": "docs/实体卡片/大买卖/30.jpg"
@@ -1675,7 +1680,8 @@
         40000,
         60000
       ],
-      "incomeCategory": "BUSINESS"
+      "incomeCategory": "BUSINESS",
+      "businessKind": "比萨饼连锁店"
     },
     "ocr_keywords": [
       "征求有限责任合伙人",
@@ -1689,7 +1695,7 @@
     "key": "pizza-franchise-500k",
     "deck": "BIG_DEAL",
     "subtype": "BUSINESS",
-    "title": "比萨饼特许专卖店待售（成本$500,000）",
+    "title": "比萨饼特许专卖店待售",
     "source": {
       "sheetNo": 31,
       "image": "docs/实体卡片/大买卖/31.jpg"
@@ -1745,7 +1751,7 @@
     "key": "apt8-240k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "8室公寓待售（成本$240,000）",
+    "title": "8室公寓待售",
     "source": {
       "sheetNo": 32,
       "image": "docs/实体卡片/大买卖/32.jpg"
@@ -1803,7 +1809,7 @@
     "key": "house3b2b-65k-cash",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "3室2厅住宅待售（成本$65,000，急需现金）",
+    "title": "3室2厅住宅待售",
     "source": {
       "sheetNo": 33,
       "image": "docs/实体卡片/大买卖/33.jpg"
@@ -1860,7 +1866,7 @@
     "key": "lp-sandwich-30k",
     "deck": "BIG_DEAL",
     "subtype": "BUSINESS",
-    "title": "征求有限责任合伙人（三明治商店）",
+    "title": "征求有限责任合伙人",
     "source": {
       "sheetNo": 34,
       "image": "docs/实体卡片/大买卖/34.jpg"
@@ -1902,7 +1908,8 @@
         60000,
         90000
       ],
-      "incomeCategory": "BUSINESS"
+      "incomeCategory": "BUSINESS",
+      "businessKind": "三明治商店"
     },
     "ocr_keywords": [
       "征求有限责任合伙人",
@@ -1916,7 +1923,7 @@
     "key": "apt2-60k-hospital",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "2室公寓待售（成本$60,000，支付医院账单）",
+    "title": "2室公寓待售",
     "source": {
       "sheetNo": 35,
       "image": "docs/实体卡片/大买卖/35.jpg"
@@ -1974,7 +1981,7 @@
     "key": "house3b2b-70k-laidoff",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "3室2厅住宅待售（成本$70,000，被解职经理）",
+    "title": "3室2厅住宅待售",
     "source": {
       "sheetNo": 36,
       "image": "docs/实体卡片/大买卖/36.jpg"
@@ -2031,7 +2038,7 @@
     "key": "carwash-350k",
     "deck": "BIG_DEAL",
     "subtype": "BUSINESS",
-    "title": "洗车店待售（成本$350,000）",
+    "title": "洗车店待售",
     "source": {
       "sheetNo": 37,
       "image": "docs/实体卡片/大买卖/37.jpg"
@@ -2121,7 +2128,7 @@
     "key": "apt8-200k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "8室公寓待售（成本$200,000）",
+    "title": "8室公寓待售",
     "source": {
       "sheetNo": 39,
       "image": "docs/实体卡片/大买卖/39.jpg"
@@ -2179,7 +2186,7 @@
     "key": "house3b2b-75k-golf",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "3室2厅住宅待售（成本$75,000，高尔夫球场路边）",
+    "title": "3室2厅住宅待售",
     "source": {
       "sheetNo": 40,
       "image": "docs/实体卡片/大买卖/40.jpg"
@@ -2236,7 +2243,7 @@
     "key": "house3b2b-115k-neg",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "3室2厅住宅待售（成本$115,000，负现金流）",
+    "title": "3室2厅住宅待售",
     "source": {
       "sheetNo": 41,
       "image": "docs/实体卡片/大买卖/41.jpg"
@@ -2293,7 +2300,7 @@
     "key": "land-20acre-20k",
     "deck": "BIG_DEAL",
     "subtype": "REALESTATE",
-    "title": "20英亩土地待售（成本$20,000）",
+    "title": "20英亩土地待售",
     "source": {
       "sheetNo": 42,
       "image": "docs/实体卡片/大买卖/42.jpg"

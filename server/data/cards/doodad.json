@@ -443,7 +443,7 @@
     "key": "shopping-watch",
     "deck": "DOODAD",
     "subtype": "CASH",
-    "title": "疯狂购物（手表）",
+    "title": "疯狂购物",
     "source": {
       "sheetNo": 17,
       "image": "docs/实体卡片/额外支出/17.jpg"
@@ -556,7 +556,7 @@
     "key": "toys-per-child",
     "deck": "DOODAD",
     "subtype": "CASH",
-    "title": "为小孩买玩具（每个小孩$50）",
+    "title": "为小孩买玩具",
     "source": {
       "sheetNo": 21,
       "image": "docs/实体卡片/额外支出/21.jpg"
@@ -770,7 +770,7 @@
     "key": "fake-jewelry",
     "deck": "DOODAD",
     "subtype": "CASH",
-    "title": "购物（仿真珠宝）",
+    "title": "购物",
     "source": {
       "sheetNo": 29,
       "image": "docs/实体卡片/额外支出/29.jpg"
@@ -959,7 +959,7 @@
     "key": "birthday-park",
     "deck": "DOODAD",
     "subtype": "CASH",
-    "title": "生日快乐（带孩子去游乐园）",
+    "title": "生日快乐",
     "source": {
       "sheetNo": 36,
       "image": "docs/实体卡片/额外支出/36.jpg"
