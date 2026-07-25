@@ -5,6 +5,8 @@ import { confirmAction } from '../confirm'
 import { useGame } from '../store'
 import type { CardDto } from '../types'
 import ConnectingFallback from '../components/ConnectingFallback.vue'
+import InviteDialog from '../components/InviteDialog.vue'
+import { copyText } from '../share'
 
 const game = useGame()
 const router = useRouter()
@@ -89,23 +91,10 @@ const takenDreams = computed(() => {
 
 const urlInput = ref<HTMLInputElement | null>(null)
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
+const showInvite = ref(false)
 
 async function copyUrl() {
-  let ok = false
-  // 局域网 HTTP（非安全上下文）没有 navigator.clipboard，回退到 execCommand
-  try {
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(joinUrl.value)
-      ok = true
-    }
-  } catch {}
-  if (!ok && urlInput.value) {
-    try {
-      urlInput.value.select()
-      urlInput.value.setSelectionRange(0, joinUrl.value.length)
-      ok = document.execCommand('copy')
-    } catch {}
-  }
+  const ok = await copyText(joinUrl.value, urlInput.value)
   copyState.value = ok ? 'copied' : 'failed'
   setTimeout(() => { copyState.value = 'idle' }, 2000)
 }
@@ -119,14 +108,18 @@ async function copyUrl() {
     </div>
 
     <div class="card">
-      <div class="muted">邀请：让朋友访问下方地址，或输入房间码 <b>{{ game.state.roomCode }}</b></div>
-      <div class="row" style="margin-top:6px">
-        <input ref="urlInput" readonly :value="joinUrl" style="font-size:12px" />
-        <button class="small ghost" @click="copyUrl">{{ copyState === 'copied' ? '已复制' : '复制' }}</button>
+      <div class="muted">邀请朋友扫码，或让他们输入房间码 <b>{{ game.state.roomCode }}</b></div>
+      <div class="row" style="margin-top:8px;gap:10px">
+        <button style="flex:1;min-width:0" @click="showInvite = true">📤 邀请好友</button>
+        <button class="ghost" style="flex:1;min-width:0" @click="copyUrl">
+          {{ copyState === 'copied' ? '已复制' : '复制链接' }}</button>
       </div>
-      <div v-if="copyState === 'failed'" class="muted" style="color:var(--danger,#c00)">
-        复制失败，请长按地址手动复制
+      <div v-if="copyState === 'failed'" class="muted" style="color:var(--red)">
+        复制失败，请在「邀请好友」里长按地址手动复制
       </div>
+      <!-- 非安全上下文没有 clipboard API，execCommand 需要一个真实可选中的输入框 -->
+      <input ref="urlInput" readonly :value="joinUrl" tabindex="-1" aria-hidden="true"
+             style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
     </div>
 
     <div class="card">
@@ -173,6 +166,9 @@ async function copyUrl() {
     </button>
     <p v-else class="muted" style="text-align:center">等待房主开始对局…</p>
     <button class="block ghost warn" @click="leaveGame">退出对局</button>
+
+    <InviteDialog v-if="showInvite" :code="game.state.roomCode" :url="joinUrl"
+                  :nickname="game.me?.nickname" @close="showInvite = false" />
   </div>
   <ConnectingFallback v-else />
 </template>
