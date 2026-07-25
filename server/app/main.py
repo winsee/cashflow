@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from . import diag
 from .api.entry import router as entry_router
 from .data_loader import DataValidationError, load_library
 from .engine.errors import EngineError
@@ -42,6 +43,20 @@ async def _archive_loop(manager: RoomManager) -> None:
             pass   # 归档失败不影响服务，下个整点重试
 
 
+def _warm_engine(eng, state) -> None:
+    """预热跑在线程池里，异常必须自己接住写进 state：早期版本这个 future
+    无人 await，模型加载失败（如云端内存不足）完全不留痕迹，只表现为
+    「扫描永远识别不到」。"""
+    t0 = time.monotonic()
+    try:
+        eng.warm()
+        state.ocr_warm = {"state": "ok", "ms": int((time.monotonic() - t0) * 1000),
+                          "error": None}
+    except Exception as exc:
+        state.ocr_warm = {"state": "failed", "ms": int((time.monotonic() - t0) * 1000),
+                          "error": f"{type(exc).__name__}: {exc}"[:300]}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # serve.py 会在同一进程/同一事件循环起 HTTP+HTTPS 两个 server，
@@ -54,10 +69,19 @@ async def lifespan(app: FastAPI):
         app.state.lib = lib
         app.state.manager = manager
         app.state.recognizer = default_chain()
+        app.state.started_at = time.time()
+        app.state.ocr_warm = {"state": "n/a", "ms": 0, "error": None}
         for eng in app.state.recognizer.engines:
             if getattr(eng, "name", "") == "local":
+                if os.environ.get("CASHFLOW_OCR_WARMUP", "on") == "off":
+                    # 小内存实例上"启动即加载三个模型"本身就可能触发 OOM，
+                    # 关掉预热可单独验证服务能否活着（首帧扫描会慢一次）
+                    app.state.ocr_warm = {"state": "skipped", "ms": 0, "error": None}
+                    continue
                 # 后台预热模型：首帧扫描不至于撞上加载耗时而超时降级
-                asyncio.get_running_loop().run_in_executor(None, eng.warm)
+                app.state.ocr_warm = {"state": "pending", "ms": 0, "error": None}
+                asyncio.get_running_loop().run_in_executor(
+                    None, _warm_engine, eng, app.state)
         app.state.archive_task = asyncio.create_task(_archive_loop(manager))
     yield
     task = getattr(app.state, "archive_task", None)
@@ -181,16 +205,21 @@ async def room_log(code: str):
 @app.post("/api/rooms/{code}/recognize")
 async def recognize(code: str, image: UploadFile = File(...),
                     deckHint: str | None = Form(None)):
-    """识别接口（FR-26/27）：返回 Top-3 候选；空候选 = 转手动选卡。"""
+    """识别接口（FR-26/27）：返回 Top-3 候选；空候选 = 转手动选卡。
+
+    `reason` 让前端能分清「超时/没装 OCR/没认出字/认出了没匹配上」，
+    别再一律显示「未识别到，调整角度试试」（见 RecognizeOutcome）。
+    """
     sess = app.state.manager.get(code.upper())
     data = await image.read()
     t0 = time.monotonic()
-    cands, engine = await app.state.recognizer.recognize(data, deckHint, app.state.lib)
+    out = await app.state.recognizer.recognize(data, deckHint, app.state.lib)
     duration_ms = int((time.monotonic() - t0) * 1000)
-    top = cands[:3]
+    top = out.candidates[:3]
     stat_id = app.state.manager.db.add_recog_stat(
-        sess.room_id, deckHint, engine, duration_ms, [c.card_id for c in top])
-    return {"candidates": [vars(c) for c in top], "engine": engine,
+        sess.room_id, deckHint, out.engine, duration_ms, [c.card_id for c in top])
+    return {"candidates": [vars(c) for c in top], "engine": out.engine,
+            "reason": out.reason, "textLen": out.text_len,
             "recognitionId": stat_id, "durationMs": duration_ms}
 
 
@@ -209,6 +238,86 @@ async def recognize_chosen(stat_id: int, body: ChosenBody):
 async def recognition_stats():
     """FR-28：按引擎聚合的识别统计（次数 / Top-3 命中率 / 平均耗时）。"""
     return app.state.manager.db.recog_summary()
+
+
+# ---------------- 诊断（部署排障用） ----------------
+
+def _local_engine():
+    chain = getattr(app.state, "recognizer", None)
+    if chain is None:
+        return None
+    return next((e for e in chain.engines if getattr(e, "name", "") == "local"), None)
+
+
+@app.get("/api/health")
+async def health():
+    """部署自检：OCR 到底有没有、预热成功没有、内存离上限还有多远。
+
+    云端小实例上「扫描永远识别不到」有好几种成因（依赖缺失 / 内存被 OOM 杀
+    / CPU 太慢超时 / 匹配不上），靠这个端点一次分清：
+    - `memory.limitMb` 512 且 `rssMb` 逼近它 → 内存不够
+    - `uptimeS` 每次刷新都归零 → 实例在重启循环
+    - `ocr.warm.state=failed` → 模型压根没加载起来
+    """
+    from .recognize import local_ocr
+    chain = getattr(app.state, "recognizer", None)
+    local = _local_engine()
+    db = app.state.manager.db
+    rooms = db.conn.execute("SELECT COUNT(*) AS n FROM room").fetchone()["n"]
+    stats = db.conn.execute("SELECT COUNT(*) AS n FROM recog_stat").fetchone()["n"]
+    return {
+        "uptimeS": int(time.time() - getattr(app.state, "started_at", time.time())),
+        "ocr": {
+            "configured": os.environ.get("CASHFLOW_OCR", "auto"),
+            "available": local_ocr.available(),
+            "engines": [getattr(e, "name", "?") for e in (chain.engines if chain else [])],
+            "warm": getattr(app.state, "ocr_warm", None),
+            "timeoutS": local_ocr.timeout_s(),
+            "engineLoaded": bool(local and local.engine_loaded),
+            "lastMs": getattr(local, "last_ms", None),
+        },
+        "memory": diag.memory_report(),
+        "db": {"path": DB_PATH, "rooms": rooms, "recogStats": stats},
+        "diagEnabled": os.environ.get("CASHFLOW_DIAG", "on") != "off",
+    }
+
+
+@app.post("/api/health/ocr-probe")
+async def ocr_probe(image: UploadFile | None = File(None),
+                    deckHint: str | None = Form(None),
+                    timeout: float | None = Form(None)):
+    """实测一次云端 OCR：不建房间、不写库，返回耗时 / OCR 出的文本 / 候选。
+
+    不传图片就用一张空白图，只测「模型跑不跑得通 + 冷启动要多久」。
+    `timeout` 可临时放宽（上限 120s），用来区分「跑不动」和「只是慢」。
+    识别本身走引擎的 Semaphore(1)，公网上也不至于被并发打爆。
+    `CASHFLOW_DIAG=off` 可整体关闭本端点。
+    """
+    if os.environ.get("CASHFLOW_DIAG", "on") == "off":
+        raise HTTPException(status_code=404, detail="diagnostics disabled")
+    from .recognize import local_ocr
+    local = _local_engine()
+    if local is None:
+        return {"ok": False, "reason": "unavailable", "ms": 0,
+                "installed": local_ocr.available(),
+                "configured": os.environ.get("CASHFLOW_OCR", "auto")}
+    data = await image.read() if image is not None else local_ocr.blank_jpeg()
+    t0 = time.monotonic()
+    try:
+        out = await local.probe(data, deckHint, app.state.lib,
+                                min(timeout, 120.0) if timeout else None)
+    except asyncio.TimeoutError:
+        return {"ok": False, "reason": "timeout", "imageBytes": len(data),
+                "ms": int((time.monotonic() - t0) * 1000),
+                "timeoutS": min(timeout, 120.0) if timeout else local_ocr.timeout_s()}
+    except Exception as exc:
+        return {"ok": False, "reason": f"error:{type(exc).__name__}",
+                "imageBytes": len(data), "ms": int((time.monotonic() - t0) * 1000),
+                "error": f"{exc}"[:300]}
+    return {"ok": True, "reason": "ok" if out["candidates"] else
+            ("no_match" if out["textLen"] else "no_text"),
+            "imageBytes": len(data), "totalMs": int((time.monotonic() - t0) * 1000),
+            **out}
 
 
 # ---------------- 说明书（FR-31） ----------------

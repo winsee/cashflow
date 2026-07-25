@@ -23,6 +23,13 @@ const scanStatus = ref('')
 const liveCands = ref<{ card: CardDto; score: number }[]>([])
 let stream: MediaStream | null = null
 let lastRecognitionId = 0
+// 连续硬失败（超时 / 服务不可用 / 网络断）计数：不能一直每 1.2s 空转发帧，
+// 小内存云端实例上那等于持续把服务器往 OOM 上推
+let failStreak = 0
+const MAX_FAIL_STREAK = 3
+
+/** 识别一次的结果：reason 由服务端给（见 RecognizeOutcome），前端据此分文案 */
+type RecogResult = { hit: boolean; reason: string; status: number; ms: number }
 
 async function search() {
   cards.value = await game.fetchCards(props.deck, q.value)
@@ -38,21 +45,33 @@ function cardById(id: string): CardDto | undefined {
   return allCards.value.find(c => c.id === id) ?? cards.value.find(c => c.id === id)
 }
 
-/** 识别请求：扫描帧与拍照文件共用；返回是否得到候选 */
-async function recognizeBlob(blob: Blob): Promise<boolean> {
-  if (!game.session) return false
+/** 识别请求：扫描帧与拍照文件共用 */
+async function recognizeBlob(blob: Blob): Promise<RecogResult> {
+  if (!game.session) return { hit: false, reason: 'no_session', status: 0, ms: 0 }
   const fd = new FormData()
   fd.append('image', blob, 'frame.jpg')
   fd.append('deckHint', props.deck)
   const r = await fetch(`/api/rooms/${game.session.roomCode}/recognize`, { method: 'POST', body: fd })
-  if (!r.ok) return false
+  if (!r.ok) return { hit: false, reason: 'http', status: r.status, ms: 0 }
   const d = await r.json()
   lastRecognitionId = d.recognitionId ?? 0
   const found = (d.candidates ?? [])
     .map((c: any) => ({ card: cardById(c.card_id), score: c.score }))
     .filter((x: any) => x.card)
   liveCands.value = found
-  return found.length > 0
+  return { hit: found.length > 0, reason: d.reason ?? (found.length ? 'ok' : 'no_match'),
+           status: r.status, ms: d.durationMs ?? 0 }
+}
+
+/** 硬失败文案：区分「服务器没装/没开 OCR」「太慢超时」「服务挂了」，
+ *  别再一律显示「未识别到，调整角度试试」害人反复对焦 */
+function failText(res: RecogResult): string {
+  if (res.reason === 'timeout')
+    return `服务器识别超时（${Math.max(1, Math.round(res.ms / 1000))}s）`
+  if (res.reason === 'unavailable') return '服务器未启用识别'
+  if (res.reason === 'http') return `识别服务暂时不可用（HTTP ${res.status}）`
+  if (res.reason.startsWith('error:')) return `服务器识别出错（${res.reason.slice(6)}）`
+  return '识别请求发送失败，请检查网络'
 }
 
 /** 玩家确认选卡：回填识别命中统计（FR-28，失败不影响入账），再交给上层入账 */
@@ -78,6 +97,7 @@ async function startScan() {
     return
   }
   scanning.value = true
+  failStreak = 0
   scanStatus.value = '将卡面对准扫描框…'
   requestAnimationFrame(() => {
     if (videoEl.value && stream) {
@@ -107,16 +127,37 @@ function grabFrame(): Promise<Blob | null> {
   })
 }
 
-/** 连续识别循环：上一帧返回后间隔 1.2s 再发下一帧，避免压垮服务器 OCR */
+/** 连续识别循环：上一帧返回后间隔 1.2s 再发下一帧，避免压垮服务器 OCR。
+ *  硬失败（超时/服务不可用/网络断）连续 MAX_FAIL_STREAK 次就停扫并说明白原因，
+ *  「服务器未启用识别」则一次就停——再扫多少帧都不会有结果。 */
 async function scanLoop() {
   while (scanning.value) {
     const blob = await grabFrame()
     if (blob) {
+      let res: RecogResult
       try {
-        const hit = await recognizeBlob(blob)
-        if (scanning.value)
-          scanStatus.value = hit ? '识别到候选，点击确认' : '未识别到，调整角度/光线试试'
-      } catch { /* 单帧失败继续扫 */ }
+        res = await recognizeBlob(blob)
+      } catch {
+        res = { hit: false, reason: 'network', status: 0, ms: 0 }
+      }
+      if (!scanning.value) break
+      if (res.hit) {
+        failStreak = 0
+        scanStatus.value = '识别到候选，点击确认'
+      } else if (res.reason === 'no_match' || res.reason === 'no_text' || res.reason === 'no_session') {
+        failStreak = 0
+        scanStatus.value = res.reason === 'no_text'
+          ? '没看清卡面文字，靠近些或换个光线'
+          : '未识别到，调整角度/光线试试'
+      } else {
+        failStreak++
+        scanStatus.value = failText(res)
+        if (res.reason === 'unavailable' || failStreak >= MAX_FAIL_STREAK) {
+          game.lastError = `${failText(res)}，请手动检索选卡`
+          stopScan()
+          break
+        }
+      }
     }
     await new Promise(r => setTimeout(r, 1200))
   }
@@ -128,8 +169,14 @@ async function onPhoto(e: Event) {
   if (!file) return
   recognizing.value = true
   try {
-    const hit = await recognizeBlob(file)
-    if (!hit) game.lastError = '识别不可用或未识别到，请手动检索选卡'
+    const res = await recognizeBlob(file)
+    if (!res.hit) {
+      game.lastError = (res.reason === 'no_match' || res.reason === 'no_text')
+        ? '这张没认出来，请手动检索选卡'
+        : `${failText(res)}，请手动检索选卡`
+    }
+  } catch {
+    game.lastError = '识别请求发送失败，请手动检索选卡'
   } finally { recognizing.value = false }
 }
 

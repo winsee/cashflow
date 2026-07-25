@@ -163,6 +163,104 @@ def test_entry_ocr_unavailable_without_paddle(playing_room):
     assert r.json()["available"] is False
 
 
+# ---------------- 诊断：识别链归因 + /api/health（部署排障用） ----------------
+
+import asyncio  # noqa: E402
+
+from app.recognize.base import (Candidate, ManualRecognizer,  # noqa: E402
+                                RecognizerChain)
+
+
+class _FakeEngine:
+    """可编程的假引擎：不依赖 paddle，用来驱动降级链的每条失败分支。"""
+
+    def __init__(self, name="local", result=None, exc=None, text_len=0):
+        self.name = name
+        self._result = result or []
+        self._exc = exc
+        self.last_text_len = text_len
+
+    async def recognize(self, image, deck_hint, lib):
+        if self._exc:
+            raise self._exc
+        return self._result
+
+
+def _run_chain(engines):
+    return asyncio.run(RecognizerChain(engines).recognize(b"x", None, LIB))
+
+
+def test_chain_reason_unavailable_without_local_engine():
+    out = _run_chain([ManualRecognizer()])
+    assert out.reason == "unavailable" and out.engine == "manual"
+
+
+def test_chain_reason_timeout_is_not_swallowed():
+    # 云端弱 CPU 的典型症状：以前被 except Exception 吞成"没识别到"
+    out = _run_chain([_FakeEngine(exc=asyncio.TimeoutError()), ManualRecognizer()])
+    assert out.reason == "timeout"
+
+
+def test_chain_reason_keeps_exception_type():
+    out = _run_chain([_FakeEngine(exc=MemoryError()), ManualRecognizer()])
+    assert out.reason == "error:MemoryError"
+
+
+def test_chain_distinguishes_no_text_from_no_match():
+    assert _run_chain([_FakeEngine(), ManualRecognizer()]).reason == "no_text"
+    assert _run_chain([_FakeEngine(text_len=42), ManualRecognizer()]).reason == "no_match"
+
+
+def test_chain_ok_returns_candidates_and_engine():
+    c = Candidate("sd-006", "3室2厅出租房", 0.9, "local")
+    out = _run_chain([_FakeEngine(result=[c]), ManualRecognizer()])
+    assert out.reason == "ok" and out.engine == "local" and out.candidates == [c]
+
+
+def test_recognize_api_returns_reason():
+    with TestClient(app) as client:
+        host = client.post("/api/rooms", json={"nickname": "房主"}).json()
+        d = client.post(f"/api/rooms/{host['roomCode']}/recognize",
+                        files={"image": ("f.jpg", b"notimage", "image/jpeg")},
+                        data={"deckHint": "SMALL_DEAL"}).json()
+    # 非图片喂进去：装了 OCR 是 no_text，没装是 unavailable
+    assert d["reason"] in ("no_text", "unavailable")
+
+
+def test_health_reports_ocr_memory_and_db():
+    with TestClient(app) as client:
+        d = client.get("/api/health").json()
+    assert d["uptimeS"] >= 0
+    assert {"configured", "available", "engines", "warm", "timeoutS"} <= d["ocr"].keys()
+    assert "manual" in d["ocr"]["engines"]
+    assert d["ocr"]["warm"]["state"] in ("n/a", "skipped", "pending", "ok", "failed")
+    # 内存三项在非 Linux（开发机）为 None，字段本身必须在
+    assert {"rssMb", "limitMb", "currentMb"} <= d["memory"].keys()
+    assert d["db"]["recogStats"] >= 0
+
+
+def test_ocr_probe_disabled_by_env(monkeypatch):
+    monkeypatch.setenv("CASHFLOW_DIAG", "off")
+    with TestClient(app) as client:
+        assert client.post("/api/health/ocr-probe").status_code == 404
+
+
+def test_ocr_probe_reports_unavailable_without_local(monkeypatch):
+    with TestClient(app) as client:
+        monkeypatch.setattr(app.state, "recognizer",
+                            RecognizerChain([ManualRecognizer()]))
+        d = client.post("/api/health/ocr-probe").json()
+    assert d["ok"] is False and d["reason"] == "unavailable"
+
+
+def test_ocr_timeout_configurable(monkeypatch):
+    import app.recognize.local_ocr as lo
+    monkeypatch.setenv("CASHFLOW_OCR_TIMEOUT", "30")
+    assert lo.timeout_s() == 30.0
+    monkeypatch.setenv("CASHFLOW_OCR_TIMEOUT", "不是数字")
+    assert lo.timeout_s() == lo.OCR_TIMEOUT_S
+
+
 # ---------------- 录入 OCR 预填解析（prefill，纯函数） ----------------
 
 from app.recognize.prefill import merge_rows, parse_fields  # noqa: E402

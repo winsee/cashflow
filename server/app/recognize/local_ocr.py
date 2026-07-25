@@ -17,6 +17,15 @@ from .matcher import match_cards
 OCR_TIMEOUT_S = 8.0  # NFR-3：本地识别 <8s，超时自动降级
 
 
+def timeout_s() -> float:
+    """超时上限。默认 8s 是按开发机（多核 CPU，实测 ≈4s/帧）标定的；
+    云端共享 CPU 上一帧可能要几十秒，用 `CASHFLOW_OCR_TIMEOUT` 调整。"""
+    try:
+        return float(os.environ.get("CASHFLOW_OCR_TIMEOUT", OCR_TIMEOUT_S))
+    except ValueError:
+        return OCR_TIMEOUT_S
+
+
 def available() -> bool:
     try:
         import paddleocr  # noqa: F401
@@ -35,6 +44,13 @@ class LocalOCRRecognizer:
         self._engine = None
         self._init_lock = threading.Lock()
         self._sem = asyncio.Semaphore(1)
+        # 诊断用（/api/health）：模型是否已加载、最近一帧耗时与出字数
+        self.last_text_len = 0
+        self.last_ms = 0
+
+    @property
+    def engine_loaded(self) -> bool:
+        return self._engine is not None
 
     def _get_engine(self):
         with self._init_lock:
@@ -64,11 +80,7 @@ class LocalOCRRecognizer:
     def warm(self) -> None:
         """预热：加载模型并跑一次空白推理（阻塞，调用方自行放线程池）。
         服务启动时预热后，玩家第一帧扫描就不会撞上模型加载导致的超时降级。"""
-        import cv2
-        import numpy as np
-        blank = np.full((64, 256, 3), 255, dtype=np.uint8)
-        ok, buf = cv2.imencode(".jpg", blank)
-        self._ocr_text(buf.tobytes())
+        self._ocr_text(blank_jpeg())
 
     def _ocr_items(self, image: bytes) -> list[tuple[str, tuple[float, float, float, float]]]:
         """OCR 出 (文本, 外接矩形 x0,y0,x1,y1) 列表。
@@ -78,6 +90,13 @@ class LocalOCRRecognizer:
         """
         import cv2
         import numpy as np
+        t0 = time.monotonic()
+        try:
+            return self._ocr_items_inner(image, cv2, np)
+        finally:
+            self.last_ms = int((time.monotonic() - t0) * 1000)
+
+    def _ocr_items_inner(self, image: bytes, cv2, np) -> list[tuple[str, tuple[float, float, float, float]]]:
         img = cv2.imdecode(np.frombuffer(image, dtype=np.uint8), cv2.IMREAD_COLOR)
         if img is None:
             return []
@@ -132,17 +151,50 @@ class LocalOCRRecognizer:
         if not cards:
             return []
         async with self._sem:
+            self.last_text_len = 0   # 超时/异常时不要留着上一帧的字数误导诊断
             loop = asyncio.get_running_loop()
             text = await asyncio.wait_for(
                 loop.run_in_executor(None, self._ocr_text, image),
-                timeout=OCR_TIMEOUT_S)
+                timeout=timeout_s())
+        self.last_text_len = len(text.strip())
         return [Candidate(card_id=m.card_id, title=m.title, score=m.score,
                           engine=self.name)
                 for m in match_cards(text, cards)]
 
+    async def probe(self, image: bytes, deck_hint: str | None,
+                    lib: CardLibrary, timeout: float | None = None) -> dict:
+        """诊断用（/api/health/ocr-probe）：跑一次识别并返回全过程明细——
+        OCR 出的文本、耗时、匹配候选。不写库、不需要房间。
+
+        `timeout` 可临时放宽，用来区分「云端跑不动」和「云端只是慢」。
+        """
+        cards = lib.by_deck(deck_hint) if deck_hint else list(lib.cards.values())
+        async with self._sem:
+            self.last_text_len = 0
+            loop = asyncio.get_running_loop()
+            items = await asyncio.wait_for(
+                loop.run_in_executor(None, self._ocr_items, image),
+                timeout=timeout or timeout_s())
+        texts = [t for t, _ in items]
+        text = "\n".join(texts)
+        self.last_text_len = len(text.strip())
+        matches = match_cards(text, cards) if cards else []
+        return {"ms": self.last_ms, "texts": texts, "textLen": self.last_text_len,
+                "candidates": [{"card_id": m.card_id, "title": m.title,
+                                "score": m.score} for m in matches]}
+
     def extract_items(self, image: bytes) -> list[tuple[str, tuple[float, float, float, float]]]:
         """录入工具 OCR 预填用：同步返回 (文本, 框) 列表（调用方自行放线程池）。"""
         return self._ocr_items(image)
+
+
+def blank_jpeg() -> bytes:
+    """一张空白 JPEG：预热与 /api/health/ocr-probe 的"只测跑不跑得通"都用它。"""
+    import cv2
+    import numpy as np
+    blank = np.full((64, 256, 3), 255, dtype=np.uint8)
+    _, buf = cv2.imencode(".jpg", blank)
+    return buf.tobytes()
 
 
 def warmup() -> None:  # pragma: no cover - 仅构建期使用
