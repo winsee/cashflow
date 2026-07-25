@@ -42,18 +42,32 @@ class Match:
     score: float
 
 
+_THOUSANDS_SEP = re.compile(r"(?<=\d)[,，.。、\s]{1,4}(?=\d{3}(?!\d))")
+
+
 def normalize(text: str) -> str:
-    """全角→半角、去千分位逗号、统一小写；中文字符之间补空格便于分词比对。"""
+    """全角→半角、去千分位分隔符、统一小写；中文字符之间补空格便于分词比对。
+
+    千分位不能只认逗号：实拍卡面 OCR 出来的 `220,000` 有 `220, 000`（逗号后带空格，
+    最常见）、`220 000`、`220.000` 等七八种形态，只认 `,` 会让"成本/首付/贷款"这类
+    关键数字**一个都对不上**，同标题不同价的卡（大买卖里成堆）就只能靠标题瞎猜。
+    """
     text = unicodedata.normalize("NFKC", text)
-    text = re.sub(r"(?<=\d)[,，](?=\d{3})", "", text)
+    text = _THOUSANDS_SEP.sub("", text)
     text = text.lower()
     # 中日韩字符逐字断开，token_set 比对时按字命中
     text = re.sub(r"([一-鿿])", r" \1 ", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _digits_in(text: str) -> set[str]:
-    return set(re.findall(r"\d{2,}", text))
+def _num_in(num: str, compact: str) -> bool:
+    """卡上的数字是否**作为一个独立数字**出现在 OCR 文本里。
+
+    不能用子串判断：`2,000` 是 `220,000` 的子串，这会让一张写着 $2,000 的卡在
+    一段全是 $220,000 的文本上拿满分（实测 bd-003「下水管破裂」就这么盖过了
+    bd-027「8室公寓待售」）。前后不许再挨着数字。
+    """
+    return re.search(rf"(?<!\d){re.escape(num)}(?!\d)", compact) is not None
 
 
 def _split_keywords(card: Card) -> tuple[list[str], list[str], list[str]]:
@@ -73,7 +87,6 @@ def _split_keywords(card: Card) -> tuple[list[str], list[str], list[str]]:
 def score_card(ocr_text: str, card: Card) -> float:
     norm = normalize(ocr_text)
     compact = norm.replace(" ", "")
-    digits = _digits_in(compact)
     nums, codes, words = _split_keywords(card)
 
     title_score = _token_set_ratio(norm, normalize(card.title)) / 100
@@ -82,7 +95,7 @@ def score_card(ocr_text: str, card: Card) -> float:
 
     parts: list[tuple[float, float]] = [(0.6, title_score)]  # (权重, 得分)
     if nums:
-        hit = sum(1 for n in nums if n in digits or n in compact)
+        hit = sum(1 for n in nums if _num_in(n, compact))
         parts.append((0.3, hit / len(nums)))
     if codes:
         hit = sum(1 for c in codes if c in compact)

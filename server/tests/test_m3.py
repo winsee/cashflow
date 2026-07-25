@@ -24,6 +24,36 @@ def test_normalize_fullwidth_and_commas():
     assert "50000" in normalize("成本 $50,000")
 
 
+def test_normalize_ocr_thousand_separators():
+    # 实拍卡面 OCR 出来的千分位五花八门，只认逗号会让关键数字一个都对不上
+    # （浏览器端 tesseract 上最常见的恰恰是"逗号+空格"），同标题不同价的卡就会选错版本
+    for raw in ("220, 000", "220,000", "220，000", "220 000", "220.000", "220,，000"):
+        assert "220000" in normalize(f"成本 ${raw} 抵押贷款"), raw
+    # 别把不相干的数字粘成一个：后面不是三位一组就不动
+    assert "12" in normalize("12 34").split()
+    assert "1234" not in normalize("12 34")
+
+
+def test_match_big_deal_variants_separated_by_price():
+    # 回归：8室公寓待售有多张同标题卡，全靠成本/首付数字区分。
+    # 这段是实拍卡面的真实 OCR 输出（含"逗号+空格"千分位、$ 被认成"员"）
+    text = ("8 室 公寓 待 售 业主 为 再 投资 以 合理 价格 出售 。 "
+            "成 本 ， 员 220, 000 抵押 贷款 ，$ 180, 000 首 期 支付 : $40, 000")
+    top = match_cards(text, LIB.by_deck("BIG_DEAL"))
+    assert top and top[0].card_id == "bd-027"
+
+
+def test_number_match_respects_digit_boundaries():
+    # $2,000 不能算命中在 $220,000 上——否则一张不相干的卡会拿满分排到第一，
+    # 玩家看到的首选就是错的（bd-003「下水管破裂」曾这样盖过 bd-027）
+    cheap = Card(id="cheap", deck="BIG_DEAL", subtype="EXPENSE_EVENT", title="下水管破裂",
+                 data={}, ocr_keywords=("下水管破裂", "8室公寓", "2,000"))
+    text = "8 室 公寓 待 售 成本 220, 000 首期 支付 40, 000"
+    assert score_card(text, cheap) < 1.0
+    # 独立出现时照常命中
+    assert score_card("下水管破裂 修理费 2,000", cheap) == 1.0
+
+
 def test_match_realestate_by_title_and_numbers():
     text = "3室2厅 出租房\n成本 $50,000 首付 $3,000\n抵押贷款 $47,000 现金流 100"
     top = match_cards(text, SMALL)
