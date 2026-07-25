@@ -123,6 +123,14 @@ export const useGame = defineStore('game', {
       if (ok) this.clearSession()
       return ok
     },
+    /** 房主结束对局（房间转 CLOSED，全员回大厅）。 */
+    endGame(): Promise<boolean> {
+      return this.act('END_GAME')
+    },
+    /** 房主发起再来一局：同一房间就地重置为准备阶段，全员自动回房间准备页重选职业。 */
+    rematch(): Promise<boolean> {
+      return this.act('REMATCH')
+    },
     connect() {
       if (!this.session || this.ws) return
       const proto = location.protocol === 'https:' ? 'wss' : 'ws'

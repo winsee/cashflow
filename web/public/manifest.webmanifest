@@ -3,8 +3,8 @@
   "short_name": "现金流",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0b1120",
-  "theme_color": "#0f766e",
+  "background_color": "#F1E9DA",
+  "theme_color": "#15803D",
   "lang": "zh-CN",
   "icons": []
 }

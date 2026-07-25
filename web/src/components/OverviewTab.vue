@@ -97,11 +97,6 @@ async function leaveGame() {
       </div>
     </div>
 
-    <div v-if="st.winnerId" class="card" style="border-color:var(--gold);text-align:center">
-      <h1>🏆 {{ st.players.find(p => p.id === st.winnerId)?.nickname }} 获胜！</h1>
-      <p class="muted">对局结束，可在「日志」中回顾全程账目</p>
-    </div>
-
     <div v-if="!isHost" class="card" style="border-color:var(--red)">
       <h2>退出对局</h2>
       <p class="muted">退出后不能自行接管该座位；误退出请联系房主在日志中撤销。</p>

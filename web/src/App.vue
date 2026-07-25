@@ -14,20 +14,32 @@ if (game.session) game.connect()
 watch(() => game.state?.status, (status) => {
   if (!status) return
   if (status === 'CLOSED') {
-    // 房主结束对局：全员清会话回首页，重开只需再创建/加入新房间
+    // 房主结束对局：全员清会话回大厅
     game.clearSession()
-    game.flash('房主已结束对局')
+    game.flash('房主已结束对局，对局已解散')
     router.replace('/')
     return
   }
   const p = route.path
-  if (p.startsWith('/join') || p === '/' ) {
-    if (status === 'LOBBY' || status === 'SETUP') router.replace('/room')
-    else router.replace('/play')
+  if (p.startsWith('/join')) {
+    router.replace(status === 'LOBBY' || status === 'SETUP' ? '/room' : '/play')
   } else if (p === '/room' && (status === 'PLAYING' || status === 'FINISHED')) {
     router.replace('/play')
+  } else if (p === '/play' && (status === 'LOBBY' || status === 'SETUP')) {
+    // 房主发起「再来一局」：房间就地重置为准备阶段，全员自动回准备页重选职业
+    router.replace('/room')
   }
 })
+
+// 被房主移出 / 出局后未带入下一局：快照里已无我，清会话回大厅（CLOSED 另行处理）
+watch(() => !!(game.state && game.session && !game.me),
+  (dropped) => {
+    if (dropped && game.state?.status !== 'CLOSED') {
+      game.clearSession()
+      game.flash('你已不在该房间')
+      router.replace('/')
+    }
+  })
 </script>
 
 <template>

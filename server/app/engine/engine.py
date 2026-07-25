@@ -984,6 +984,14 @@ def _d_end_game(state, actor_id, p, lib) -> list[Event]:
     return [_ev("GAME_ENDED", reason=str(p.get("reason", "")))]
 
 
+def _d_rematch(state, actor_id, p, lib) -> list[Event]:
+    # 就地再来一局：同一房间重置为准备阶段，保留玩家身份/令牌，全员自动回到房间准备页重选职业。
+    _require_host(state, actor_id, "再来一局")
+    if state.status != RoomStatus.FINISHED:
+        raise EngineError("NOT_FINISHED", "对局结束后才能再来一局")
+    return [_ev("REMATCH")]
+
+
 def _d_host_remove_player(state, actor_id, p, lib) -> list[Event]:
     host = _require_host(state, actor_id, "移除玩家")
     _require_playing(state)
@@ -1058,6 +1066,7 @@ _HANDLERS = {
     "FT_LAWSUIT": _d_ft_cash_hit("LAWSUIT", "半额"),
     "HOST_ADJUST": _d_host_adjust,
     "END_GAME": _d_end_game,
+    "REMATCH": _d_rematch,
     "HOST_REMOVE_PLAYER": _d_host_remove_player,
     "LEAVE_GAME": _d_leave_game,
     "HOST_END_TURN": _d_host_end_turn,
@@ -1627,6 +1636,30 @@ def _a_player_left(s: RoomState, p) -> None:
     _mark_player_out(s, player_id)
 
 
+def _a_rematch(s: RoomState, p) -> None:
+    # 就地重开：保留「未出局玩家 + 房主」的身份（id/昵称/房主），其余（退出/被踢/破产出局）不带入；
+    # 按原座位重排为 0..n，逐个重建为默认态（清空职业/梦想/现金/资产/负债/快车道/孩子/停赛）。
+    survivors = sorted(
+        (pl for pl in s.players.values() if pl.phase != Phase.OUT or pl.is_host),
+        key=lambda pl: pl.seat)
+    s.players = {
+        pl.id: PlayerState(id=pl.id, nickname=pl.nickname, is_host=pl.is_host, seat=i)
+        for i, pl in enumerate(survivors)
+    }
+    # 房间级重置（settings 保留）；回到大厅，等房主重排顺序、全员重选职业后再开。
+    s.status = RoomStatus.LOBBY
+    s.turn_order = []
+    s.turn_index = 0
+    s.turn_count = 1
+    s.turn_square_used = False
+    s.turn_payday_used = False
+    s.active_card = None
+    s.prompts = []
+    s.ft_sold_squares = []
+    s.dream_price_bumps = {}
+    s.winner_id = None
+
+
 _APPLIERS = {
     "PLAYER_JOINED": _a_player_joined,
     "PROFESSION_SELECTED": _a_profession_selected,
@@ -1680,6 +1713,7 @@ _APPLIERS = {
     "HOST_REVERTED": _a_host_reverted,
     "PLAYER_CORRECTED": _a_player_corrected,
     "GAME_ENDED": _a_game_ended,
+    "REMATCH": _a_rematch,
     "PLAYER_REMOVED": _a_player_removed,
     "PLAYER_LEFT": _a_player_left,
 }
