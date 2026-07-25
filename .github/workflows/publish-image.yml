@@ -1,4 +1,5 @@
-# 打 tag（v*）或手动触发时，构建含本地 OCR 的完整镜像并推送到 Docker Hub 与 GitHub Packages（ghcr.io）。
+# 打 tag（v*）或手动触发时，构建镜像并推送到 Docker Hub 与 GitHub Packages（ghcr.io）。
+# 默认精简（WITH_OCR=0，压缩后 ~60MB）：带 OCR 的镜像在小内存云主机上会被 OOM 杀掉，见 Dockerfile 注释。
 # 云端部署：docker pull winsee2017/cashflow:latest（见 README）。
 # Docker Hub 推送需要仓库 Secrets：DOCKERHUB_USERNAME、DOCKERHUB_TOKEN（Read & Write 的 Access Token）；
 # 未配置时自动跳过 Docker Hub，只推 ghcr，workflow 不会因此失败。
@@ -73,6 +74,6 @@ jobs:
           platforms: linux/amd64
           push: true
           build-args: |
-            WITH_OCR=1
+            WITH_OCR=0
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

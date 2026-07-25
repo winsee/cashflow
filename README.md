@@ -8,10 +8,10 @@
 
 - **房间与对局**：建房/加入/断线重连、回合流程、老鼠赛跑全部记账（薪资、资产负债、市场/机会/大小生意/出局卡）、总览面板、可回溯的操作日志
 - **快车道**：切入判定、被动收入投资、破产处理、玩家间交易需双方确认、房主可撤销改账
-- **卡牌识别（可选）**：手机对准卡面自动连续识别（本地 PaddleOCR，封闭集匹配，只用来定位"是哪张卡"，数值一律取自卡库）；未装 OCR 或识别失败自动降级为系统相机拍照/手动检索，功能等价；`/api/stats/recognition` 可查各引擎命中率与耗时；选错卡可在日志页「更正」，全程留痕
+- **卡牌识别（可选，默认关闭）**：手机对准卡面自动连续识别（服务端 PaddleOCR，封闭集匹配，只用来定位"是哪张卡"，数值一律取自卡库）。因为吃内存太凶（详见「服务端 OCR 默认关闭」），镜像默认不装，识别接口直接返回 `unavailable`，手机端提示转手动检索；`/api/stats/recognition` 可查各引擎命中率与耗时；选错卡可在日志页「更正」，全程留痕
 - **194 张实体卡数字化**：市场/大小生意/出局卡/职业卡按官方牌堆真实张数与数值入库，`server/data/cards/`，规则引擎按 [design/02](design/02-游戏规则引擎规格.md) 全量测试驱动（`server/app/engine/tests`，391 passed / 1 skipped，含说明书数值回归与整卡库逐卡扫描）
 - **说明书查看**：App 内 `📖 说明书` 直接翻阅扫描页，不用线下翻纸质说明书
-- **单镜像交付**：Docker 镜像内嵌前端静态资源，只跑 HTTP 8000；云端由反向代理终止 TLS（真实证书），玩家直接 `https://<域名>` 访问，扫描识别（getUserMedia）在真实 HTTPS 下即可用。云端房间 24 小时无活动自动归档
+- **单镜像交付**：Docker 镜像内嵌前端静态资源（压缩后 ~60MB），只跑 HTTP 8000；云端由反向代理终止 TLS（真实证书），玩家直接 `https://<域名>` 访问。云端房间 24 小时无活动自动归档
 
 ## 快速开始
 
@@ -54,12 +54,12 @@ cd server
 - Docker Hub：`winsee2017/cashflow`（免登录直接拉）
 - GitHub Packages：`ghcr.io/winsee2017/cashflow`
 
-打 `v*` tag（或在 Actions 手动触发 `publish-image`）会自动构建含本地 OCR 的完整镜像并推送到这两处（`.github/workflows/publish-image.yml`）。推 Docker Hub 需要在仓库 Settings → Secrets 里配 `DOCKERHUB_USERNAME` 与 `DOCKERHUB_TOKEN`（Docker Hub 的 Access Token，权限 Read & Write）；没配时 workflow 自动跳过 Docker Hub，只推 ghcr。
+打 `v*` tag（或在 Actions 手动触发 `publish-image`）会自动构建镜像并推送到这两处（`.github/workflows/publish-image.yml`）。推 Docker Hub 需要在仓库 Settings → Secrets 里配 `DOCKERHUB_USERNAME` 与 `DOCKERHUB_TOKEN`（Docker Hub 的 Access Token，权限 Read & Write）；没配时 workflow 自动跳过 Docker Hub，只推 ghcr。
 
 本机手动推一版（不走 CI）：
 
 ```powershell
-docker build --build-arg WITH_OCR=1 -t winsee2017/cashflow:latest -t winsee2017/cashflow:0.1.0 .
+docker build -t winsee2017/cashflow:latest -t winsee2017/cashflow:0.1.0 .
 docker push winsee2017/cashflow:latest
 docker push winsee2017/cashflow:0.1.0
 ```
@@ -85,7 +85,51 @@ docker run -d --name cashflow \
 
 拉 ghcr 上的私有包需先 `docker login ghcr.io`（用户名 winsee2017 + PAT，勾 `read:packages`）；把包设为 public 或改用 Docker Hub 则免登录。
 
-云端由反向代理（nginx/caddy 等）持有真实证书，把 443 转发到 `127.0.0.1:8000`，玩家直接访问 `https://<域名>`，扫描识别在真实 HTTPS 下即可用，无需自签证书或 `/trust`。镜像默认内置本地 OCR 与模型（离线可用，约 2GB）；不需要 OCR 时 `docker build --build-arg WITH_OCR=0` 得到精简镜像。云端房间 24 小时无活动自动归档（事件流留在数据库里可导出查账，但不再可加入）。
+云端由反向代理（nginx/caddy 等）持有真实证书，把 443 转发到 `127.0.0.1:8000`，玩家直接访问 `https://<域名>`，无需自签证书或 `/trust`。云端房间 24 小时无活动自动归档（事件流留在数据库里可导出查账，但不再可加入）。
+
+### 服务端 OCR 默认关闭
+
+镜像**默认不装** PaddleOCR（压缩后 ~60MB）。带 OCR 的镜像压缩后 ~520MB，运行时光加载模型
+就占 500MB+ 内存，识别一帧再涨 100MB——512MB 的小云主机（如 Render Free）上实测**必被
+OOM 杀掉**（`exit 137`），表现为手机端扫描永远「未识别到」、服务反复重启、无持久盘时连
+房间存档一起清空。
+
+没有 OCR 时识别接口返回 `unavailable`，手机端明确提示「服务器未启用识别，请手动检索选卡」
+并自动停止扫描，不会一直空转发帧。手动选卡是永远可用的兜底。
+
+内存充裕的机器（局域网自建，建议 ≥2GB）要服务端识别就自己构建：
+
+```powershell
+docker build --build-arg WITH_OCR=1 -t cashflow:ocr .
+```
+
+### 扫描识别排障
+
+服务端 OCR 对 CPU 和内存的胃口不小（开发机实测整卡一帧 ≈2.5s，容器内 ≈3.4s，模型常驻数百 MB）。
+超时、被 OOM 杀掉、依赖没装，从手机上看都只是「扫描不出来」。两个端点直接定性：
+
+```bash
+curl https://<域名>/api/health                                  # OCR 装没装、预热成没成、内存离上限多远
+curl -F image=@卡面.jpg -F deckHint=SMALL_DEAL \
+     https://<域名>/api/health/ocr-probe                        # 实测一帧：耗时 / OCR 出的文本 / 候选
+```
+
+`ocr-probe` 不用建房间也不写库，不传图片就用一张空白图只测「模型跑不跑得通」，
+`-F timeout=60` 可临时放宽超时，用来区分「跑不动」和「只是慢」。对照判断：
+
+| 观察到 | 结论 |
+| --- | --- |
+| `memory.limitMb` 512 且 `rssMb` 逼近它；probe 请求半途断连；`uptimeS` 反复归零 | 内存不够，进程被 OOM 杀掉 |
+| `reason=timeout`，放宽 `timeout` 后能出结果但要几十秒 | CPU 太弱，调 `CASHFLOW_OCR_TIMEOUT` 或换机器 |
+| `ocr.available=false` / `reason=unavailable` | 默认精简镜像（`WITH_OCR=0`）就长这样，或设了 `CASHFLOW_OCR=off` |
+| `ok=true`、`texts` 有内容但 `candidates` 空 | 算力够，是识别质量问题（光线/取景/匹配阈值） |
+
+相关环境变量：
+
+- `CASHFLOW_OCR=off` — 关掉本地 OCR，前端明确提示「服务器未启用识别」并转手动检索
+- `CASHFLOW_OCR_TIMEOUT` — 单帧超时秒数，默认 8（按开发机标定，弱 CPU 机器需调大）
+- `CASHFLOW_OCR_WARMUP=off` — 跳过启动预热。小内存实例上「启动即加载模型」本身就可能触发 OOM
+- `CASHFLOW_DIAG=off` — 关闭上面两个诊断端点
 
 ## 卡牌录入（录入库与运行时库分离）
 
@@ -107,7 +151,7 @@ server/app/recognize/ 识别适配层（本地 PaddleOCR + 封闭集匹配）
 server/data/          卡牌/棋盘 JSON —— 权威数据源，人工可改，进 git
 server/manual_pages/  说明书扫描页图片，App 内「📖 说明书」直接翻阅
 web/                  Vue3 + Vite + TS + Pinia（手机端 PWA）
-Dockerfile            单镜像构建（前端内嵌，默认含本地 OCR）
+Dockerfile            单镜像构建（前端内嵌；默认不含 OCR，WITH_OCR=1 可加）
 docker-compose.yaml   本地构建 + 启动（云端用 docker run，见「Docker 部署」）
 .github/workflows/    publish-image：打 tag 自动构建并推送镜像到 Docker Hub 与 ghcr.io
 design/               设计文档（需求、规则引擎规格、架构、卡库设计）

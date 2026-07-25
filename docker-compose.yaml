@@ -6,6 +6,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # 本机内存充裕（识别一帧峰值约 800MB）时改 1，得到带服务端 PaddleOCR 的镜像
+        WITH_OCR: "0"
     # 镜像默认 CASHFLOW_HTTPS=off（只跑 HTTP 8000），本地不再需要自签 HTTPS
     ports:
       - "8000:8000"
