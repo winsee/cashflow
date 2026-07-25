@@ -110,6 +110,8 @@ button {
   cursor: pointer;
   box-shadow: 0 6px 14px -8px rgba(21, 128, 61, .6);
   transition: transform .04s ease, filter .15s ease;
+  white-space: nowrap;      /* 汉字标签永不竖排换行（窄屏挤压时保持横排） */
+  flex: none;               /* 在 .row 里不被输入框挤压变窄 */
 }
 button:active { transform: translateY(1px); }
 button:disabled { opacity: 0.42; cursor: default; box-shadow: none; filter: saturate(.6); }
@@ -133,6 +135,7 @@ input, select {
   font-family: inherit;
   font-size: 15px;
   width: 100%;
+  min-width: 0;             /* 在 .row 里可收缩，把空间让给旁边的按钮 */
 }
 input:focus, select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
 input::placeholder { color: #b3a888; }
