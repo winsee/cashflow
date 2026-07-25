@@ -343,7 +343,7 @@ async function hostEndTurn() {
   <div v-if="me && st">
     <!-- 慈善/停赛状态 -->
     <div v-if="me.charityTurns > 0 || me.skipTurns > 0" class="row wrap" style="margin-bottom:8px">
-      <span v-if="me.charityTurns > 0" class="badge ft">💝 慈善生效 {{ me.charityTurns }} 轮 · 可掷 2 粒骰</span>
+      <span v-if="me.charityTurns > 0" class="badge ft">💝 慈善生效中 · 还剩 {{ me.charityTurns }} 轮 · 可掷 1 或 2 粒骰</span>
       <span v-if="me.skipTurns > 0" class="badge out">⏸️ 停赛中 · 还需跳过 {{ me.skipTurns }} 轮</span>
     </div>
 
