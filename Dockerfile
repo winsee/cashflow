@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir fastapi "uvicorn[standard]" pydantic jsonschema q
 # 本地 OCR（M3）：装依赖并预下载 PaddleOCR 模型进镜像（离线可用）
 RUN if [ "$WITH_OCR" = "1" ]; then \
       apt-get update && apt-get install -y --no-install-recommends \
-        libgomp1 libglib2.0-0 && rm -rf /var/lib/apt/lists/* && \
+        libgomp1 libglib2.0-0 libgl1 && rm -rf /var/lib/apt/lists/* && \
       pip install --no-cache-dir paddleocr "paddlepaddle>=3.0,<3.1" rapidfuzz ; \
     fi
 COPY server/app ./app
