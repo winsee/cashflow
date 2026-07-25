@@ -17,11 +17,19 @@ function uuid(): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
 }
 
-function loadSession(): Session | null {
+export function loadSession(): Session | null {
   try {
     const raw = localStorage.getItem('cashflow.session')
     return raw ? JSON.parse(raw) : null
   } catch { return null }
+}
+
+/** 服务端主动拒绝本机身份的 WS 关闭码：4001 = 令牌无效/房间不存在（main.py 的 /ws 握手），
+ *  4002 = 房间因 24h 无活动已归档（rooms.py archive_idle）。这两种都不可能靠重连恢复，
+ *  必须停止重连并清会话，否则页面会永久停在「连接中…」。 */
+const FATAL_CLOSE: Record<number, string> = {
+  4001: '对局已不存在或身份已失效，已返回大厅',
+  4002: '房间因长时间无人操作已归档，已返回大厅',
 }
 
 export const useGame = defineStore('game', {
@@ -32,6 +40,7 @@ export const useGame = defineStore('game', {
     connected: false,
     lastError: '' as string,
     notice: '' as string,
+    sessionLost: false,          // 服务端拒绝了本机身份；App.vue 据此跳回大厅
     ws: null as WebSocket | null,
     pendingResolvers: new Map<string, (ok: boolean) => void>(),
     pendingTypes: {} as Record<string, boolean>,
@@ -150,9 +159,19 @@ export const useGame = defineStore('game', {
           setTimeout(() => { if (this.lastError === msg.message) this.lastError = '' }, 5000)
         }
       }
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
         this.connected = false
         this.ws = null
+        // 房间已删除/已归档/令牌失效：重连一万次也没用，清会话回大厅并说明原因。
+        // 4000（座位被接管/房间被删）不在此列：重连一次即拿到 4001，由这里统一收口。
+        const fatal = FATAL_CLOSE[ev.code]
+        if (fatal) {
+          clearTimeout(this.reconnectTimer)
+          this.clearSession()
+          this.lastError = fatal
+          this.sessionLost = true
+          return
+        }
         // 手机锁屏/切后台恢复：自动重连拉齐快照（NFR-4）
         if (this.session) {
           clearTimeout(this.reconnectTimer)

@@ -31,6 +31,14 @@ watch(() => game.state?.status, (status) => {
   }
 })
 
+// 服务端明确拒绝了本机身份（房间已删除/已归档/令牌失效）：回大厅。
+// 这条不依赖 game.state——上面两个 watch 都要求快照非空，而这种场景快照永远拿不到。
+watch(() => game.sessionLost, (lost) => {
+  if (!lost) return
+  game.sessionLost = false
+  if (route.path !== '/') router.replace('/')
+})
+
 // 被房主移出 / 出局后未带入下一局：快照里已无我，清会话回大厅（CLOSED 另行处理）
 watch(() => !!(game.state && game.session && !game.me),
   (dropped) => {

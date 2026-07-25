@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { confirmAction } from '../confirm'
 import { useGame } from '../store'
 import type { CardDto } from '../types'
+import ConnectingFallback from '../components/ConnectingFallback.vue'
 
 const game = useGame()
 const router = useRouter()
@@ -173,7 +174,5 @@ async function copyUrl() {
     <p v-else class="muted" style="text-align:center">等待房主开始对局…</p>
     <button class="block ghost warn" @click="leaveGame">退出对局</button>
   </div>
-  <div class="page no-tabbar" v-else>
-    <p class="muted">连接中…</p>
-  </div>
+  <ConnectingFallback v-else />
 </template>

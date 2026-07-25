@@ -3,7 +3,7 @@ import { createPinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import App from './App.vue'
 import './style.css'
-import { loadNickname } from './store'
+import { loadNickname, loadSession } from './store'
 
 import WelcomeView from './views/WelcomeView.vue'
 import LobbyView from './views/LobbyView.vue'
@@ -30,10 +30,13 @@ const router = createRouter({
 
 // 首次进入需先设昵称；深链加入页自带昵称输入，故放行。
 const NICK_FREE = ['/welcome', '/manual', '/entry', '/entry/review']
+// 需要本机有对局会话才能进的页面：直连而无会话时回大厅，否则会永久卡在「连接中…」
+const NEEDS_SESSION = ['/room', '/play']
 router.beforeEach((to) => {
-  if (loadNickname()) return true
-  if (NICK_FREE.includes(to.path) || to.path.startsWith('/join/')) return true
-  return { path: '/welcome', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} }
+  if (!loadNickname() && !(NICK_FREE.includes(to.path) || to.path.startsWith('/join/')))
+    return { path: '/welcome', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} }
+  if (NEEDS_SESSION.includes(to.path) && !loadSession()) return { path: '/' }
+  return true
 })
 
 createApp(App).use(createPinia()).use(router).mount('#app')

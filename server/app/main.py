@@ -397,6 +397,10 @@ async def ws_endpoint(ws: WebSocket, token: str = Query(...)):
     try:
         sess, player_id = app.state.manager.auth(token)
     except EngineError:
+        # 必须先 accept 再 close(4001)：握手前 close 会被 uvicorn 降级成 HTTP 403，
+        # 浏览器只能拿到 CloseEvent.code === 1006，分不清「房间没了/令牌失效」和
+        # 「服务器暂时连不上」，前端就只能无限重连、永远卡在「连接中…」。
+        await ws.accept()
         await ws.close(code=4001)
         return
     await ws.accept()

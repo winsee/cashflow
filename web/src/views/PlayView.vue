@@ -7,6 +7,7 @@ import OverviewTab from '../components/OverviewTab.vue'
 import LogTab from '../components/LogTab.vue'
 import PromptModal from '../components/PromptModal.vue'
 import ResultView from '../components/ResultView.vue'
+import ConnectingFallback from '../components/ConnectingFallback.vue'
 
 const game = useGame()
 const tab = ref<'statement' | 'action' | 'overview' | 'log'>('action')
@@ -75,5 +76,5 @@ const actionAlert = computed(() =>
     </nav>
   </div>
 
-  <div class="page no-tabbar" v-else><p class="muted">连接中…</p></div>
+  <ConnectingFallback v-else />
 </template>

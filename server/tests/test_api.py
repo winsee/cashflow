@@ -129,9 +129,12 @@ def test_lobby_password_takeover_delete():
         assert taken["playerToken"] != guest["playerToken"]
         with client.websocket_connect(f"/ws?token={taken['playerToken']}") as w:
             assert w.receive_json()["you"] == guest["playerId"]
-        with pytest.raises(WebSocketDisconnect):
-            with client.websocket_connect(f"/ws?token={guest['playerToken']}"):
-                pass
+        # 作废令牌：握手先 accept 再以 4001 关闭，前端据此清会话回大厅
+        # （握手前 close 会被降级成 HTTP 403，浏览器只看得到 1006）
+        with pytest.raises(WebSocketDisconnect) as ei:
+            with client.websocket_connect(f"/ws?token={guest['playerToken']}") as w:
+                w.receive_json()
+        assert ei.value.code == 4001
 
         # 删除：未结束房间需房主令牌或密码；无密码房只认房主令牌
         r = client.request("DELETE", f"/api/rooms/{a['roomCode']}", json={})
