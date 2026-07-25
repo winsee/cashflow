@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { keyNumbers } from '../cardinfo'
 import { canvasToBlob, cropScanFrame, ensureOcr, ocrBroken, ocrSupported, recognizeImage,
          terminateOcr } from '../ocr'
@@ -20,7 +20,9 @@ const videoEl = ref<HTMLVideoElement>()
 // 扫描框（FR-9）：实时取景连续识别；getUserMedia 仅在 HTTPS/localhost 可用，
 // 非安全上下文自动隐藏扫描入口，仅留系统相机拍照兜底
 const scanSupported = window.isSecureContext && !!navigator.mediaDevices?.getUserMedia
-const scanning = ref(false)
+// off=未开扫  scanning=连续识别中  locked=识别稳了，画面冻结等玩家点选
+const scanState = ref<'off' | 'scanning' | 'locked'>('off')
+const camOn = computed(() => scanState.value !== 'off')   // 锁定时画面定格但仍要显示
 const scanStatus = ref('')
 const ocrHint = ref('')          // 模型下载/引擎启动进度（首次约 5MB，别让人以为卡死）
 // 手机上一帧要 1~3s，没有「正在识别」的反馈玩家会以为卡死了，一直挪卡反而更认不出
@@ -36,6 +38,18 @@ let engine: 'browser' | 'server' = ocrSupported() ? 'browser' : 'server'
 // 小内存云端实例上那等于持续把服务器往 OOM 上推
 let failStreak = 0
 const MAX_FAIL_STREAK = 3
+// 锁定判据：认出候选就停扫，否则候选区被后续帧一直覆盖/清空，玩家根本点不中。
+// 但刚举起卡那几帧往往还没对准，只看分数会被一张糊帧锁死在错卡上，所以：
+// top1 分够高**且甩开第二名** → 当帧就锁；分数一般 → 要连续 STABLE_FRAMES 帧同一张才锁。
+// 阈值取自 194 张实拍的离线跑分（tools/eval_browser_ocr.py 同一套文本）：
+// top1 认错的 20 例 margin 全是 0（同标题不同版本并列打平，见 design/08 §3.4），
+// 所以「甩开第二名」这条门本身就把误锁挡光了；0.85/0.10 下 60% 的正确卡当帧快锁、
+// 误锁 0 例。服务端 CONFIDENCE_FLOOR = 0.55，能进候选的分数都在 [0.55, 1]
+const LOCK_SCORE = 0.85
+const LOCK_MARGIN = 0.10
+const STABLE_FRAMES = 2
+let stableId = ''
+let stableCount = 0
 
 /** 识别一次的结果：reason 由服务端给（见 RecognizeOutcome），前端据此分文案 */
 type RecogResult = { hit: boolean; reason: string; status: number; ms: number }
@@ -59,15 +73,18 @@ function cardById(id: string): CardDto | undefined {
   return allCards.value.find(c => c.id === id) ?? cards.value.find(c => c.id === id)
 }
 
-/** 候选渲染：两条识别路线返回同一个形状，这里统一收口 */
+/** 候选渲染：两条识别路线返回同一个形状，这里统一收口。
+ *  空结果不覆盖已有候选：手一抖糊掉一帧就把候选区整块抹掉，是候选跳动的另一半来源。
+ *  lastRecognitionId 也一并保留，让 FR-28 的命中统计对应玩家真正看到的那次识别。 */
 function applyCandidates(d: any, status: number): RecogResult {
-  lastRecognitionId = d.recognitionId ?? 0
+  const ms = d.durationMs ?? 0
   const found = (d.candidates ?? [])
     .map((c: any) => ({ card: cardById(c.card_id), score: c.score }))
     .filter((x: any) => x.card)
+  if (!found.length) return { hit: false, reason: d.reason ?? 'no_match', status, ms }
+  lastRecognitionId = d.recognitionId ?? 0
   liveCands.value = found
-  return { hit: found.length > 0, reason: d.reason ?? (found.length ? 'ok' : 'no_match'),
-           status, ms: d.durationMs ?? 0 }
+  return { hit: true, reason: d.reason ?? 'ok', status, ms }
 }
 
 /** 服务端识别：整张图片传上去，服务器跑 OCR（局域网 WITH_OCR=1 部署才有） */
@@ -135,8 +152,10 @@ async function startScan() {
     game.lastError = '摄像头不可用，请用「拍照」或手动检索'
     return
   }
-  scanning.value = true
+  scanState.value = 'scanning'
   failStreak = 0
+  stableId = ''
+  stableCount = 0
   scanStatus.value = '将卡面对准扫描框…'
   requestAnimationFrame(() => {
     if (videoEl.value && stream) {
@@ -148,9 +167,46 @@ async function startScan() {
 }
 
 function stopScan() {
-  scanning.value = false
+  scanState.value = 'off'
   stream?.getTracks().forEach(t => t.stop())
   stream = null
+}
+
+/** 这一帧的候选够不够稳？够就锁；不够先记一笔连续计数，接着扫下一帧 */
+function shouldLock(): boolean {
+  const [a, b] = liveCands.value
+  if (!a) return false
+  if (a.score >= LOCK_SCORE && (!b || a.score - b.score >= LOCK_MARGIN)) return true
+  if (a.card.id === stableId) stableCount++
+  else { stableId = a.card.id; stableCount = 1 }
+  return stableCount >= STABLE_FRAMES
+}
+
+/** 锁定：停掉识别循环，画面定格在这一帧，候选区不再被后续帧覆盖。
+ *  只暂停 <video>、不停媒体流，「重新扫描」才能瞬时恢复（无黑屏、不再要权限） */
+function lockScan() {
+  scanState.value = 'locked'
+  videoEl.value?.pause()
+  scanStatus.value = '已锁定，点击候选确认；不对就「重新扫描」'
+}
+
+/** 重新扫描：清掉旧候选与稳定计数，续用同一条流；
+ *  流已失效（切后台被系统回收等）就整条重开 */
+function rescan() {
+  liveCands.value = []
+  lastRecognitionId = 0
+  stableId = ''
+  stableCount = 0
+  if (!stream || !stream.getVideoTracks().some(t => t.readyState === 'live')) {
+    stopScan()
+    startScan()
+    return
+  }
+  failStreak = 0
+  scanState.value = 'scanning'
+  scanStatus.value = '将卡面对准扫描框…'
+  videoEl.value?.play().catch(() => {})
+  scanLoop()
 }
 
 /** 服务端识别用：整帧压成 JPEG（服务端自己会找卡面） */
@@ -186,10 +242,11 @@ async function scanOnce(): Promise<RecogResult> {
 
 /** 连续识别循环。
  *  浏览器端 OCR 不占服务器资源，识别完直接扫下一帧；走服务端识别时保留 1.2s 保护间隔。
+ *  识别稳了（shouldLock）就锁定退出循环，别再让后续帧把候选区刷得乱跳。
  *  硬失败（超时/服务不可用/网络断）连续 MAX_FAIL_STREAK 次就停扫并说明白原因，
  *  「服务器未启用识别」则一次就停——再扫多少帧都不会有结果。 */
 async function scanLoop() {
-  while (scanning.value) {
+  while (scanState.value === 'scanning') {
     let res: RecogResult
     busy.value = true
     try {
@@ -199,14 +256,18 @@ async function scanLoop() {
     } finally {
       busy.value = false
     }
-    if (!scanning.value) break
+    if (scanState.value !== 'scanning') break
     if (res.hit) {
       failStreak = 0
-      scanStatus.value = '识别到候选，点击确认'
+      if (shouldLock()) { lockScan(); break }
+      scanStatus.value = '识别中，把卡拿稳对准框内…'
     } else if (SOFT_REASONS.includes(res.reason)) {
       failStreak = 0
-      if (res.reason === 'no_text') scanStatus.value = '没看清卡面文字，靠近些或换个光线'
-      else if (res.reason === 'no_match') scanStatus.value = '未识别到，调整角度/光线试试'
+      // 已经有候选挂着时别喊「未识别到」，那说的是这一帧，玩家会以为候选作废了
+      if (res.reason === 'no_text' && !liveCands.value.length)
+        scanStatus.value = '没看清卡面文字，靠近些或换个光线'
+      else if (res.reason === 'no_match' && !liveCands.value.length)
+        scanStatus.value = '未识别到，调整角度/光线试试'
     } else {
       failStreak++
       scanStatus.value = failText(res)
@@ -216,10 +277,9 @@ async function scanLoop() {
         break
       }
     }
-    // 帧间隔：认出候选后让玩家看清再扫（顺带省电），没认出就立刻再来一帧；
+    // 帧间隔：命中但还没锁住时要尽快再来一帧去凑「连续一致」，所以不额外等；
     // 服务端识别一律 1.2s，避免把小内存实例压垮
     if (engine === 'server') await sleep(1200)
-    else if (res.hit) await sleep(800)
     else if (res.reason === 'no_frame') await sleep(200)
   }
 }
@@ -228,6 +288,9 @@ async function scanLoop() {
 async function onPhoto(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
+  // 重拍一张就是要换结果：这条路线没有"锁定"，得自己清掉上一张的候选
+  liveCands.value = []
+  lastRecognitionId = 0
   recognizing.value = true
   try {
     let res: RecogResult
@@ -259,14 +322,14 @@ function close() { stopScan(); emit('close') }
         <button class="small ghost" @click="close">关闭</button>
       </div>
 
-      <div v-if="scanning" class="scan-area">
+      <div v-if="camOn" class="scan-area">
         <video ref="videoEl" autoplay playsinline muted></video>
-        <div class="scan-frame"></div>
+        <div class="scan-frame" :class="{ locked: scanState === 'locked' }"></div>
         <div class="scan-status">
           <span v-if="busy" class="scan-dot"></span>{{ ocrHint || scanStatus }}
         </div>
       </div>
-      <div v-if="scanning && liveCands.length" class="scan-cands">
+      <div v-if="liveCands.length" class="scan-cands">
         <div v-for="x in liveCands" :key="x.card.id" class="list-item" @click="pick(x.card)">
           <div class="row between">
             <b>{{ x.card.title }}</b>
@@ -278,8 +341,9 @@ function close() { stopScan(); emit('close') }
 
       <div class="row" style="margin:8px 0">
         <input v-model="q" placeholder="搜标题 / 关键词 / 金额" @input="search" />
-        <button v-if="scanSupported && !scanning" class="small ghost" @click="startScan">📷 扫描</button>
-        <button v-else-if="scanning" class="small ghost" @click="stopScan">停止扫描</button>
+        <button v-if="scanSupported && scanState === 'off'" class="small ghost" @click="startScan">📷 扫描</button>
+        <button v-else-if="scanState === 'locked'" class="small ghost" @click="rescan">🔄 重新扫描</button>
+        <button v-else-if="scanState === 'scanning'" class="small ghost" @click="stopScan">停止扫描</button>
         <button v-else class="small ghost" :disabled="recognizing" @click="fileInput?.click()">
           {{ recognizing ? (ocrHint || '识别中…') : '📷 拍照' }}
         </button>
@@ -320,6 +384,11 @@ function close() { stopScan(); emit('close') }
   border-radius: 10px;
   box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.35);
   pointer-events: none;
+}
+/* 已锁定：加粗描边 + 画面已定格，一眼看出"停了，等你点候选" */
+.scan-frame.locked {
+  border: 3px solid rgb(80, 200, 120);
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.55), 0 0 12px rgba(80, 200, 120, 0.7);
 }
 .scan-status {
   position: absolute;
