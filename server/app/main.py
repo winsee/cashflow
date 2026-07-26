@@ -371,7 +371,12 @@ async def manual_page(name: str):
     path = MANUAL_DIR / Path(name).name
     if not path.exists():
         raise HTTPException(404)
-    return FileResponse(path)
+    # Windows 的 mimetypes 没注册 .webp，猜成 octet-stream 会让 <img> 拿不准，显式给
+    media = {".webp": "image/webp", ".png": "image/png",
+             ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}.get(path.suffix.lower())
+    # 扫描页是不变的静态内容，长缓存让重复翻阅走本地缓存（弱网/离线更稳）
+    return FileResponse(path, media_type=media,
+                        headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 # ---------------- 自签证书信任引导（design/03 §7.1，扫描框需 HTTPS） ----------------

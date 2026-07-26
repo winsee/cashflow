@@ -89,3 +89,4 @@ subtype（骰子赌局/收藏品/溢价收购/现金流调整/分期收款）、
 - 识别相关的三个 npm 脚本都在 `web/` 下跑：`ocr-bench`（194 张实拍图跑 OCR）、`ocr-smoke`（真实浏览器冒烟，用系统装的 Edge）、`sync-tesseract`（构建期自动跑，一般不用手动）
 - 设计文档与代码注释、UI 文案一律中文
 - `build/` 是工具产物（裁剪图、核对页、说明书渲染图），不进 git，可随时重新生成
+- 说明书两条渲染链路别混：`tools/render_manual.py` → `build/manual/*.png`（74MB，给人/模型核对规则用）；`tools/build_manual_pages.py` → `server/manual_pages/p01..p16.webp`（3.5MB，App 的 /manual 页面用，**入 git 随镜像交付**）。两者都从 `docs/现金流游戏说明书.pdf` 生成

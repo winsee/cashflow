@@ -161,7 +161,14 @@ curl -F image=@卡面.jpg -F deckHint=SMALL_DEAL \
 
 ## 说明书查看
 
-把说明书扫描页图片（按页码命名的 PNG/JPG）放入 `server/manual_pages/`，App 内 `📖 说明书` 即可翻阅。该目录随仓库入库、随 Docker 镜像交付，远程部署无需额外拷贝。
+分页图由源 PDF 一键生成，无需手工准备图片：
+
+```powershell
+python tools/build_manual_pages.py          # docs/现金流游戏说明书.pdf → server/manual_pages/p01..p16.webp
+python tools/build_manual_pages.py --width 1800   # 嫌小字糊就调大重跑（默认 1400px，全 16 页约 3.5MB）
+```
+
+产物随仓库入库、随 Docker 镜像交付，远程部署无需额外拷贝。App 内 `📖 说明书` 翻页阅读，点击图片可放大看清小字。
 
 ## 目录结构
 
@@ -172,7 +179,7 @@ server/app/recognize/ 识别适配层（封闭集匹配 + 本地 PaddleOCR 降�
 web/src/ocr.ts        浏览器端 OCR（tesseract.js，取景帧裁剪 + worker 复用）
 web/scripts/          tesseract 资源同步、离线命中率基准、浏览器冒烟测试
 server/data/          卡牌/棋盘 JSON —— 权威数据源，人工可改，进 git
-server/manual_pages/  说明书扫描页图片，App 内「📖 说明书」直接翻阅
+server/manual_pages/  说明书分页图（由 tools/build_manual_pages.py 从 PDF 生成）
 web/                  Vue3 + Vite + TS + Pinia（手机端 PWA）
 Dockerfile            单镜像构建（前端内嵌；默认不含 OCR，WITH_OCR=1 可加）
 docker-compose.yaml   本地构建 + 启动（云端用 docker run，见「Docker 部署」）
