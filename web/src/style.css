@@ -147,6 +147,11 @@ table.fin td { padding: 5px 2px; border-bottom: 1px dashed var(--line-2); }
 table.fin td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 table.fin tr.total td { font-weight: 800; border-bottom: 2px solid var(--line-2); }
 
+/* 负债表：金额列 + 清偿操作列（操作列存在时，金额列自己保持右对齐） */
+table.fin.payoff td:nth-child(2) { text-align: right; font-variant-numeric: tabular-nums; }
+table.fin.payoff td:last-child { width: 1%; white-space: nowrap; padding-left: 10px; }
+table.fin.payoff td:last-child button { padding: 3px 10px; font-size: 12px; }
+
 /* ---------- 底部标签栏 ---------- */
 .tabbar {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
@@ -295,13 +300,6 @@ table.fin tr.total td { font-weight: 800; border-bottom: 2px solid var(--line-2)
 .pill:active { transform: translateY(1px); }
 .pill:disabled { opacity: .4; box-shadow: none; }
 .pill.done { color: var(--muted); background: var(--panel2); box-shadow: none; }
-
-/* 折叠副区「更多」 */
-.more-toggle {
-  width: 100%; background: transparent; color: var(--muted); box-shadow: none;
-  border: 1px dashed var(--line-2); font-weight: 600; font-size: 13px; padding: 9px;
-}
-.more-toggle:active { transform: none; }
 
 /* 战报页 */
 .result-hero {

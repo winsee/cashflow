@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { confirmAction } from '../confirm'
 import { fmt, useGame } from '../store'
 import type { Player } from '../types'
 
@@ -7,6 +8,41 @@ const props = defineProps<{ player?: Player }>()
 const game = useGame()
 const me = computed(() => props.player ?? game.me)
 const d = computed(() => me.value?.derived)
+
+// 清偿负债只在「自己的报表页 + 自己回合」可用（与后端 _require_current 一致）。
+// 带 player prop 的是在看别人的记录卡，战报页 status 已是 FINISHED，都不出按钮。
+const canPayoff = computed(() =>
+  !props.player && game.state?.status === 'PLAYING' &&
+  game.isMyTurn && me.value?.phase !== 'OUT')
+
+// 职业卡带来的五项负债，可逐项一次性清偿（说明书 P.4）；金额为 0 也照常列出，记录卡就该有这些栏位
+const FIXED_LIABILITIES = [
+  { id: 'mortgage', label: '住房抵押贷款' },
+  { id: 'school_loan', label: '教育贷款' },
+  { id: 'car_loan', label: '购车贷款' },
+  { id: 'credit_card', label: '信用卡' },
+  { id: 'extra', label: '额外负债' },
+] as const
+
+const payoffRows = computed(() => {
+  const l = me.value!.liabilities
+  const rows = FIXED_LIABILITIES.map(r => ({ id: r.id as string, label: r.label, amount: l[r.id] }))
+  for (const el of me.value!.extraLiabilities) rows.push({ id: el.id, label: el.name, amount: el.amount })
+  return rows
+})
+
+// 现金缺口：>0 说明现在还清不起，按钮置灰并直接把差额写在按钮上
+const shortfall = (amount: number) => amount - (me.value?.cash ?? 0)
+const payoffLabel = (amount: number) =>
+  shortfall(amount) > 0 ? `差 ${fmt(shortfall(amount))}` : '清偿'
+
+async function payOffDebt(label: string, id: string, amount: number) {
+  const ok = await confirmAction({
+    title: `一次性清偿「${label}」？`,
+    lines: [`支付 ${fmt(amount)}，删除该负债及对应月支出`, '不支持部分清偿（说明书 P.4）'],
+  })
+  if (ok && await game.act('PAY_OFF_DEBT', { liabilityId: id })) game.flash(`已清偿 ${label}`)
+}
 
 const ftProgress = computed(() => {
   if (!me.value || !d.value) return 0
@@ -100,18 +136,32 @@ const frozenIds = computed(() =>
       </table>
 
       <div class="section-title">负债</div>
-      <table class="fin">
+      <table class="fin payoff">
         <tbody>
-          <tr><td>住房抵押贷款</td><td>{{ fmt(me.liabilities.mortgage) }}</td></tr>
-          <tr><td>教育贷款</td><td>{{ fmt(me.liabilities.school_loan) }}</td></tr>
-          <tr><td>购车贷款</td><td>{{ fmt(me.liabilities.car_loan) }}</td></tr>
-          <tr><td>信用卡</td><td>{{ fmt(me.liabilities.credit_card) }}</td></tr>
-          <tr><td>额外负债</td><td>{{ fmt(me.liabilities.extra) }}</td></tr>
-          <tr v-for="r in me.realEstates" :key="r.id"><td>🏠 {{ r.name }} 抵押</td><td>{{ fmt(r.mortgage) }}</td></tr>
-          <tr v-for="l in me.extraLiabilities" :key="l.id"><td>{{ l.name }}</td><td>{{ fmt(l.amount) }}</td></tr>
-          <tr><td>银行贷款</td><td>{{ fmt(me.liabilities.bank_loan) }}</td></tr>
+          <tr v-for="o in payoffRows" :key="o.id">
+            <td>{{ o.label }}</td>
+            <td>{{ fmt(o.amount) }}</td>
+            <td v-if="canPayoff">
+              <button v-if="o.amount > 0" class="small ghost" :disabled="shortfall(o.amount) > 0"
+                      @click="payOffDebt(o.label, o.id, o.amount)">{{ payoffLabel(o.amount) }}</button>
+            </td>
+          </tr>
+          <tr v-for="r in me.realEstates" :key="r.id">
+            <td>🏠 {{ r.name }} 抵押</td><td>{{ fmt(r.mortgage) }}</td>
+            <td v-if="canPayoff" class="muted">随房产出售注销</td>
+          </tr>
+          <tr>
+            <td>银行贷款</td><td>{{ fmt(me.liabilities.bank_loan) }}</td>
+            <td v-if="canPayoff" class="muted">在「行动」页还款</td>
+          </tr>
         </tbody>
       </table>
+      <p v-if="!props.player && !canPayoff && game.state?.status === 'PLAYING' && me.phase !== 'OUT'" class="muted">
+        清偿负债只能在自己回合进行
+      </p>
+      <p v-else-if="canPayoff" class="muted">
+        清偿须一次性全额付清，清偿后对应的月支出一并消失（说明书 P.4）
+      </p>
     </div>
   </div>
 </template>
