@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { loadNickname, saveNickname, useGame } from '../store'
+import { ApiError, loadNickname, saveNickname, useGame } from '../store'
 import type { RoomListItem, RoomSeats } from '../types'
 import { confirmAction } from '../confirm'
+import SeatPicker from '../components/SeatPicker.vue'
 
 const game = useGame()
 const router = useRouter()
@@ -67,15 +68,17 @@ async function submitCode() {
       router.push(seats.status === 'LOBBY' || seats.status === 'SETUP' ? '/room' : '/play')
       return
     }
+    const room = { code, name: seats.name, status: seats.status,
+                   hasPassword: seats.hasPassword,
+                   onlineCount: seats.onlineCount } as RoomListItem
+    sheet.value = null
+    password.value = codePassword.value
     if (seats.status === 'LOBBY' || seats.status === 'SETUP') {
-      await game.joinRoom(code, nickname.value.trim(), codePassword.value)
-      sheet.value = null
-      router.push('/room')
+      dialog.value = { mode: 'join', room, seats, seatId: '' }
+      await doJoin(room, codePassword.value, seats)
     } else {
       // 已开始：转入接管座位弹窗
-      sheet.value = null
-      dialog.value = { mode: 'takeover', room: { code, name: seats.name } as RoomListItem, seats, seatId: '' }
-      password.value = codePassword.value
+      dialog.value = { mode: 'takeover', room, seats, seatId: '' }
     }
   } catch (e: any) { codeError.value = e.message }
   finally { busy.value = false }
@@ -97,35 +100,57 @@ async function tapRoom(room: RoomListItem) {
     router.push(room.status === 'LOBBY' || room.status === 'SETUP' ? '/room' : '/play')
     return
   }
-  if (room.status === 'LOBBY' || room.status === 'SETUP') {
+  // 无论房间是否开局都先拉座位：等待中的房间同样可能有人换设备/清了缓存要认领座位
+  try {
+    const seats = await game.fetchSeats(room.code)
     password.value = ''
-    dialog.value = { mode: 'join', room }
-  } else {
-    try {
-      const seats = await game.fetchSeats(room.code)
-      password.value = ''
-      dialog.value = { mode: 'takeover', room, seats, seatId: '' }
-    } catch (e: any) { game.lastError = e.message }
-  }
+    const waiting = seats.status === 'LOBBY' || seats.status === 'SETUP'
+    dialog.value = { mode: waiting ? 'join' : 'takeover', room, seats, seatId: '' }
+  } catch (e: any) { game.lastError = e.message }
 }
 
-async function doJoin(room: RoomListItem, pw: string) {
+/** 从「加入」切到「接管座位」，可预选一个座位（昵称撞车时就是同名那位） */
+function switchToTakeover(seatId = '') {
+  if (!dialog.value) return
+  dialog.value = { ...dialog.value, mode: 'takeover', seatId }
+}
+
+async function doJoin(room: RoomListItem, pw: string, seats?: RoomSeats) {
   busy.value = true
   try {
     await game.joinRoom(room.code, nickname.value.trim(), pw)
     dialog.value = null
     router.push('/room')
-  } catch (e: any) { game.lastError = e.message }
+  } catch (e: any) {
+    const known = seats ?? dialog.value?.seats
+    const mine = known?.players.find(p => p.nickname === nickname.value.trim())
+    if (e instanceof ApiError && e.code === 'NICKNAME_TAKEN' && mine) {
+      // 多半就是本人换了设备/清了缓存：直接把他送到接管界面，并预选同名座位
+      switchToTakeover(mine.id)
+      game.lastError = `「${mine.nickname}」已经在房里了——如果那是你，点「恢复该座位」拿回身份`
+    } else {
+      game.lastError = e.message
+    }
+  }
   finally { busy.value = false }
 }
 
 async function doTakeover() {
   const d = dialog.value
   if (!d?.seatId) return
+  const seat = d.seats?.players.find(p => p.id === d.seatId)
+  if (seat?.online) {
+    const ok = await confirmAction({
+      title: `恢复「${seat.nickname}」的座位`,
+      warning: '该座位现在有设备在线，恢复后原设备会立即掉线。确认那是你自己的手机吗？',
+      okText: '确认恢复',
+    })
+    if (!ok) return
+  }
   busy.value = true
   try {
     await game.takeover(d.room.code, d.seatId, password.value)
-    const status = d.room.status ?? d.seats?.status
+    const status = d.seats?.status ?? d.room.status
     dialog.value = null
     router.push(status === 'LOBBY' || status === 'SETUP' ? '/room' : '/play')
   } catch (e: any) { game.lastError = e.message }
@@ -150,6 +175,15 @@ async function tapDelete(room: RoomListItem) {
       danger: true, okText: '删除',
     })
     if (ok) await doDelete(room, { token: game.session!.playerToken })
+  } else if (!room.hasPassword && room.onlineCount === 0
+             && (room.status === 'LOBBY' || room.status === 'SETUP')) {
+    // 空壳房间（建了没连上、房主换了设备）：服务端允许任何人删，不必找房主
+    const ok = await confirmAction({
+      title: `删除房间 ${room.name}`,
+      lines: ['该房间尚未开局且当前无人在线，删除不会打断任何人。'],
+      danger: true, okText: '删除',
+    })
+    if (ok) await doDelete(room, {})
   } else {
     password.value = ''
     dialog.value = { mode: 'delete', room }
@@ -233,7 +267,8 @@ function continueGame() {
             <span class="badge" :class="{ turn: room.status === 'PLAYING' }">
               {{ STATUS_LABEL[room.status] ?? room.status }}</span>
             {{ room.playerCount }}/{{ room.maxPlayers }} 人
-            <template v-if="room.status !== 'LOBBY'">· 点击接管座位</template>
+            <span v-if="!room.onlineCount" class="badge">无人在线</span>
+            <template v-if="room.status !== 'LOBBY'">· 点击恢复座位</template>
           </div>
         </div>
         <button class="small ghost" @click.stop="tapDelete(room)">🗑</button>
@@ -304,21 +339,26 @@ function continueGame() {
             <label>房间密码</label>
             <input v-model="password" maxlength="16" placeholder="向房主索取" @keyup.enter="submitDialog" />
           </template>
+          <p v-if="dialog.seats?.players.length" class="muted" style="margin-top:12px">
+            已经在这个房间里了？（换了手机 / 清了缓存）
+            <a href="#" @click.prevent="switchToTakeover()" style="color:var(--brand);font-weight:700">
+              恢复我的座位</a>
+          </p>
         </template>
         <template v-else-if="dialog.mode === 'takeover'">
-          <h2>接管座位 · {{ dialog.room.name }}</h2>
-          <p class="muted">对局已开始，新玩家无法加入；换了设备的玩家可选自己的座位恢复身份（原设备将下线）。</p>
-          <div v-for="p in dialog.seats?.players" :key="p.id" class="list-item row between"
-               :style="dialog.seatId === p.id ? 'background:var(--brand-soft);border-radius:10px' : ''"
-               @click="dialog.seatId = p.id">
-            <span>{{ dialog.seatId === p.id ? '✅' : '👤' }} {{ p.nickname }}
-              <span v-if="p.isHost" class="badge">房主</span></span>
-            <span class="muted">{{ p.professionTitle }}</span>
-          </div>
+          <h2>恢复座位 · {{ dialog.room.name }}</h2>
+          <p class="muted">选中你自己的座位即可拿回身份（该座位的原设备会立即下线）。</p>
+          <SeatPicker :players="dialog.seats?.players ?? []" v-model="dialog.seatId" />
           <template v-if="dialog.seats?.hasPassword">
             <label>房间密码</label>
             <input v-model="password" maxlength="16" @keyup.enter="submitDialog" />
           </template>
+          <p v-if="dialog.seats?.status === 'LOBBY' || dialog.seats?.status === 'SETUP'"
+             class="muted" style="margin-top:12px">
+            想以新身份进来？
+            <a href="#" @click.prevent="dialog.mode = 'join'" style="color:var(--brand);font-weight:700">
+              换个昵称加入</a>
+          </p>
         </template>
         <template v-else>
           <h2>删除房间 {{ dialog.room.name }}</h2>
@@ -327,7 +367,8 @@ function continueGame() {
             <label>输入房间密码以确认</label>
             <input v-model="password" maxlength="16" @keyup.enter="submitDialog" />
           </template>
-          <p v-else class="muted">该房间未设密码，只有房主（在房主手机上）才能删除。</p>
+          <p v-else class="muted">
+            该房间未设密码且仍有人在线，只有房主（在房主手机上）才能删除。</p>
         </template>
         <div class="row" style="margin-top:14px">
           <button class="grow" :class="{ warn: dialog.mode === 'delete' }"
@@ -337,7 +378,7 @@ function continueGame() {
                     || (dialog.mode !== 'takeover' && dialog.room.hasPassword && !password)
                     || (dialog.mode === 'delete' && !dialog.room.hasPassword)"
                   @click="submitDialog">
-            {{ dialog.mode === 'join' ? '加入' : dialog.mode === 'takeover' ? '接管该座位' : '删除' }}
+            {{ dialog.mode === 'join' ? '加入' : dialog.mode === 'takeover' ? '恢复该座位' : '删除' }}
           </button>
           <button class="grow ghost" @click="dialog = null">取消</button>
         </div>

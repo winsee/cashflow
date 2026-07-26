@@ -125,10 +125,14 @@ def test_leave_revokes_token_blocks_takeover_and_host_revert_restores_seat(lib, 
 
 
 def test_host_leave_lobby_new_host_can_delete_room_with_own_token(lib, tmp_path):
-    """房主转让后，delete_room 的令牌校验（依赖 DB 侧 is_host）必须认得新房主。"""
+    """房主转让后，delete_room 的令牌校验（依赖 DB 侧 is_host）必须认得新房主。
+
+    房间要设密码：无密码的空房间任何人都能删（delete_room 的空壳分支），
+    那条路会把令牌校验整个绕过去，这个用例就测不到东西了。
+    """
     manager = RoomManager(Database(tmp_path / "leave_host_delete.db"), lib)
-    host = asyncio.run(manager.create_room("测试局", "房主"))
-    guest = asyncio.run(manager.join_room(host["roomCode"], "玩家"))
+    host = asyncio.run(manager.create_room("测试局", "房主", 6, "8888"))
+    guest = asyncio.run(manager.join_room(host["roomCode"], "玩家", "8888"))
     sess = manager.get(host["roomCode"])
 
     asyncio.run(sess.handle_action(host["playerId"], None, "LEAVE_GAME", {}))
@@ -139,9 +143,10 @@ def test_host_leave_lobby_new_host_can_delete_room_with_own_token(lib, tmp_path)
 
 
 def test_host_revert_after_host_leave_restores_original_host(lib, tmp_path):
+    # 同上：带密码才能验到「令牌不再是房主」，否则会被空房间可删的分支放行
     manager = RoomManager(Database(tmp_path / "leave_host_revert.db"), lib)
-    host = asyncio.run(manager.create_room("测试局", "房主"))
-    guest = asyncio.run(manager.join_room(host["roomCode"], "玩家"))
+    host = asyncio.run(manager.create_room("测试局", "房主", 6, "8888"))
+    guest = asyncio.run(manager.join_room(host["roomCode"], "玩家", "8888"))
     sess = manager.get(host["roomCode"])
 
     asyncio.run(sess.handle_action(host["playerId"], None, "LEAVE_GAME", {}))
@@ -155,7 +160,7 @@ def test_host_revert_after_host_leave_restores_original_host(lib, tmp_path):
 
     # 被撤销转让的旧房主令牌已在离开时作废，须通过接管拿回身份；
     # 而被撤销晋升的原访客不应再凭自己的令牌拥有 delete_room 的房主权限。
-    restored = asyncio.run(manager.takeover(host["roomCode"], host["playerId"]))
+    restored = asyncio.run(manager.takeover(host["roomCode"], host["playerId"], "8888"))
     assert restored["playerId"] == host["playerId"]
     with pytest.raises(EngineError) as ei:
         asyncio.run(manager.delete_room(host["roomCode"], token=guest["playerToken"]))

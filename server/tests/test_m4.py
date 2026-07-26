@@ -52,6 +52,19 @@ def test_extra_hosts_reissue_leaf_keeps_ca(tmp_path, monkeypatch):
 
 # ---------------- 归档 ----------------
 
+async def _start_game(manager: RoomManager, code: str, host_id: str) -> str:
+    """把房间推进到 PLAYING（归档测试要一个「真有内容」的对局），返回客人的 player_id。"""
+    sess = manager.get(code)
+    guest_id = (await manager.join_room(code, "小明"))["playerId"]
+    await sess.handle_action(host_id, None, "SELECT_PROFESSION", {"professionId": "prof-006"})
+    await sess.handle_action(guest_id, None, "SELECT_PROFESSION", {"professionId": "prof-010"})
+    await sess.handle_action(host_id, None, "SELECT_DREAM", {"dreamId": "ft-d-safari"})
+    await sess.handle_action(guest_id, None, "SELECT_DREAM", {"dreamId": "ft-d-jet"})
+    await sess.handle_action(host_id, None, "SET_TURN_ORDER", {"order": [host_id, guest_id]})
+    await sess.handle_action(host_id, None, "START_GAME", {})
+    return guest_id
+
+
 def test_archive_idle_rooms(tmp_path):
     db = Database(tmp_path / "t.db")
     manager = RoomManager(db, load_library())
@@ -59,12 +72,15 @@ def test_archive_idle_rooms(tmp_path):
     async def scenario():
         r = await manager.create_room("测试局", "房主", 6, None)
         code = r["roomCode"]
-        # 未到 24h：不归档
-        assert await manager.archive_idle() == []
+        await _start_game(manager, code, r["playerId"])
+        # 未到 24h：不归档（已开局的房间不受空房短 TTL 影响）
+        assert await manager.archive_idle() == {"archived": [], "deleted": []}
+        assert await manager.archive_idle(now=time.time() + 2 * 3600) == \
+            {"archived": [], "deleted": []}
         assert code in manager.rooms
         # 模拟 24h 无活动
-        archived = await manager.archive_idle(now=time.time() + 24 * 3600 + 1)
-        assert archived == [code]
+        out = await manager.archive_idle(now=time.time() + 24 * 3600 + 1)
+        assert out == {"archived": [code], "deleted": []}
         assert code not in manager.rooms
         row = db.find_room_by_code(code)
         assert row["status"] == "ARCHIVED"
@@ -74,5 +90,23 @@ def test_archive_idle_rooms(tmp_path):
         m2 = RoomManager(db, load_library())
         m2.restore_all()
         assert code not in m2.rooms
+
+    asyncio.run(scenario())
+
+
+def test_empty_lobby_room_deleted_after_1h(tmp_path):
+    """建了没连上的空壳房：1h 后直接删掉，不留在大厅也不留在库里。"""
+    db = Database(tmp_path / "t.db")
+    manager = RoomManager(db, load_library())
+
+    async def scenario():
+        r = await manager.create_room("空壳局", "房主", 6, None)
+        code = r["roomCode"]
+        assert await manager.archive_idle(now=time.time() + 3000) == \
+            {"archived": [], "deleted": []}
+        out = await manager.archive_idle(now=time.time() + 3600 + 1)
+        assert out == {"archived": [], "deleted": [code]}
+        assert code not in manager.rooms
+        assert db.find_room_by_code(code) is None
 
     asyncio.run(scenario())

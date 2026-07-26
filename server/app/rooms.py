@@ -222,6 +222,15 @@ class RoomSession:
     def detach(self, player_id: str, ws: WebSocket) -> None:
         self.sockets.get(player_id, set()).discard(ws)
 
+    @property
+    def online_ids(self) -> set[str]:
+        """当前真正握着连接的玩家（断开的 socket 由 detach 摘掉，只留空集合）。"""
+        return {pid for pid, conns in self.sockets.items() if conns}
+
+    @property
+    def online_count(self) -> int:
+        return len(self.online_ids)
+
     def check_password(self, password: str | None) -> bool:
         """无密码房间恒通过；有密码房间要求明文匹配。"""
         if self.password_hash is None:
@@ -283,22 +292,38 @@ class RoomManager:
             self.rooms[row["code"]] = sess
 
     ARCHIVE_TTL_S = 24 * 3600
+    EMPTY_TTL_S = 3600           # 从未开局又没人在线的空房：1h 直接删，别在大厅里越堆越多
 
     async def archive_idle(self, ttl_s: float | None = None,
-                           now: float | None = None) -> list[str]:
-        """24h 无活动的房间自动归档（design/03 §7.2）：断连、出内存、DB 标记；
-        事件流保留可查，但不再可加入/恢复。返回被归档的房间码。"""
+                           now: float | None = None,
+                           empty_ttl_s: float | None = None) -> dict[str, list[str]]:
+        """定时清理（design/03 §7.2）。返回 {"archived": [...], "deleted": [...]}。
+
+        - 24h 无活动的对局：断连、出内存、DB 标记 ARCHIVED，事件流保留可查，不再可加入。
+        - 1h 无活动且无人在线的 LOBBY/SETUP 房：直接删。这类房间多半是建了没连上的
+          空壳（没有值得留存的事件流），归档只会让它们在库里堆着。
+        """
         ttl_s = self.ARCHIVE_TTL_S if ttl_s is None else ttl_s
+        empty_ttl_s = self.EMPTY_TTL_S if empty_ttl_s is None else empty_ttl_s
         now = time.time() if now is None else now
-        archived = []
+        archived: list[str] = []
+        deleted: list[str] = []
         for code, sess in list(self.rooms.items()):
-            if now - sess.last_activity < ttl_s:
+            idle = now - sess.last_activity
+            if sess.state.status in (RoomStatus.LOBBY, RoomStatus.SETUP) \
+                    and sess.online_count == 0 and idle >= empty_ttl_s:
+                await sess.close_sockets(code=4002)
+                self.rooms.pop(code, None)
+                self.db.delete_room(sess.room_id)
+                deleted.append(code)
+                continue
+            if idle < ttl_s:
                 continue
             await sess.close_sockets(code=4002)
             self.db.set_room_status(sess.room_id, "ARCHIVED")
             self.rooms.pop(code, None)
             archived.append(code)
-        return archived
+        return {"archived": archived, "deleted": deleted}
 
     async def create_room(self, name: str, host_nickname: str,
                           max_players: int = 6,
@@ -338,6 +363,7 @@ class RoomManager:
                 "playerCount": len(s.players),
                 "maxPlayers": s.settings.max_players,
                 "hasPassword": sess.password_hash is not None,
+                "onlineCount": sess.online_count,
                 "createdAt": sess.created_at,
             })
         out.sort(key=lambda r: r["createdAt"], reverse=True)
@@ -347,14 +373,18 @@ class RoomManager:
         """加入页/接管选座用的房间概要（不泄露令牌等敏感信息）。"""
         sess = self.get(code)
         s = sess.state
+        online = sess.online_ids
         return {
             "code": sess.code,
             "name": s.settings.name,
             "status": s.status.value,
             "hasPassword": sess.password_hash is not None,
             "maxPlayers": s.settings.max_players,
+            "onlineCount": len(online),
+            # online：这个座位现在有没有设备连着——换设备恢复时用来提醒「原设备将下线」
             "players": [{"id": p.id, "nickname": p.nickname, "isHost": p.is_host,
-                         "professionTitle": p.profession_title}
+                         "professionTitle": p.profession_title,
+                         "online": p.id in online}
                         for p in s.players.values()],
         }
 
@@ -379,7 +409,9 @@ class RoomManager:
 
     async def delete_room(self, code: str, token: str | None = None,
                           password: str | None = None) -> None:
-        """删除房间：FINISHED/CLOSED 任何人可删；否则需房主令牌或房间密码。"""
+        """删除房间：FINISHED/CLOSED 任何人可删；否则需房主令牌、房间密码，
+        或「无密码 + 尚未开局 + 当前无人在线」——房主清了浏览器缓存的无密码房，
+        否则谁都删不掉（令牌没了，又没有密码这条路），只能在大厅里挂满一天。"""
         sess = self.get(code)
         if sess.state.status not in (RoomStatus.FINISHED, RoomStatus.CLOSED):
             allowed = False
@@ -390,8 +422,15 @@ class RoomManager:
             if not allowed and sess.password_hash is not None \
                     and sess.check_password(password):
                 allowed = True
+            if not allowed and sess.password_hash is None \
+                    and sess.state.status in (RoomStatus.LOBBY, RoomStatus.SETUP) \
+                    and sess.online_count == 0:
+                # 空壳房间：没设密码、没开局、没人连着，删掉不会打断任何人。
+                # 设了密码的房间不走这条——密码就是为了拦住「不相干的人动我的房间」。
+                allowed = True
             if not allowed:
-                raise EngineError("FORBIDDEN", "只有房主或输入房间密码才能删除进行中的房间")
+                raise EngineError(
+                    "FORBIDDEN", "只有房主、房间密码，或房间无人在线时才能删除该房间")
         await sess.close_sockets()
         self.rooms.pop(code, None)
         self.db.delete_room(sess.room_id)

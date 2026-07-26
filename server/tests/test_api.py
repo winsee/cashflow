@@ -118,6 +118,16 @@ def test_lobby_password_takeover_delete():
         seats = client.get(f"/api/rooms/{a['roomCode']}/seats").json()
         assert seats["hasPassword"] is True
         assert {p["nickname"] for p in seats["players"]} == {"房主", "小明"}
+        # 在线状态：没人连 WS 时全员离线（前端据此提示「接管会踢掉原设备」）
+        assert seats["onlineCount"] == 0
+        assert all(p["online"] is False for p in seats["players"])
+        with client.websocket_connect(f"/ws?token={a['playerToken']}") as w:
+            w.receive_json()
+            live = client.get(f"/api/rooms/{a['roomCode']}/seats").json()
+            assert live["onlineCount"] == 1
+            assert {p["nickname"] for p in live["players"] if p["online"]} == {"房主"}
+            assert {r["code"]: r["onlineCount"]
+                    for r in client.get("/api/rooms").json()}[a["roomCode"]] == 1
 
         # 座位接管：错密码拒；成功后旧令牌作废、新令牌可连
         r = client.post(f"/api/rooms/{a['roomCode']}/takeover",
@@ -136,15 +146,18 @@ def test_lobby_password_takeover_delete():
                 w.receive_json()
         assert ei.value.code == 4001
 
-        # 删除：未结束房间需房主令牌或密码；无密码房只认房主令牌
+        # 删除：未结束房间需房主令牌或密码。设了密码的房间即使没人在线也不许外人删
         r = client.request("DELETE", f"/api/rooms/{a['roomCode']}", json={})
         assert r.status_code == 400 and r.json()["code"] == "FORBIDDEN"
         r = client.request("DELETE", f"/api/rooms/{a['roomCode']}",
                            json={"password": "8888"})
         assert r.json() == {"ok": True}
-        r = client.request("DELETE", f"/api/rooms/{b['roomCode']}",
-                           json={"password": "随便"})
-        assert r.status_code == 400
+        # 无密码房：有人在线时错密码删不掉
+        with client.websocket_connect(f"/ws?token={b['playerToken']}") as w:
+            w.receive_json()
+            r = client.request("DELETE", f"/api/rooms/{b['roomCode']}",
+                               json={"password": "随便"})
+            assert r.status_code == 400 and r.json()["code"] == "FORBIDDEN"
         r = client.request("DELETE", f"/api/rooms/{b['roomCode']}",
                            json={"token": b["playerToken"]})
         assert r.json() == {"ok": True}
@@ -152,6 +165,71 @@ def test_lobby_password_takeover_delete():
         assert a["roomCode"] not in left and b["roomCode"] not in left
         r = client.get(f"/api/rooms/{a['roomCode']}/seats")
         assert r.status_code == 400 and r.json()["code"] == "NO_ROOM"
+
+
+def test_orphan_lobby_room_recovery():
+    """房主建了房又丢了本机令牌（清缓存/换手机）的无密码房：既能认领回座位，也能被删掉。
+
+    这条链路曾经完全走死：等待中的房间前端只给「加入」，撞上 NICKNAME_TAKEN；
+    而无密码房的删除只认房主令牌，令牌已经没了 —— 房间就永远挂在大厅里。
+    """
+    with TestClient(app) as client:
+        host = client.post("/api/rooms", json={"nickname": "谭耀辉", "name": "孤儿局"}).json()
+        code = host["roomCode"]
+
+        # 用同一个昵称加入会被引擎拦下 —— 前端据这个 code 引导去恢复座位
+        r = client.post(f"/api/rooms/{code}/join", json={"nickname": "谭耀辉"})
+        assert r.status_code == 400 and r.json()["code"] == "NICKNAME_TAKEN"
+
+        # 等待中的房间同样可以认领座位（无密码房不需要口令），且房主身份完整迁移
+        seats = client.get(f"/api/rooms/{code}/seats").json()
+        assert seats["status"] == "LOBBY"
+        seat = next(p for p in seats["players"] if p["nickname"] == "谭耀辉")
+        assert seat["isHost"] is True and seat["online"] is False
+        taken = client.post(f"/api/rooms/{code}/takeover", json={"playerId": seat["id"]}).json()
+        assert taken["playerId"] == host["playerId"]
+        assert taken["playerToken"] != host["playerToken"]
+        with pytest.raises(WebSocketDisconnect) as ei:
+            with client.websocket_connect(f"/ws?token={host['playerToken']}") as w:
+                w.receive_json()
+        assert ei.value.code == 4001
+
+        # 新令牌就是房主：能开局，也能删房
+        guest = client.post(f"/api/rooms/{code}/join", json={"nickname": "小明"}).json()
+        with client.websocket_connect(f"/ws?token={taken['playerToken']}") as wa, \
+             client.websocket_connect(f"/ws?token={guest['playerToken']}") as wb:
+            wa.receive_json(); wb.receive_json()
+            _act(wa, "SELECT_PROFESSION", professionId="prof-006"); wb.receive_json()
+            _act(wb, "SELECT_PROFESSION", professionId="prof-010"); wa.receive_json()
+            _act(wa, "SELECT_DREAM", dreamId="ft-d-safari"); wb.receive_json()
+            _act(wb, "SELECT_DREAM", dreamId="ft-d-jet"); wa.receive_json()
+            _act(wa, "SET_TURN_ORDER",
+                 order=[taken["playerId"], guest["playerId"]]); wb.receive_json()
+            st = _act(wa, "START_GAME"); wb.receive_json()
+            assert st["state"]["status"] == "PLAYING"
+            # 开局后就不再是「空壳房」：即便全员掉线，外人也不能删
+            r = client.request("DELETE", f"/api/rooms/{code}", json={})
+            assert r.status_code == 400 and r.json()["code"] == "FORBIDDEN"
+        r = client.request("DELETE", f"/api/rooms/{code}", json={})
+        assert r.status_code == 400 and r.json()["code"] == "FORBIDDEN"
+        r = client.request("DELETE", f"/api/rooms/{code}", json={"token": taken["playerToken"]})
+        assert r.json() == {"ok": True}
+
+
+def test_empty_room_deletable_by_anyone():
+    """没设密码、没开局、当前无人在线的房间：任何人都能在大厅里删掉。"""
+    with TestClient(app) as client:
+        host = client.post("/api/rooms", json={"nickname": "房主", "name": "空壳局"}).json()
+        code = host["roomCode"]
+        with client.websocket_connect(f"/ws?token={host['playerToken']}") as w:
+            w.receive_json()
+            # 有人在线：外人删不掉
+            r = client.request("DELETE", f"/api/rooms/{code}", json={})
+            assert r.status_code == 400 and r.json()["code"] == "FORBIDDEN"
+        # 断线后（detach 走 finally，僵尸连接不会残留）：任何人可删
+        assert client.get("/api/rooms/" + code + "/seats").json()["onlineCount"] == 0
+        assert client.request("DELETE", f"/api/rooms/{code}", json={}).json() == {"ok": True}
+        assert code not in {x["code"] for x in client.get("/api/rooms").json()}
 
 
 def test_host_revert():

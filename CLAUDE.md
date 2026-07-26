@@ -21,7 +21,7 @@ subtype（骰子赌局/收藏品/溢价收购/现金流调整/分期收款）、
 （`POST /api/rooms/{code}/recognize-text`，20~80ms，零 OCR 内存开销）。资源自托管在
 `/tesseract/`（构建期由 `web/scripts/sync-tesseract-assets.mjs` 生成，不进 git，不依赖 CDN）。
 离线验收：194 张实拍图，四个游戏牌堆严格 Top-3 全部 100%（职业卡 4 张认不出，但它不走扫描）。
-测试 **416 passed / 1 skipped**。降级链：浏览器 OCR → 服务端 PaddleOCR（仅
+测试 **419 passed / 1 skipped**。降级链：浏览器 OCR → 服务端 PaddleOCR（仅
 `--build-arg WITH_OCR=1` 的局域网部署）→ 手动检索。
 
 **还差两项要人在现场做**：真机取景帧命中率（design/08 §6.2）、云端端到端（§6.5，
@@ -31,6 +31,12 @@ subtype（骰子赌局/收藏品/溢价收购/现金流调整/分期收款）、
 自绘内联 SVG，无外部请求）+ 房间码 + 加入链接；分享优先调 `navigator.share` 拉起系统分享面板
 （面板里选微信发链接），非安全上下文/微信内自动降级为复制。实现见 `web/src/share.ts`、
 `components/{QrCode,InviteDialog}.vue`，设计见 design/03 §7.1。剩真机扫码一次现场确认。
+
+**身份找回与空房清理已补齐（FR-4，design/03 §4.4）**：座位接管现在不限房间状态，等待中的
+房间同样能认领座位（昵称撞车时前端按 `NICKNAME_TAKEN` 自动切到座位列表并预选同名座位）；
+座位/房间列表带 `online` 标记；无密码 + 未开局 + 无人在线的房间任何人可删，且 1h 后自动清掉。
+根因是 `saveSession` 换令牌时没关旧 WebSocket，新会话永远连不上、旧房间广播还会触发
+「你已不在该房间」把会话清掉——这条已修并有回归覆盖。
 
 ## 开发必读（按顺序）
 

@@ -123,7 +123,18 @@ export interface RoomListItem {
   playerCount: number
   maxPlayers: number
   hasPassword: boolean
+  /** 当前握着 WebSocket 的人数；0 = 空壳房间，任何人可删 */
+  onlineCount: number
   createdAt: string
+}
+
+export interface Seat {
+  id: string
+  nickname: string
+  isHost: boolean
+  professionTitle: string
+  /** 该座位现在有没有设备连着：接管在线座位会把原设备踢下线 */
+  online: boolean
 }
 
 export interface RoomSeats {
@@ -132,5 +143,6 @@ export interface RoomSeats {
   status: RoomStatus
   hasPassword: boolean
   maxPlayers: number
-  players: { id: string; nickname: string; isHost: boolean; professionTitle: string }[]
+  onlineCount: number
+  players: Seat[]
 }

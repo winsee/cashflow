@@ -32,6 +32,24 @@ function uuid(): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
 }
 
+/** 带服务端错误码的 API 异常：调用方要按 code 分支（如 NICKNAME_TAKEN → 引导接管座位），
+ *  靠中文文案匹配太脆。服务端所有 EngineError 都以 {code, message} 返回（main.py 的异常处理器）。 */
+export class ApiError extends Error {
+  code: string
+  constructor(message: string, code = '') {
+    super(message)
+    this.code = code
+  }
+}
+
+/** 统一解析失败响应：拿不到 JSON（网关 502 之类）时退回默认文案 */
+async function apiError(r: Response, fallback: string): Promise<ApiError> {
+  try {
+    const body = await r.json()
+    return new ApiError(body.message ?? fallback, body.code ?? '')
+  } catch { return new ApiError(fallback) }
+}
+
 export function loadSession(): Session | null {
   try {
     const raw = localStorage.getItem('cashflow.session')
@@ -106,6 +124,17 @@ export const useGame = defineStore('game', {
   },
   actions: {
     saveSession(s: Session) {
+      // 换身份（新建/加入/接管）时旧连接必须先断：connect() 见 this.ws 非空就直接返回，
+      // 留着旧 socket 会让新会话永远连不上，页面永久停在「连接中…」。
+      if (this.ws && this.session?.playerToken !== s.playerToken) {
+        clearTimeout(this.reconnectTimer)
+        const old = this.ws
+        this.ws = null            // 先摘掉，避免 onclose 里的自动重连拿新令牌重连旧 socket
+        old.onclose = null
+        old.close()
+        this.state = null         // 旧房间的快照不能留，否则 /room 会闪一下上一局
+        this.seq = 0
+      }
       this.session = s
       localStorage.setItem('cashflow.session', JSON.stringify(s))
     },
@@ -121,7 +150,7 @@ export const useGame = defineStore('game', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nickname, name, maxPlayers, password: password || null }),
       })
-      if (!r.ok) throw new Error((await r.json()).message ?? '创建失败')
+      if (!r.ok) throw await apiError(r, '创建失败')
       const d = await r.json()
       this.saveSession({ roomCode: d.roomCode, playerId: d.playerId, playerToken: d.playerToken })
       this.connect()
@@ -131,7 +160,7 @@ export const useGame = defineStore('game', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nickname, password: password || null }),
       })
-      if (!r.ok) throw new Error((await r.json()).message ?? '加入失败')
+      if (!r.ok) throw await apiError(r, '加入失败')
       const d = await r.json()
       this.saveSession({ roomCode: d.roomCode, playerId: d.playerId, playerToken: d.playerToken })
       this.connect()
@@ -142,7 +171,7 @@ export const useGame = defineStore('game', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId, password: password || null }),
       })
-      if (!r.ok) throw new Error((await r.json()).message ?? '接管失败')
+      if (!r.ok) throw await apiError(r, '接管失败')
       const d = await r.json()
       this.saveSession({ roomCode: d.roomCode, playerId: d.playerId, playerToken: d.playerToken })
       this.connect()
@@ -154,7 +183,7 @@ export const useGame = defineStore('game', {
     },
     async fetchSeats(code: string): Promise<RoomSeats> {
       const r = await fetch(`/api/rooms/${code}/seats`)
-      if (!r.ok) throw new Error((await r.json()).message ?? '房间不存在')
+      if (!r.ok) throw await apiError(r, '房间不存在')
       return r.json()
     },
     /** 删除房间：已结束房间直接删；否则需房主令牌或房间密码 */
@@ -163,7 +192,7 @@ export const useGame = defineStore('game', {
         method: 'DELETE', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(opts),
       })
-      if (!r.ok) throw new Error((await r.json()).message ?? '删除失败')
+      if (!r.ok) throw await apiError(r, '删除失败')
       if (this.session?.roomCode === code) this.clearSession()
     },
     /** 普通玩家主动退出：服务端会记录退出、废弃令牌；本机随后清除会话。 */

@@ -459,6 +459,10 @@ async def ws_endpoint(ws: WebSocket, token: str = Query(...)):
                     "type": "error", "code": "BAD_MESSAGE", "message": "消息格式错误"},
                     ensure_ascii=False))
     except WebSocketDisconnect:
+        pass
+    finally:
+        # 必须 finally：删除房间与空房清理都以「有没有活连接」为准，
+        # 任何一条异常路径漏掉 detach，都会留下僵尸连接让房间永远删不掉。
         sess.detach(player_id, ws)
 
 
