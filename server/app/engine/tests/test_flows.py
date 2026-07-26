@@ -121,6 +121,45 @@ def test_stock_buy_sell_window_and_merge(duo):
         duo.act("A", "STOCK_SELL", qty=1)
 
 
+def test_stock_window_survives_drawer_pass(duo):
+    """抽卡人「我不买」只清掉自己的待办，全场（含他本人）本回合仍能按今日价卖出。
+
+    回归：曾把 CARD_PASSED 置的 resolved 当作窗口关闭条件，导致抽卡人一放弃谁都卖不掉。
+    """
+    duo.state.players["A"].stocks.append(
+        StockHolding(symbol="ON2U", shares=5, cost_per_share=10))
+    duo.state.players["B"].stocks.append(
+        StockHolding(symbol="ON2U", shares=20, cost_per_share=10))
+    duo.act("A", "DRAW_CARD", cardId="sd-008")           # ON2U 今日价 $30
+    duo.act("A", "CARD_DECISION", decision="pass")
+    assert duo.state.active_card.resolved                # 待办已结清
+
+    b_cash = duo.player("B").cash
+    duo.act("B", "STOCK_SELL", qty=20)                   # 其他玩家仍可卖
+    assert duo.player("B").cash == b_cash + 600
+    a_cash = duo.player("A").cash
+    duo.act("A", "STOCK_SELL", qty=5)                    # 放弃购买的抽卡人本人也仍可卖
+    assert duo.player("A").cash == a_cash + 150
+
+    duo.act("A", "END_TURN")                             # 窗口边界仍是回合结束
+    with pytest.raises(EngineError) as ei:
+        duo.act("B", "STOCK_SELL", qty=1)
+    assert ei.value.code == "NO_STOCK_WINDOW"
+
+
+def test_stock_offer_preview_broadcast(duo):
+    """广播里的股票窗口摘要：前端据此决定给谁显示交易入口。"""
+    assert E.stock_offer_preview(duo.state, duo.lib) is None
+    duo.act("A", "DRAW_CARD", cardId="sd-001")           # 优先股 2BIG，人人可买
+    assert E.stock_offer_preview(duo.state, duo.lib) == {
+        "symbol": "2BIG", "price": 1200, "buyerScope": "ALL"}
+    duo.act("A", "CARD_DECISION", decision="pass")
+    # 抽卡人放弃后摘要仍在（窗口未关），与 _stock_card 同口径
+    assert E.stock_offer_preview(duo.state, duo.lib)["buyerScope"] == "ALL"
+    duo.act("A", "END_TURN")
+    assert E.stock_offer_preview(duo.state, duo.lib) is None
+
+
 def test_preferred_stock_dividend_into_passive_income(duo):
     """优先股（每股月分红 $10）买入后，分红计入被动收入（§6.2）。"""
     a = duo.player("A")

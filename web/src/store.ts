@@ -7,6 +7,21 @@ interface Session {
   playerToken: string
 }
 
+/** 当前股票报价窗口与「我」的关系（谁能买/能卖多少），由 myStockWindow 计算 */
+export interface StockWindow {
+  cardId: string
+  symbol: string
+  price: number
+  buyerScope: 'DRAWER_ONLY' | 'ALL'
+  /** 我在该代码上的全部持仓，可能因买入价不同分成多笔（引擎按此顺序扣减） */
+  lots: Player['stocks']
+  held: number
+  canSell: boolean
+  canBuy: boolean
+  /** 本窗口的去重键：卡 + 轮次，回合一变即失效 */
+  key: string
+}
+
 /** 局域网 HTTP（非安全上下文）没有 crypto.randomUUID，用 getRandomValues 兜底 */
 function uuid(): string {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -46,6 +61,7 @@ export const useGame = defineStore('game', {
     pendingTypes: {} as Record<string, boolean>,
     reconnectTimer: 0 as any,
     noticeTimer: 0 as any,
+    stockDismissed: '' as string,   // 我点过「不需要」的股票窗口 key（纯本地，不广播）
   }),
   getters: {
     me(): Player | null {
@@ -62,6 +78,30 @@ export const useGame = defineStore('game', {
     currentPlayer(): Player | null {
       if (!this.state?.currentPlayerId) return null
       return this.state.players.find(p => p.id === this.state!.currentPlayerId) ?? null
+    },
+    /** 当前股票窗口与我的关系；与我无关（无持仓且不可买）或我不在老鼠赛跑时为 null。
+     *  卖出窗口活到抽卡人回合结束，抽卡人放弃购买不影响（engine._stock_card）。 */
+    myStockWindow(): StockWindow | null {
+      const ac = this.state?.activeCard
+      const offer = ac?.stockOffer
+      const m = this.me
+      if (!ac || !offer || !m) return null
+      if (m.phase !== 'RAT_RACE' || m.inBankruptcy) return null   // 与引擎的两道校验对齐
+      const lots = m.stocks.filter(s => s.symbol === offer.symbol)
+      const held = lots.reduce((a, s) => a + s.shares, 0)
+      const canBuy = offer.buyerScope === 'ALL' || ac.drawer_id === m.id
+      if (held <= 0 && !canBuy) return null
+      return {
+        cardId: ac.card_id, symbol: offer.symbol, price: offer.price,
+        buyerScope: offer.buyerScope, lots, held,
+        canSell: held > 0, canBuy,
+        key: `${ac.card_id}@${this.state!.turnCount}`,
+      }
+    },
+    /** 交易窗口是否要出现在我的「行动」页（点过「不需要」就收起，直到下一张卡） */
+    stockWindowOpen(): boolean {
+      const w = this.myStockWindow
+      return !!w && this.stockDismissed !== w.key
     },
   },
   actions: {
@@ -178,6 +218,11 @@ export const useGame = defineStore('game', {
           this.reconnectTimer = setTimeout(() => this.connect(), 1500)
         }
       }
+    },
+    /** 「不需要」：只收起我自己这一次的股票交易窗口，不发事件、不影响别人 */
+    dismissStockWindow() {
+      const w = this.myStockWindow
+      if (w) this.stockDismissed = w.key
     },
     /** 成功提示（绿色 toast，3 秒自动消失） */
     flash(msg: string) {

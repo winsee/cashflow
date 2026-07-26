@@ -23,9 +23,9 @@ const progress = computed(() => {
   const d = m.derived
   return d.totalExpenses ? Math.min(100, d.passiveIncome / d.totalExpenses * 100) : 100
 })
-// 待办角标：我的回合有未结算强制卡，或有待我确认的推送
+// 待办角标：我的回合有未结算强制卡，有待我确认的推送，或有对我开放的股票交易窗口
 const actionAlert = computed(() =>
-  game.myPrompts.length > 0 ||
+  game.myPrompts.length > 0 || game.stockWindowOpen ||
   (game.isMyTurn && !!game.state?.activeCard && !game.state.activeCard.resolved
     && game.state.activeCard.drawer_id === game.session?.playerId))
 </script>

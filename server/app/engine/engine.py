@@ -519,6 +519,22 @@ def settlement_preview(state: RoomState, lib: CardLibrary) -> dict[str, Any] | N
     return None       # 机会卡/股票等有独立交互面板，无需预览
 
 
+def stock_offer_preview(state: RoomState, lib: CardLibrary) -> dict[str, Any] | None:
+    """当前股票窗口的公开参数，供前端判断该给谁显示交易入口；权威校验仍在 decide。
+
+    与 _stock_card 同口径：不看 resolved，窗口活到回合结束。
+    """
+    ac = state.active_card
+    if ac is None or ac.subtype != "STOCK_OFFER":
+        return None
+    try:
+        d = lib.get(ac.card_id).data
+        return {"symbol": d["symbol"], "price": d["price"],
+                "buyerScope": d.get("buyerScope", "DRAWER_ONLY")}
+    except (EngineError, KeyError):
+        return None
+
+
 def _resell_offer_events(state: RoomState, player: PlayerState, card, p: dict) -> list[Event]:
     """把机会卡转卖给其他玩家（说明书 p8：抽卡人可把生意让给别人）。"""
     to_id = p["toPlayerId"]
@@ -607,8 +623,14 @@ def _d_resell_confirm(state, actor_id, p, lib) -> list[Event]:
 # ---------- 股票（design/02 §6.2） ----------
 
 def _stock_card(state: RoomState, lib) -> tuple[ActiveCard, dict]:
+    """交易窗口的有效期 = 抽卡人的整个回合（design/02 §6.2「本机会有效期内」）。
+
+    故意不看 `ac.resolved`：抽卡人的 CARD_PASSED 只表示「我自己不买」，
+    不该连带作废其他玩家（以及他本人）按今日价卖出持仓的权利。
+    窗口由 TURN_ENDED 清空 active_card 时才关闭。
+    """
     ac = state.active_card
-    if ac is None or ac.subtype != "STOCK_OFFER" or ac.resolved:
+    if ac is None or ac.subtype != "STOCK_OFFER":
         raise EngineError("NO_STOCK_WINDOW", "当前没有生效的股票报价")
     return ac, lib.get(ac.card_id).data
 

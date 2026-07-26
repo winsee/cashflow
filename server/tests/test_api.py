@@ -183,6 +183,53 @@ def test_host_revert():
         assert reverted and reverted[0]["revoked"] is True
 
 
+def test_stock_window_end_to_end():
+    """股票窗口全链路：广播摘要 → 非抽卡人买入 → 抽卡人放弃 → 仍能卖出（design/02 §6.2）。
+
+    回归实战 bug：抽卡人点「我不买」后，全场卖出都被 NO_STOCK_WINDOW 拒绝。
+    """
+    with TestClient(app) as client:
+        host = client.post("/api/rooms", json={"nickname": "房主"}).json()
+        code = host["roomCode"]
+        guest = client.post(f"/api/rooms/{code}/join", json={"nickname": "小明"}).json()
+        with client.websocket_connect(f"/ws?token={host['playerToken']}") as wa, \
+             client.websocket_connect(f"/ws?token={guest['playerToken']}") as wb:
+            wa.receive_json(); wb.receive_json()
+            _act(wa, "SELECT_PROFESSION", professionId="prof-006"); wb.receive_json()
+            _act(wb, "SELECT_PROFESSION", professionId="prof-010"); wa.receive_json()
+            _act(wa, "SELECT_DREAM", dreamId="ft-d-safari"); wb.receive_json()
+            _act(wb, "SELECT_DREAM", dreamId="ft-d-jet"); wa.receive_json()
+            _act(wa, "SET_TURN_ORDER", order=[host["playerId"], guest["playerId"]]); wb.receive_json()
+            _act(wa, "START_GAME"); wb.receive_json()
+
+            def guest_of(st):
+                return next(p for p in st["state"]["players"] if p["id"] == guest["playerId"])
+
+            # 房主抽优先股 2BIG（buyerScope=ALL）：广播里带窗口摘要，前端据此决定给谁弹
+            st = _act(wa, "DRAW_CARD", cardId="sd-001"); wb.receive_json()
+            assert st["state"]["activeCard"]["stockOffer"] == {
+                "symbol": "2BIG", "price": 1200, "buyerScope": "ALL"}
+
+            # 非抽卡人按今日价买入（人人可买的卡）
+            st = _act(wb, "STOCK_BUY", qty=1); wa.receive_json()
+            assert guest_of(st)["cash"] == 2070 - 1200
+            assert guest_of(st)["stocks"][0]["symbol"] == "2BIG"
+
+            # 抽卡人「我不买」：只结清自己的待办，窗口摘要仍在
+            st = _act(wa, "CARD_DECISION", decision="pass"); wb.receive_json()
+            assert st["state"]["activeCard"]["resolved"] is True
+            assert st["state"]["activeCard"]["stockOffer"]["symbol"] == "2BIG"
+
+            # 回归点：此时其他玩家仍能卖出
+            st = _act(wb, "STOCK_SELL", qty=1); wa.receive_json()
+            assert guest_of(st)["cash"] == 2070
+            assert guest_of(st)["stocks"] == []
+
+            # 回合结束才关闭窗口
+            st = _act(wa, "END_TURN"); wb.receive_json()
+            assert st["state"]["activeCard"] is None
+
+
 def test_forced_card_settle_preview():
     """强制卡结算预览随状态下发；条件豁免时事件带卡名与原因（供日志展示）。"""
     with TestClient(app) as client:

@@ -192,7 +192,8 @@ class RoomSession:
             "turnPaydayUsed": s.turn_payday_used,
             "currentPlayerId": s.current_player_id,
             "activeCard": ({**s.active_card.model_dump(),
-                            "settlePreview": E.settlement_preview(s, self.lib)}
+                            "settlePreview": E.settlement_preview(s, self.lib),
+                            "stockOffer": E.stock_offer_preview(s, self.lib)}
                            if s.active_card else None),
             "prompts": [p.model_dump() for p in s.prompts],
             "ftSoldSquares": s.ft_sold_squares,

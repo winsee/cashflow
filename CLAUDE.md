@@ -21,7 +21,7 @@ subtype（骰子赌局/收藏品/溢价收购/现金流调整/分期收款）、
 （`POST /api/rooms/{code}/recognize-text`，20~80ms，零 OCR 内存开销）。资源自托管在
 `/tesseract/`（构建期由 `web/scripts/sync-tesseract-assets.mjs` 生成，不进 git，不依赖 CDN）。
 离线验收：194 张实拍图，四个游戏牌堆严格 Top-3 全部 100%（职业卡 4 张认不出，但它不走扫描）。
-测试 **413 passed / 1 skipped**。降级链：浏览器 OCR → 服务端 PaddleOCR（仅
+测试 **416 passed / 1 skipped**。降级链：浏览器 OCR → 服务端 PaddleOCR（仅
 `--build-arg WITH_OCR=1` 的局域网部署）→ 手动检索。
 
 **还差两项要人在现场做**：真机取景帧命中率（design/08 §6.2）、云端端到端（§6.5，
