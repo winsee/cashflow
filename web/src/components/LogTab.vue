@@ -33,7 +33,8 @@ function correctable(e: LogEntry): boolean {
 const LABELS: Record<string, string> = {
   PLAYER_JOINED: '加入房间', PROFESSION_SELECTED: '选择职业', DREAM_SELECTED: '选择梦想',
   TURN_ORDER_SET: '排定顺序', GAME_STARTED: '开局发钱', TURN_ENDED: '结束回合',
-  PAYDAY: '银行结算日', CARD_DRAWN: '抽卡', CARD_PASSED: '放弃卡牌', CARD_RESOLVED: '卡牌结算完毕',
+  PAYDAY: '银行结算日', PAYDAY_UNPAYABLE: '结算日无力支付', CARD_DRAWN: '抽卡',
+  CARD_PASSED: '放弃卡牌', CARD_RESOLVED: '卡牌结算完毕',
   ASSET_BOUGHT: '买入资产', RESELL_OFFERED: '发起转卖', RESELL_CONFIRMED: '确认转卖', RESELL_REJECTED: '拒绝转卖',
   STOCK_BOUGHT: '买入股票', STOCK_SOLD: '卖出股票', SHARES_ADJUSTED: '拆并股',
   LOSS_PAID: '损失支出', EXPENSE_EVENT_PAID: '维修支出', DOODAD_PAID: '额外支出', INSTALLMENT_ADDED: '分期购买',

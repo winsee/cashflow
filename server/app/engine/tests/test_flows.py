@@ -352,14 +352,42 @@ def test_transfer_between_players(duo):
 
 # ---------- 破产三种出口（§8） ----------
 
-def _push_to_brink(duo):
-    """医生 A：借 4 万 → 利息 4,000/月，月现金流 −450，现金压到 100。"""
-    duo.act("A", "TAKE_LOAN", amount=40000)
-    duo.state.players["A"].cash = 100
+def _push_to_brink(duo, cash=100, loan=40000):
+    """医生 A：借 4 万 → 利息 4,000/月，月现金流 −450，现金压到付不起一个月。"""
+    duo.act("A", "TAKE_LOAN", amount=loan)
+    duo.state.players["A"].cash = cash
+    assert F.monthly_cashflow(duo.player("A")) == 3550 - loan // 10
+    return duo.player("A")
+
+
+def test_payday_unpayable_forces_bankruptcy(duo):
+    """P.5：结算日现金不足以支付到期款项即破产——没有「先去贷款」这个出口。"""
+    _push_to_brink(duo)
+    evs = duo.act("A", "PAYDAY")
+    assert [e["type"] for e in evs] == ["PAYDAY_UNPAYABLE", "BANKRUPTCY_STARTED"]
+    assert evs[0]["payload"]["month"] == 1 and evs[0]["payload"]["shortfall"] == 350
     a = duo.player("A")
-    assert F.monthly_cashflow(a) == -450
-    with pytest.raises(EngineError, match="NEED_LOAN_OR_BANKRUPTCY".replace("_", ".*")) :
-        duo.act("A", "PAYDAY")
+    assert a.in_bankruptcy
+    assert a.cash == 100                             # 付不出的这个月不结算，现金不动
+    # 借钱续命的路已封死：破产中不得贷款（P.4「除非您被宣布破产」），也不能结束回合
+    for action, payload in (("TAKE_LOAN", {"amount": 10000}), ("END_TURN", {}),
+                            ("BANKRUPTCY_START", {})):
+        with pytest.raises(EngineError) as ei:
+            duo.act("A", action, **payload)
+        assert ei.value.code == "IN_BANKRUPTCY"
+
+
+def test_payday_pays_affordable_months_then_bankrupts(duo):
+    """一并结算多个月：付得起的月份照付，第一个付不出的月份触发破产。"""
+    _push_to_brink(duo, cash=1000)                   # 月现金流 −450，够付 2 个月
+    evs = duo.act("A", "PAYDAY", times=3)
+    assert [e["type"] for e in evs] == ["PAYDAY", "PAYDAY_UNPAYABLE", "BANKRUPTCY_STARTED"]
+    assert evs[0]["payload"]["times"] == 2
+    assert evs[1]["payload"]["month"] == 3 and evs[1]["payload"]["of_times"] == 3
+    assert evs[1]["payload"]["shortfall"] == 350
+    a = duo.player("A")
+    assert a.cash == 1000 - 450 * 2
+    assert a.in_bankruptcy
 
 
 def test_bankruptcy_recover_by_selling(duo):
@@ -372,7 +400,8 @@ def test_bankruptcy_recover_by_selling(duo):
     assert F.monthly_cashflow(duo.player("A")) == 50   # 3550+500-4000
     duo.state.players["A"].liabilities.bank_loan = 45000  # 利息 4,500 → 现金流 −450
     assert F.monthly_cashflow(duo.player("A")) == -450
-    duo.act("A", "BANKRUPTCY_START")
+    duo.act("A", "PAYDAY")                           # 结算日自动判定破产（不再手动宣告）
+    assert duo.player("A").in_bankruptcy
     duo.act("A", "BANKRUPTCY_SELL_ASSET", assetId="r-big")
     a = duo.player("A")
     assert a.cash == 100 + 30000 // 2                # 首期付款的 50%

@@ -167,16 +167,24 @@ async function doodadPay(method: 'pay' | 'credit') {
 
 const paydayTimes = ref(1)
 
+// 说明书 P.5：结算日现金不足以支付到期款项即破产，服务端会直接进入清算，贷款不是这一刻的出口
+const paydayBankrupts = computed(() =>
+  !!me.value && me.value.cash + me.value.derived.monthlyCashflow * paydayTimes.value < 0)
+
 async function payday() {
   const cf = me.value!.derived.monthlyCashflow
   const t = paydayTimes.value
   const ok = await confirmAction({
     title: `结算银行结算日 ×${t}？`,
     lines: [`月现金流 ${fmt(cf)} × ${t} = ${fmt(cf * t)}`, '经过多次请先在右侧选择次数一并结算'],
-    warning: cf < 0 ? '月现金流为负，将从现金中扣除' : undefined,
+    warning: paydayBankrupts.value
+      ? '现金不足以支付到期款项，本次结算将直接进入破产清算（说明书 P.5），不能改为贷款'
+      : cf < 0 ? '月现金流为负，将从现金中扣除' : undefined,
+    danger: paydayBankrupts.value,
   })
-  if (ok && await game.act('PAYDAY', { times: t }))
-    game.flash(`已结算银行结算日 ×${t}，现金${cf >= 0 ? ' +' : ' '}${fmt(cf * t)}`)
+  if (!ok || !await game.act('PAYDAY', { times: t })) return
+  if (me.value?.inBankruptcy) game.flash('结算日无力支付，已进入破产清算')
+  else game.flash(`已结算银行结算日 ×${t}，现金${cf >= 0 ? ' +' : ' '}${fmt(cf * t)}`)
 }
 
 async function takeLoan() {
@@ -186,7 +194,9 @@ async function takeLoan() {
   const ok = await confirmAction({
     title: `向银行贷款 ${fmt(amt)}？`,
     lines: [`每月利息 +${fmt(interest)}（月息 10%）`, `贷后月现金流 ${fmt(cfAfter)}`],
-    warning: cfAfter < 0 ? '贷款后月现金流将为负！' : undefined,
+    warning: cfAfter < 0
+      ? '贷后月现金流为负：下个银行结算日现金不足以支付即破产，届时不能再贷款'
+      : undefined,
   })
   if (ok && await game.act('TAKE_LOAN', { amount: amt })) game.flash(`已贷款 ${fmt(amt)}`)
 }
@@ -479,6 +489,9 @@ async function hostEndTurn() {
             <option v-for="n in 3" :key="n" :value="n">×{{ n }} 次</option>
           </select>
         </div>
+        <p v-if="paydayBankrupts && !st.turnPaydayUsed" class="muted" style="color:var(--red)">
+          ⚠️ 现金不足以支付到期款项，本次结算将直接进入破产清算（说明书第5页），不能改为贷款
+        </p>
 
         <div class="section-title">其他停留格</div>
         <div class="pill-row">

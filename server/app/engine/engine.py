@@ -190,13 +190,22 @@ def _d_payday(state, actor_id, p, lib) -> list[Event]:
     if times < 1 or times > 3:
         raise EngineError("BAD_TIMES", "结算次数须为 1–3")
     cf = F.monthly_cashflow(player)
-    if player.cash + cf * times < 0:
-        raise EngineError(
-            "NEED_LOAN_OR_BANKRUPTCY",
-            f"月现金流为 ${cf:,}，现金不足以支付，请先贷款或进入破产流程",
-            shortfall=-(player.cash + cf * times),
-        )
-    return [_ev("PAYDAY", player_id=player.id, cashflow=cf, times=times)]
+    # P.5：月现金流为负且手头现金不足以支付到期款项 —— 这是破产「判定」，不是二选一，
+    # 也不给「先去贷款」的出口，否则玩家可以靠无限贷款把负现金流永远拖下去。
+    # 一并结算多个月时逐月判：付得起的月份照付，第一个付不出的月份触发破产。
+    payable = 0
+    while payable < times and player.cash + cf * (payable + 1) >= 0:
+        payable += 1
+    if payable == times:
+        return [_ev("PAYDAY", player_id=player.id, cashflow=cf, times=times)]
+    evs: list[Event] = []
+    if payable:
+        evs.append(_ev("PAYDAY", player_id=player.id, cashflow=cf, times=payable))
+    evs.append(_ev("PAYDAY_UNPAYABLE", player_id=player.id, cashflow=cf,
+                   month=payable + 1, of_times=times,
+                   shortfall=-(player.cash + cf * (payable + 1))))
+    evs.append(_ev("BANKRUPTCY_STARTED", player_id=player.id))
+    return evs
 
 
 # ---------- 抽卡与卡牌效果（design/02 §6） ----------
@@ -825,7 +834,9 @@ def _d_transfer_confirm(state, actor_id, p, lib) -> list[Event]:
 # ---------- 破产（design/02 §8） ----------
 
 def _d_bankruptcy_start(state, actor_id, p, lib) -> list[Event]:
+    """主动宣告破产：判定条件与 P.5 一致，但破产通常由结算日自动触发（见 _d_payday）。"""
     player = _require_current(state, actor_id)
+    _require_no_bankruptcy(player)
     cf = F.monthly_cashflow(player)
     if cf >= 0 or player.cash + cf >= 0:
         raise EngineError("NOT_BANKRUPT", "未满足破产条件（月现金流为负且现金不足支付）")
@@ -1201,6 +1212,12 @@ def _a_payday(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash += p["cashflow"] * p["times"]
     _advance_installments(pl, p["times"])
+    s.turn_payday_used = True
+
+
+def _a_payday_unpayable(s: RoomState, p) -> None:
+    # 付不出的这个月不结算（现金不动、分期不推进），随后的 BANKRUPTCY_STARTED 接管；
+    # 说明书 P.5 的破产流程是「变卖偿债至现金流转正 + 停赛 3 轮」，没有补缴环节。
     s.turn_payday_used = True
 
 
@@ -1690,6 +1707,7 @@ _APPLIERS = {
     "GAME_STARTED": _a_game_started,
     "TURN_ENDED": _a_turn_ended,
     "PAYDAY": _a_payday,
+    "PAYDAY_UNPAYABLE": _a_payday_unpayable,
     "CARD_DRAWN": _a_card_drawn,
     "CARD_RESOLVED": _a_card_resolved,
     "CARD_PASSED": _a_card_passed,

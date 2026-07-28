@@ -60,7 +60,7 @@ def test_random_walk_invariants(lib, seq):
             g.act(actor, atype, **payload)
         except EngineError:
             continue
-        # 不变量1：现金永不为负（破产流程中间态除外，本行动池不含破产）
+        # 不变量1：现金永不为负（PAYDAY 触发破产时付不出的那个月不结算，现金不动）
         for pl in g.state.players.values():
             assert pl.cash >= 0, f"{pl.nickname} 现金为负: {pl.cash}"
             assert 0 <= pl.child_count <= 3
@@ -92,6 +92,21 @@ def test_replay_equals_final_state_long_flow(lib):
     # 派生值与状态自洽：重放态计算出的现金流与直接态一致
     for pid in ("A", "B"):
         assert F.monthly_cashflow(replayed.players[pid]) == F.monthly_cashflow(g.state.players[pid])
+
+
+def test_replay_bankruptcy_flow(lib):
+    """结算日自动破产的整条事件流可重放：PAYDAY_UNPAYABLE 只是审计事件，不动账。"""
+    g = _setup_duo(lib)
+    g.act("A", "TAKE_LOAN", amount=40000)                     # 月现金流 −450
+    g.act("A", "HOST_ADJUST", playerId="A", delta=-43850)     # 现金压到 100
+    assert g.state.players["A"].cash == 100
+    evs = g.act("A", "PAYDAY")
+    assert [e["type"] for e in evs] == ["PAYDAY_UNPAYABLE", "BANKRUPTCY_STARTED"]
+    assert g.state.players["A"].cash == 100                   # 破产判定不扣这一个月的钱
+    g.act("A", "BANKRUPTCY_RESOLVE")                          # 无资产可卖 → 减债后仍为负，出局
+    assert g.state.players["A"].phase == Phase.OUT
+    replayed = E.replay(g.events)
+    assert replayed.model_dump() == g.state.model_dump()
 
 
 def test_host_reverted_event_is_noop(lib):
