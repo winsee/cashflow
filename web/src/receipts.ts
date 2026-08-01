@@ -109,7 +109,6 @@ const SELF_ACTION: Record<string, string[]> = {
   HOST_ADJUSTED: ['HOST_ADJUST'],
   TRANSFER_COMPLETED: ['TRANSFER_CONFIRM'],
   HOST_REVERTED: ['HOST_REVERT'],
-  PLAYER_CORRECTED: ['PLAYER_CORRECT', 'HOST_REVERT'],
 }
 
 /** 刚发出的行动在这个窗口内不再算「被动」；服务端往返一般远快于此 */
@@ -208,13 +207,19 @@ export function buildReceipts(
         break
       }
 
-      // ⑤ 房主撤销 / 本人更正：账已重算，日志留划线痕迹
-      case 'HOST_REVERTED':
-      case 'PLAYER_CORRECTED': {
+      // ⑤ 房主撤销：账已重算，日志留划线痕迹。
+      //    只推给**被撤销那条记录的当事人**——别人的账没动，收到一句「有人更正了一条记录」
+      //    既看不懂也用不上（设计稿 §10 的触发清单里只有「房主撤销」这一类）。
+      //    PLAYER_CORRECTED（本人更正）不在清单里：它只影响本人，而本人那份已被
+      //    SELF_ACTION 的时间窗排掉了。
+      case 'HOST_REVERTED': {
+        if (p.target_player_id !== meId) break
         out.push(make({
           tone: 'neutral', icon: '↩️',
-          title: ev.type === 'HOST_REVERTED' ? '房主撤销了一条记录' : '有人更正了一条记录',
-          why: `${p.reason || '账目已按撤销后的事件流重算'}`,
+          title: p.target_title
+            ? `房主撤销了「${p.target_title}」`
+            : '房主撤销了你的一条记录',
+          why: p.reason ? `${p.reason}，你的账已重算` : '你的账已重算',
         }))
         break
       }

@@ -124,6 +124,16 @@ class RoomSession:
                 raise EngineError("NOT_YOURS", "只能更正自己的操作，或请房主撤销")
             if target["type"] not in self.CORRECTABLE_TYPES:
                 raise EngineError("NOT_CORRECTABLE", "该类事件不支持本人更正，请房主撤销")
+            # 语义是「抽错卡当场撤销重选」（设计稿 §04），过了这个回合就只能请房主撤销：
+            # 否则谁都能回头翻旧账，账本失去时序上的可信度。
+            if self.state.current_player_id != actor_id:
+                raise EngineError("NOT_YOUR_TURN", "只能在自己回合内更正，请房主在日志中撤销")
+            # 回合边界只认 TURN_ENDED：靠 turn_count 反推会被停赛/出局玩家带偏。
+            last_end = max((r["seq"] for r in rows
+                            if r["type"] == "TURN_ENDED" and r["revoked_by"] is None),
+                           default=0)
+            if target_seq < last_end:
+                raise EngineError("TURN_CLOSED", "该回合已结束，请房主在日志中撤销")
         remaining = [r for r in rows if r["seq"] != target_seq]
         try:
             state = RoomState()
@@ -132,8 +142,14 @@ class RoomSession:
         except Exception:
             raise EngineError("REVERT_CONFLICT",
                               "撤销该事件会使后续事件无法成立，请先撤销依赖它的事件") from None
+        # 被撤销事件的身份随审计事件一起下发：回执要能说出「撤销了哪一条、这条是谁的」，
+        # 否则只能推给全员一句含糊的「有人更正了一条记录」（设计稿 §10 的六类触发之一）。
+        tp = json.loads(target["payload"])
         ev = {"type": "HOST_REVERTED" if as_host else "PLAYER_CORRECTED",
-              "payload": {"event_seq": target_seq, "reason": str(payload.get("reason", ""))}}
+              "payload": {"event_seq": target_seq, "reason": str(payload.get("reason", "")),
+                          "target_type": target["type"],
+                          "target_player_id": tp.get("player_id") or target["actor_player_id"],
+                          "target_title": tp.get("title") or tp.get("name") or tp.get("symbol") or ""}}
         self.seq += 1
         rid = self.db.append_event(self.room_id, self.seq, actor_id, ev["type"], ev["payload"])
         self.db.revoke_event(self.room_id, target_seq, rid)
@@ -264,6 +280,9 @@ class RoomSession:
         """
         rows = self.db.events_for_room(self.room_id, include_revoked=True)
         nick = {pid: p.nickname for pid, p in self.state.players.items()}
+        # revoked_by 存的是撤销事件的 rowid：反查一次，好让日志把撤销**画在被撤销那一行上**
+        # （设计稿 §11：划线痕迹 +「已被房主撤销」），而不是另起一行。
+        by_id = {r["id"]: r for r in rows}
         out = []
         state = RoomState()
         for r in rows:
@@ -274,6 +293,7 @@ class RoomSession:
                     state = E.apply(state, {"type": r["type"], "payload": payload})
                 except Exception:
                     pass          # 日志是只读视图，重放不成也不能让整页拿不到
+            revoker = by_id.get(r["revoked_by"]) if r["revoked_by"] is not None else None
             out.append({
                 "seq": r["seq"],
                 "turn": turn,
@@ -284,6 +304,10 @@ class RoomSession:
                 "payload": payload,
                 "at": r["created_at"],
                 "revoked": r["revoked_by"] is not None,
+                "revokedBy": (None if revoker is None else
+                              ("host" if revoker["type"] == "HOST_REVERTED" else "self")),
+                "revokedByActor": (None if revoker is None else
+                                   nick.get(revoker["actor_player_id"])),
             })
         return out
 

@@ -26,9 +26,11 @@ function revertable(e: LogEntry): boolean {
   return isHost.value && !e.revoked && !NO_REVERT.has(e.type)
 }
 
+/** 语义是「抽错卡当场撤销重选」（设计稿 §04）：回合一结束就只能请房主撤销，
+ *  否则谁都能回头翻旧账。服务端 _revert 有同一道校验，这里只是不给按钮。 */
 function correctable(e: LogEntry): boolean {
   return !isHost.value && !e.revoked && CORRECTABLE.has(e.type)
-      && e.actorId === game.session?.playerId
+      && e.actorId === game.session?.playerId && game.isMyTurn
 }
 
 const LABELS: Record<string, string> = {
@@ -89,11 +91,25 @@ function detailOf(e: LogEntry): string {
   return base ? `${base}（${p.note}）` : p.note   // 如「参加婚礼（无孩子，无需支付）」
 }
 
+/** 撤销不占一行：它已经画在被撤销那条上了（划线 +「已被房主撤销」，设计稿 §11）。
+ *  这两类审计事件仍在事件流与 /log 接口里，账本的可审计性不受影响。 */
+const AUDIT_ONLY = new Set(['HOST_REVERTED', 'PLAYER_CORRECTED'])
+
+/** 被撤销行的副标题：谁撤的、怎么撤的 */
+function revokedNote(e: LogEntry): string {
+  if (!e.revoked) return ''
+  const who = e.revokedByActor ?? ''
+  if (e.revokedBy === 'self') return who ? `已被 ${who} 本人更正` : '已被本人更正'
+  if (e.revokedBy === 'host') return who ? `已被房主 ${who} 撤销` : '已被房主撤销'
+  return '已撤销'
+}
+
 /** 按轮分组：行是 seq 倒序、轮次随 seq 单调，所以相邻同轮的合成一组即可。
  *  轮次由服务端重放给出（rooms.log_rows），前端不反推。 */
 const groups = computed(() => {
   const out: { turn: number; items: LogEntry[] }[] = []
   for (const e of rows.value) {
+    if (AUDIT_ONLY.has(e.type)) continue
     if (filter.value && !(e.actor ?? '').includes(filter.value)) continue
     const last = out[out.length - 1]
     if (last && last.turn === e.turn) last.items.push(e)
@@ -156,8 +172,9 @@ async function correct(e: LogEntry) {
           </div>
           <div class="num">{{ amountOf(e) }}</div>
         </div>
+        <div v-if="e.revoked" class="muted">{{ revokedNote(e) }}</div>
         <div class="row between">
-          <div class="muted">#{{ e.seq }} · {{ e.at }}<span v-if="e.revoked">（已撤销）</span></div>
+          <div class="muted">#{{ e.seq }} · {{ e.at }}</div>
           <button v-if="revertable(e)" class="btn small ghost" @click="revert(e)">撤销</button>
           <button v-else-if="correctable(e)" class="btn small ghost" @click="correct(e)">更正</button>
         </div>

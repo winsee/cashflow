@@ -13,7 +13,8 @@ const qty = ref(1)
 // 换一张卡/换一轮就把股数复位，免得沿用上一次的输入
 watch(() => w.value?.key, () => { qty.value = 1 })
 
-const overSell = computed(() => !!w.value && qty.value > w.value.held)
+// 只有卖得出去的人才谈得上「卖超了」：无持仓的人这一屏从头到尾不该出现卖出侧的字
+const overSell = computed(() => !!w.value && w.value.canSell && qty.value > w.value.held)
 const amount = computed(() => (w.value ? w.value.price * Math.max(0, qty.value) : 0))
 const shortOfCash = computed(() => !!game.me && amount.value > game.me.cash)
 

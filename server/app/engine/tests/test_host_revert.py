@@ -94,3 +94,51 @@ def test_revert_requires_host(mgr):
     with pytest.raises(EngineError) as ei:
         act(b, "HOST_REVERT", eventSeq=_seq_of(sess, "LOAN_TAKEN", amount=1000))
     assert ei.value.code == "NOT_HOST"
+
+
+# ---------- FR-29 本人更正：语义是「抽错卡当场重选」，出了这个回合就该找房主 ----------
+
+def test_player_correct_within_own_turn(mgr):
+    """自己回合内撤销自己的抽卡：这是本人更正存在的理由，必须放行。"""
+    sess, a, b, act = _setup(mgr)
+    act(a, "DRAW_CARD", cardId="bd-001")
+    act(a, "PLAYER_CORRECT", eventSeq=_seq_of(sess, "CARD_DRAWN", card_id="bd-001"))
+    assert sess.state.active_card is None          # 撤掉了就能重新选卡
+
+
+def test_player_correct_rejected_when_not_my_turn(mgr):
+    """回合已交出去：不能再自己改账，否则谁都能回头翻旧账。"""
+    sess, a, b, act = _setup(mgr)
+    act(a, "DRAW_CARD", cardId="bd-001")
+    seq = _seq_of(sess, "CARD_DRAWN", card_id="bd-001")
+    act(a, "END_TURN")
+    with pytest.raises(EngineError) as ei:
+        act(a, "PLAYER_CORRECT", eventSeq=seq)
+    assert ei.value.code == "NOT_YOUR_TURN"
+
+
+def test_player_correct_rejected_for_earlier_turn(mgr):
+    """轮回到自己了，但那笔账是上一回合的：只能请房主撤销。"""
+    sess, a, b, act = _setup(mgr)
+    act(a, "DRAW_CARD", cardId="bd-001")
+    seq = _seq_of(sess, "CARD_DRAWN", card_id="bd-001")
+    act(a, "END_TURN")
+    act(b, "END_TURN")
+    assert sess.state.current_player_id == a       # 又轮到 A，但已是下一回合
+    with pytest.raises(EngineError) as ei:
+        act(a, "PLAYER_CORRECT", eventSeq=seq)
+    assert ei.value.code == "TURN_CLOSED"
+
+    act(a, "HOST_REVERT", eventSeq=seq)            # 房主这条路始终通
+    assert sess.state.players[a].cash > 0
+
+
+def test_revert_event_carries_target_identity(mgr):
+    """审计事件要带上被撤销那条的身份，否则回执只能推给全员一句含糊话。"""
+    sess, a, b, act = _setup(mgr)
+    act(a, "DRAW_CARD", cardId="bd-001")
+    evs = act(a, "HOST_REVERT", eventSeq=_seq_of(sess, "CARD_DRAWN", card_id="bd-001"))
+    p = evs[0]["payload"]
+    assert p["target_type"] == "CARD_DRAWN"
+    assert p["target_player_id"] == a
+    assert p["target_title"]

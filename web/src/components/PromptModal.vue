@@ -25,7 +25,10 @@ const sellGroup = computed<Prompt[]>(() => {
   if (!h || h.kind !== 'MARKET_SELL' || h.payload.subtype === 'INSTALLMENT_SALE') return []
   return game.myPrompts.filter(p =>
     p.kind === 'MARKET_SELL' && p.payload.card_id === h.payload.card_id
-    && p.payload.subtype !== 'INSTALLMENT_SALE')
+    && p.payload.subtype !== 'INSTALLMENT_SALE'
+    // 护栏：要约指向的资产已不在我名下（被撤销重放、或先一步卖掉）就别再问我卖不卖，
+    // 那是一屏没有主语的弹层。服务端只推给持有人，这里兜住时序上的空档。
+    && assetOf(p) !== null)
 })
 
 /** 队列里还剩几屏（本组算一屏） */
@@ -47,6 +50,11 @@ function assetOf(p: Prompt) {
 function netOf(p: Prompt): number {
   return p.payload.price - p.payload.mortgage
 }
+
+/** 「为什么弹给我」：求购卡说的是资产**类别**，命中我手上任何一项同类资产都会弹。
+ *  把命中的类别写出来，免得玩家对着一张没见过的卡名找不到自己哪来的这项资产。 */
+const matchedTypes = computed(() =>
+  [...new Set(sellGroup.value.map(p => assetOf(p)?.asset_type).filter(Boolean))].join('、'))
 function flowOf(p: Prompt): number {
   return assetOf(p)?.cashflow ?? 0
 }
@@ -106,7 +114,8 @@ const me = computed(() => game.me)
              :source="`市场风云卡 · 每套出价 ${fmt(sellGroup[0].payload.price)}`"
              :deck-label="DECK_SHORT.MARKET" :deck-color="DECK_COLOR.MARKET" :queued="queued">
     <p class="muted" style="margin:0">
-      你有 <b style="color:var(--text)">{{ sellGroup.length }} 项</b>符合条件，选择卖哪几项。
+      这张卡求购<b style="color:var(--text)">{{ matchedTypes || '这类资产' }}</b>，
+      你名下有 <b style="color:var(--text)">{{ sellGroup.length }} 项</b>属于这一类，选择卖哪几项。
     </p>
 
     <div class="stack">

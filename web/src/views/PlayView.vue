@@ -78,14 +78,23 @@ async function confirmEnterFasttrack() {
         <template v-if="game.isMyTurn"><span class="live-dot"></span> <b>轮到你了</b></template>
         <template v-else>等待 {{ game.currentPlayer?.nickname ?? '—' }} 行动</template>
         · 第 {{ game.state.turnCount }} 轮
-        <span v-if="ft">· 距胜利还差 {{ fmt(toWin) }}</span>
         <span v-if="!game.connected" style="color:var(--red)">· 重连中…</span>
         <span class="grow"></span>
         <router-link to="/manual" style="color:var(--muted);text-decoration:none">📖 说明书</router-link>
       </div>
-      <div class="progress" v-if="me.phase !== 'OUT'">
-        <div :style="{ width: progress + '%' }" />
-      </div>
+      <!-- 这条进度是这个阶段唯一的目标，得写出它是什么，不然就是一条没来由的色带 -->
+      <template v-if="me.phase !== 'OUT'">
+        <div class="hud-goal">
+          <span v-if="ft">距胜利还差 {{ fmt(toWin) }}</span>
+          <span v-else>离快车道 · 非工资收入 {{ fmt(me.derived.passiveIncome) }} /
+            总支出 {{ fmt(me.derived.totalExpenses) }}</span>
+          <span class="grow"></span>
+          <span>{{ Math.round(progress) }}%</span>
+        </div>
+        <div class="progress" :class="{ gold: ft }">
+          <div :style="{ width: progress + '%' }" />
+        </div>
+      </template>
     </div>
 
     <!-- 达成逃出条件：横幅就在 HUD 正下方，不埋进分诊卡底部 -->

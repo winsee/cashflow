@@ -422,6 +422,11 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center;
   background: var(--brand-soft); color: var(--brand); font-size: 12px; font-weight: 800;
 }
+/* 牌桌上那个人的头像圈（跟着阶段主色换肤） */
+.avatar-lg {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--brand-soft); color: var(--brand); font-size: 12px; font-weight: 800;
+}
 
 /* 大厅两个主入口 */
 .bigbtn-row { display: flex; gap: var(--sp-3); margin: var(--sp-3) 0; }
@@ -457,7 +462,12 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
 }
 .hud .hud-turn b { color: var(--brand); }
-.hud .progress { grid-column: 1 / -1; margin-top: var(--sp-2); }
+/* 进度条上方那行分子分母：玩家能自己验算，比一条无标签的色带有用得多 */
+.hud .hud-goal {
+  grid-column: 1 / -1; margin-top: 7px; font-size: 11px; color: var(--muted);
+  display: flex; align-items: baseline; gap: 6px;
+}
+.hud .progress { grid-column: 1 / -1; margin-top: 3px; }
 .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); flex: none; }
 
 /* HUD 正下方的达成条件横幅：金色在绿色世界里越界一次，就意味着有人要换赛道了 */

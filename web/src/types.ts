@@ -141,6 +141,9 @@ export interface LogEntry {
   payload: Record<string, any>
   at: string
   revoked: boolean
+  /** 被谁撤销的：房主撤销 / 本人更正。撤销画在被撤销那一行上，不另起一行 */
+  revokedBy: 'host' | 'self' | null
+  revokedByActor: string | null
 }
 
 export type RoomStatus = 'LOBBY' | 'SETUP' | 'PLAYING' | 'FINISHED' | 'CLOSED'

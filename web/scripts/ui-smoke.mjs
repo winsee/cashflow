@@ -74,8 +74,11 @@ const EXPECTED_OFFLINE = /WebSocket connection to .* failed/
 // 是它自己的配置项告警，不是本项目的代码问题
 const OCR_NOISE = /Parameter not found|Estimating resolution|Warning: Invalid resolution/
 
-/** 截图并断言这一屏确实渲染出来了（要求出现的选择器写在 must 里） */
+/** 截图并断言这一屏确实渲染出来了（要求出现的选择器写在 must 里）。
+ *  先等元素再截：日志/报表这些要异步拉一次数据，固定 sleep 会随机差那么一点点，
+ *  失败的屏每次还不一样。等不到照样按失败记，不会把真问题盖掉。 */
 async function shot(page, name, must) {
+  if (must) await page.waitForSelector(must, { timeout: 6000 }).catch(() => {})
   await sleep(500)
   await page.screenshot({ path: join(OUT, `${name}.png`) })
   const ok = await page.evaluate(sel => {
@@ -189,6 +192,30 @@ async function main() {
     if (el) el.click()
   }, sel, text)
 
+  // 第 ① 步：银行结算日独立成步，此时**不该**冒出停留格那一堆牌堆按钮
+  await shot(pa, '03a-第1步-银行结算日', '.card.focus .todo-label')
+  await expectText(pa, '03a-第1步-银行结算日', {
+    has: ['本回合待办 · 银行结算日', '本回合没经过'],
+    hasNot: ['你停在哪种格子'],
+  })
+
+  // 二次确认：压在弹层之上的那一层（--z-confirm）
+  await clickText(pa, '.btn', '结算银行结算日')
+  await shot(pa, '03d-二次确认', '.modal-mask.confirm')
+  await clickText(pa, '.modal .btn', '取消')
+
+  // 内圈 24 格只有 3 个结算日，「没经过」是常态：第 ① 步得走得完，焦点才让给第 ② 步
+  await clickText(pa, '.btn', '本回合没经过')
+  await shot(pa, '03e-第2步-停留格', '.card.focus .pill')
+  await expectText(pa, '03e-第2步-停留格', {
+    has: ['你停在哪种格子', '本回合没经过'],
+    noButtons: ['结算银行结算日'],
+  })
+
+  // 围观也是玩：不是自己回合时，牌桌上写清那个人是谁、走到哪一步、账面什么样
+  await shot(pb, '03f-非我回合的牌桌', '.avatar-lg')
+  await expectText(pb, '03f-非我回合的牌桌', { has: ['行动中', '月现金流'] })
+
   await clickText(pa, '.pill', '大买卖')
   // 弹层一开就并行拉起浏览器端 OCR（WASM 十几 MB），首帧渲染会被拖慢，等它一下
   await pa.waitForSelector('.modal .list-item', { timeout: 20000 }).catch(() => {})
@@ -200,11 +227,6 @@ async function main() {
   if (layers !== 1) failures.push(`03c-选卡核对: 弹层叠了 ${layers} 层`)
   await clickText(pa, '.modal .btn', '重新选')
   await clickText(pa, '.modal .btn', '关闭')
-
-  // 二次确认：压在弹层之上的那一层（--z-confirm）
-  await clickText(pa, '.pill', '结算银行结算日')
-  await shot(pa, '03d-二次确认', '.modal-mask.confirm')
-  await clickText(pa, '.modal .btn', '取消')
 
   // 抽一张大买卖卡 → 两台应同时显示同一张卡面
   await send(pa, 'DRAW_CARD', { cardId: 'bd-001' })
@@ -222,11 +244,52 @@ async function main() {
   await pa.evaluate(() => document.querySelectorAll('.tabbar button')[3].click())
   await shot(pa, '08-日志页', '.logdot')
 
+  // 「更正」是「抽错卡当场重选」，不是回头翻旧账：不是小雨的回合就不该给她这个按钮
+  await pb.evaluate(() => document.querySelectorAll('.tabbar button')[3].click())
+  await shot(pb, '08a-非本人回合无更正', '.logdot')
+  await expectText(pb, '08a-非本人回合无更正', { noButtons: ['更正'] })
+  await pb.evaluate(() => document.querySelectorAll('.tabbar button')[1].click())
+
   // 被动回执：房主给小雨调账 → 小雨没操作却被改了账，应收到「刚刚发生在你身上」
   await pa.evaluate(() => document.querySelectorAll('.tabbar button')[1].click())
   await send(pa, 'HOST_ADJUST', { playerId: b.playerId, delta: -1500, reason: '冒烟：代收罚款' })
   await sleep(600)
   await shot(pb, '08b-被动回执', '.receipt')
+
+  // 房主撤销：痕迹画在被撤销那一行上，不另起一行；回执只推给当事人
+  const logRows = await (await fetch(`${BASE}/api/rooms/${a.roomCode}/log`)).json()
+  const adjSeq = logRows.find(e => e.type === 'HOST_ADJUSTED').seq
+  await send(pa, 'HOST_REVERT', { eventSeq: adjSeq, reason: '冒烟：撤销调账' })
+  await sleep(700)
+  await pa.evaluate(() => document.querySelectorAll('.tabbar button')[3].click())
+  await shot(pa, '08f-日志-撤销画在被撤销那行上', '.logitem.revoked')
+  await expectText(pa, '08f-日志-撤销画在被撤销那行上', {
+    has: ['已被'],
+    hasNot: ['房主撤销 ·'],      // 撤销本身不占一行
+  })
+  // 撤销的是小雨的调账：她收到回执，房主自己不该收到
+  await pa.evaluate(() => document.querySelectorAll('.tabbar button')[1].click())
+  await expectText(pa, '08g-撤销回执只给当事人', { hasNot: ['刚刚发生在你身上'] })
+  await shot(pb, '08g-撤销回执只给当事人', '.receipt')
+  await expectText(pb, '08g-撤销回执只给当事人', { has: ['房主撤销'] })
+  await clickText(pb, '.btn', '我知道了')
+
+  // 「人人可买」的股票卡：无持仓的人也弹（卡面写明每个人都能买），但一个字都不该问他卖不卖
+  await send(pa, 'END_TURN')                             // 这一回合的停留格已经用掉了
+  await send(pb, 'END_TURN')
+  await sleep(300)
+  await send(pa, 'DRAW_CARD', { cardId: 'sd-001' })      // 优先股 2BIG，buyerScope=ALL
+  await sleep(700)
+  await shot(pb, '08i-无持仓者的股票窗口', '.modal')
+  await expectText(pb, '08i-无持仓者的股票窗口', {
+    has: ['这张卡注明人人可买', '没有 2BIG 持仓'],
+    hasNot: ['最多可卖', '卖出预估盈亏'],
+    noButtons: ['卖出'],
+  })
+  await send(pa, 'CARD_DECISION', { decision: 'pass' })
+  await send(pa, 'END_TURN')
+  await send(pb, 'END_TURN')
+  await sleep(400)
 
   // 市场求购：阿明名下两套 2 室公寓 → 小雨抽到求购卡 → 阿明这边应弹出逐套勾选的弹层
   await send(pa, 'HOST_ADJUST', { playerId: a.playerId, delta: 100000, reason: '冒烟：买房本金' })

@@ -130,8 +130,15 @@ const buyPreview = computed(() => {
   }
 })
 
-// 三步进度：银行结算日 → 停留格 → 结束
-const stepPayday = computed(() => st.value.turnPaydayUsed)
+// 三步进度：银行结算日 → 停留格 → 结束。任何时刻只强调当前该做的那一步（设计稿 §03）。
+//
+// 内圈 24 格里只有 3 个银行结算日，「本回合没经过」才是常态——所以第 ① 步必须走得完，
+// 否则进度条永远卡在①，玩家也没法把结算日从停留格里区分出来。
+// 这是纯本地标记：不发事件、不入账、不进日志，回合一换（turnKey 变）自动失效。
+const turnKey = computed(() => `${st.value.turnCount}:${st.value.currentPlayerId}`)
+const paydaySkippedKey = ref('')
+const paydaySkipped = computed(() => paydaySkippedKey.value === turnKey.value)
+const stepPayday = computed(() => st.value.turnPaydayUsed || paydaySkipped.value)
 const stepSquare = computed(() => st.value.turnSquareUsed)
 
 // ---- 卡内资金决策：确认弹窗 + 成功提示 ----
@@ -351,6 +358,17 @@ async function hostEndTurn() {
   })
   if (ok && await game.act('HOST_END_TURN')) game.flash(`已代 ${who} 结束回合`)
 }
+
+/** 牌桌：当前行动的人走到回合的哪一步了。全从已下发的字段派生，不加请求。 */
+const tableStepText = computed(() => {
+  const cur = game.currentPlayer
+  if (!cur) return ''
+  if (cur.inBankruptcy) return '正在破产清算'
+  if (cur.phase === 'FAST_TRACK') return '正在快车道行动'
+  if (!st.value.turnPaydayUsed) return '正在确认银行结算日'
+  if (!st.value.turnSquareUsed) return '正在选停留格'
+  return '正在结束回合'
+})
 
 /** 破产清算：还差多少才能转正，是玩家真正要算的那个数 */
 const bkGap = computed(() => Math.max(0, -(me.value?.derived.monthlyCashflow ?? 0)))
@@ -600,10 +618,33 @@ const bkGap = computed(() => Math.max(0, -(me.value?.derived.monthlyCashflow ?? 
         </p>
       </div>
 
-      <!-- 不是我的回合、也没有活动卡：显示牌桌，围观也是玩 -->
-      <div v-else-if="!myTurn" class="card quiet" style="padding:14px;text-align:center">
-        <span class="muted">{{ game.currentPlayer?.nickname ?? '其他玩家' }} 正在行动</span>
-      </div>
+      <!-- 不是我的回合、也没有活动卡：显示牌桌。围观也是玩——他走到哪一步了，看得见 -->
+      <template v-else-if="!myTurn && game.currentPlayer">
+        <div class="section-title">牌桌</div>
+        <div class="card">
+          <div class="row between">
+            <div class="row" style="gap:8px">
+              <span class="avatar-lg">{{ game.currentPlayer.nickname.slice(0, 1) }}</span>
+              <div>
+                <b style="font-size:13.5px">{{ game.currentPlayer.nickname }}</b>
+                <div class="muted" style="font-size:11px">{{ tableStepText }}</div>
+              </div>
+            </div>
+            <span class="badge turn">行动中</span>
+          </div>
+          <div v-if="game.currentPlayer.phase === 'RAT_RACE'" class="row between muted" style="margin-top:9px">
+            <span>现金 <b class="money">{{ fmt(game.currentPlayer.cash) }}</b></span>
+            <span>月现金流
+              <b class="money" :class="game.currentPlayer.derived.monthlyCashflow >= 0 ? 'pos' : 'neg'">
+                {{ game.currentPlayer.derived.monthlyCashflow >= 0 ? '+' : ''
+                }}{{ fmt(game.currentPlayer.derived.monthlyCashflow) }}</b></span>
+          </div>
+          <div v-else class="row between muted" style="margin-top:9px">
+            <span>现金 <b class="money">{{ fmt(game.currentPlayer.cash) }}</b></span>
+            <span>现金流量日收入 <b class="money">{{ fmt(game.currentPlayer.fasttrack.current_income) }}</b></span>
+          </div>
+        </div>
+      </template>
 
       <!-- 股票交易窗口收起后的重开入口 -->
       <button v-if="stockCollapsed" class="card quiet" style="width:100%;text-align:left"
@@ -611,24 +652,42 @@ const bkGap = computed(() => Math.max(0, -(me.value?.derived.monthlyCashflow ?? 
         <span class="muted">📈 {{ stockWin?.symbol }} 交易窗口已收起 · 点此重新打开（开到本回合结束）</span>
       </button>
 
-      <!-- 本回合待办：停留格分诊（我的回合） -->
-      <div v-if="myTurn" class="card focus">
-        <div class="todo-label">本回合待办 · 你停在哪种格子？</div>
-
-        <div class="section-title">银行结算日</div>
+      <!-- 第 ① 步：银行结算日。走完之前不摆第 ② 步，一次只做一件事 -->
+      <div v-if="myTurn && !stepPayday" class="card focus">
+        <div class="todo-label">本回合待办 · 银行结算日</div>
+        <p class="muted" style="margin:4px 0 10px">
+          掷骰移动后，本回合经过或停在银行结算日了吗？经过多次请一并结算。
+        </p>
         <div class="row">
-          <button class="pill grow" :class="{ done: st.turnPaydayUsed }" :disabled="st.turnPaydayUsed" @click="payday">
-            <span class="dot" :style="{ background: COLOR_PAYDAY }"></span>
-            {{ st.turnPaydayUsed ? '已结算' : '结算银行结算日' }}
+          <button class="btn grow" @click="payday">
+            <span class="dot" :style="{ background: COLOR_PAYDAY }"></span> 结算银行结算日
           </button>
-          <select v-model.number="paydayTimes" :disabled="st.turnPaydayUsed"
-                  style="width:96px" title="本轮经过/停留次数">
+          <select v-model.number="paydayTimes" style="width:96px" title="本轮经过/停留次数">
             <option v-for="n in 3" :key="n" :value="n">×{{ n }} 次</option>
           </select>
         </div>
-        <p v-if="paydayBankrupts && !st.turnPaydayUsed" class="muted" style="color:var(--red)">
+        <p v-if="paydayBankrupts" class="muted" style="color:var(--red)">
           ⚠️ 现金不足以支付到期款项，本次结算将直接进入破产清算（说明书第5页），不能改为贷款
         </p>
+        <button class="btn ghost block small" style="margin-top:10px"
+                @click="paydaySkippedKey = turnKey">本回合没经过</button>
+      </div>
+
+      <!-- 走完就收成一行，把焦点让给第 ② 步。标错了能改回来——只要钱还没入账 -->
+      <div v-else-if="myTurn" class="card quiet" style="padding:11px">
+        <div class="row between">
+          <span class="muted">
+            ✅ 银行结算日 ·
+            {{ st.turnPaydayUsed ? `已结算 ×${paydayTimes}` : '本回合没经过' }}
+          </span>
+          <button v-if="paydaySkipped" class="btn ghost small"
+                  @click="paydaySkippedKey = ''">其实经过了</button>
+        </div>
+      </div>
+
+      <!-- 第 ② 步：停留格分诊（我的回合）。这里**不含**银行结算日——那是上一步的事 -->
+      <div v-if="myTurn && stepPayday" class="card focus">
+        <div class="todo-label">本回合待办 · 你停在哪种格子？</div>
 
         <div class="section-title">抽卡</div>
         <div class="pill-row">
@@ -715,15 +774,20 @@ const bkGap = computed(() => Math.max(0, -(me.value?.derived.monthlyCashflow ?? 
                 @picked="onPicked" @close="pickerDeck = null" />
 
     <!-- 别人抽到的股票开放交易 → 走统一的底部弹层（可以先收起，窗口开到本回合结束） -->
+    <!-- 无持仓的人也会收到「人人可买」那几张卡的窗口（卡面写明每个人都能买），
+         但他不是被问「卖不卖」——来源那行必须把这件事说破，否则一屏都在问他不该答的问题 -->
     <BaseModal v-if="stockSheet && stockWin" :title="`${stockWin.symbol} 开放交易`"
                :source="iAmDrawer ? '你已表示不买；持仓仍可按今日价卖出'
-                 : `${drawerName}抽到「${activeCardInfo?.title ?? '股票报价'}」`"
+                 : stockWin.canSell ? `${drawerName}抽到「${activeCardInfo?.title ?? '股票报价'}」`
+                 : '这张卡注明人人可买 · 你没有持仓，只能买入'"
                :deck-label="DECK_SHORT[ac?.deck ?? ''] ?? '股票'"
                :deck-color="DECK_COLOR[ac?.deck ?? ''] ?? '#8FBF3F'"
                dismissable @close="game.dismissStockWindow()">
       <StockTradeBox />
       <template #actions>
-        <button class="btn ghost grow" @click="game.dismissStockWindow()">不需要，收起</button>
+        <button class="btn ghost grow" @click="game.dismissStockWindow()">
+          {{ stockWin.canSell ? '不需要，收起' : '不买，收起' }}
+        </button>
       </template>
       <template #note>
         窗口开到 {{ drawerName }} 的回合结束，可以先收起再回来。
