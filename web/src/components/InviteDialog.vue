@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import QrCode from './QrCode.vue'
+import BaseModal from './base/BaseModal.vue'
 import { useGame } from '../store'
 import { canWebShare, copyText, isLocalOrigin, isWeixin, shareInvite } from '../share'
 
@@ -29,10 +30,8 @@ async function copy() {
 </script>
 
 <template>
-  <div class="modal-mask" @click.self="emit('close')">
-    <div class="modal invite">
-      <h2 style="text-align:center">扫码加入对局</h2>
-
+  <BaseModal title="邀请朋友" source="扫码或输码都能进，不需要装应用" dismissable @close="emit('close')">
+    <div class="invite">
       <div class="qr-wrap">
         <QrCode :text="url" :size="260" />
       </div>
@@ -52,23 +51,21 @@ async function copy() {
         微信内打不开系统分享面板，请复制链接后粘贴发给朋友（或让他们直接扫上方二维码）。
       </p>
 
-      <button v-if="shareable && !weixin" class="block" @click="share">📤 邀请好友</button>
-      <div class="btn-row">
-        <button class="ghost" @click="copy">复制链接</button>
-        <button class="ghost" @click="emit('close')">关闭</button>
-      </div>
+      <button v-if="shareable && !weixin" class="btn block" @click="share">📤 分享链接</button>
 
       <!-- 非安全上下文没有 clipboard API，execCommand 需要一个真实可选中的输入框 -->
       <input ref="fallbackInput" class="offscreen" readonly :value="url" tabindex="-1" aria-hidden="true" />
     </div>
-  </div>
+
+    <template #actions>
+      <button class="btn ghost grow" @click="copy">复制链接</button>
+      <button class="btn ghost grow" @click="emit('close')">关闭</button>
+    </template>
+  </BaseModal>
 </template>
 
 <style scoped>
 .invite { text-align: center; }
-/* 并排按钮用 flex 均分：.block 的 width:100% 加 gap 会撑破容器 */
-.btn-row { display: flex; gap: 10px; margin-top: 6px; }
-.btn-row button { flex: 1; min-width: 0; }
 .qr-wrap {
   display: flex; justify-content: center;
   padding: 14px; margin: 4px 0 12px;

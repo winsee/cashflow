@@ -96,16 +96,45 @@ export interface RoomStateDto {
   winnerId: string | null
 }
 
+/** 卡面原文（卡库双轨的 raw 一侧）：逐字转录，用于渲染「和手里那张一样」的卡面。
+ *  牌堆卡有 body/fields/notes；职业卡另有 subtitle/groups。数值一律走 data，不从这里取。 */
+export interface CardRaw {
+  title?: string
+  subtitle?: string
+  body?: string[]
+  fields?: { label: string; value: string }[]
+  groups?: { name: string; rows: { label: string; value: string }[] }[]
+  notes?: string[]
+}
+
 export interface CardDto {
   id: string
   deck: string
   subtype: string
   title: string
   data: Record<string, any>
+  raw?: CardRaw
+}
+
+/** 快车道棋盘外环的两种格子（/api/board/fasttrack） */
+export interface FtBusiness {
+  id: string
+  name: string
+  down_payment: number
+  cashflow: number
+  dice_rule: { threshold: number; successCashflow?: number; lumpSum?: number } | null
+}
+
+export interface FtDream {
+  id: string
+  name: string
+  price: number
 }
 
 export interface LogEntry {
   seq: number
+  /** 该事件发生在第几轮（服务端重放给出）；0 = 开局前 */
+  turn: number
   actorId: string | null
   actor: string | null
   type: string
@@ -125,6 +154,10 @@ export interface RoomListItem {
   hasPassword: boolean
   /** 当前握着 WebSocket 的人数；0 = 空壳房间，任何人可删 */
   onlineCount: number
+  /** 第几轮；0 = 尚未开局 */
+  turnCount: number
+  /** 轮到谁的昵称；未开局为 null */
+  currentPlayer: string | null
   createdAt: string
 }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { confirmAction } from '../confirm'
 import type { CardDto } from '../types'
 import { DECKS, SUBTYPE_NAMES, fieldRows } from '../entry-fields'
 
@@ -67,15 +68,24 @@ function markOk() {
   if (doneCount.value < cards.value.length) idx.value = nextUnchecked(idx.value)
 }
 
-function markProblem() {
+async function markProblem() {
   const c = current.value
   if (!c) return
-  if (!confirm(`「${c.title}」数值有误？将跳转到录入工具修改这张卡。`)) return
+  const ok = await confirmAction({
+    title: `「${c.title}」数值有误？`,
+    lines: ['将跳转到录入工具修改这张卡'],
+  })
+  if (!ok) return
   router.push({ path: '/entry', query: { deck: deck.value, edit: c.id } })
 }
 
-function resetProgress() {
-  if (!confirm(`重置「${DECKS[deck.value]}」的核对进度（${doneCount.value}/${cards.value.length}）？`)) return
+async function resetProgress() {
+  const ok = await confirmAction({
+    title: `重置「${DECKS[deck.value]}」的核对进度？`,
+    lines: [`当前已核对 ${doneCount.value}/${cards.value.length} 张`],
+    danger: true, okText: '重置',
+  })
+  if (!ok) return
   checked.value = new Set()
   saveProgress()
   idx.value = 0
@@ -86,18 +96,18 @@ function resetProgress() {
   <div class="page no-tabbar">
     <div class="row between">
       <h1>🔍 卡牌核对</h1>
-      <button class="small ghost" @click="$router.push('/entry')">返回录入</button>
+      <button class="btn small ghost" @click="$router.push('/entry')">返回录入</button>
     </div>
 
     <div class="row wrap" style="margin:8px 0">
-      <button v-for="(name, d) in DECKS" :key="d" class="small"
+      <button v-for="(name, d) in DECKS" :key="d" class="btn small"
               :class="{ ghost: deck !== d }" @click="deck = d as string">{{ name }}</button>
     </div>
     <div class="row wrap" style="margin:8px 0">
-      <button class="small" :class="{ ghost: mode !== 'one' }" @click="mode = 'one'">逐张核对</button>
-      <button class="small" :class="{ ghost: mode !== 'list' }" @click="mode = 'list'">全字段清单</button>
+      <button class="btn small" :class="{ ghost: mode !== 'one' }" @click="mode = 'one'">逐张核对</button>
+      <button class="btn small" :class="{ ghost: mode !== 'list' }" @click="mode = 'list'">全字段清单</button>
       <span class="muted" style="margin-left:auto">已核对 {{ doneCount }}/{{ cards.length }}</span>
-      <button class="small ghost" v-if="doneCount" @click="resetProgress">重置进度</button>
+      <button class="btn small ghost" v-if="doneCount" @click="resetProgress">重置进度</button>
     </div>
 
     <input v-model="q" placeholder="搜索标题 / id / 数值…" />
@@ -123,12 +133,12 @@ function resetProgress() {
           <span class="muted">{{ label }}</span><b>{{ value }}</b>
         </div>
         <div class="row" style="margin-top:12px">
-          <button class="grow" @click="markOk">✓ 与实体卡一致</button>
-          <button class="warn" @click="markProblem">✗ 有问题</button>
+          <button class="btn grow" @click="markOk">✓ 与实体卡一致</button>
+          <button class="btn warn" @click="markProblem">✗ 有问题</button>
         </div>
         <div class="row" style="margin-top:8px">
-          <button class="small ghost grow" :disabled="idx === 0" @click="idx--">‹ 上一张</button>
-          <button class="small ghost grow" :disabled="idx >= cards.length - 1" @click="idx++">下一张 ›</button>
+          <button class="btn small ghost grow" :disabled="idx === 0" @click="idx--">‹ 上一张</button>
+          <button class="btn small ghost grow" :disabled="idx >= cards.length - 1" @click="idx++">下一张 ›</button>
         </div>
       </div>
     </template>

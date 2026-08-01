@@ -3,10 +3,15 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { keyNumbers } from '../cardinfo'
 import { canvasToBlob, cropScanFrame, ensureOcr, ocrBroken, ocrSupported, recognizeImage,
          terminateOcr } from '../ocr'
+import { DECK_COLOR, DECK_SHORT } from '../decks'
 import { useGame } from '../store'
 import type { CardDto } from '../types'
+import BaseModal from './base/BaseModal.vue'
+import GameCard from './cards/GameCard.vue'
 
 const props = defineProps<{ deck: string; deckName: string }>()
+/** 落定前的核对：卡面摆出来和手里那张对一遍 */
+const pendingCard = ref<CardDto | null>(null)
 const emit = defineEmits<{ (e: 'picked', card: CardDto): void; (e: 'close'): void }>()
 
 const game = useGame()
@@ -125,14 +130,29 @@ function failText(res: RecogResult): string {
   return '识别请求发送失败，请检查网络'
 }
 
-/** 玩家确认选卡：回填识别命中统计（FR-28，失败不影响入账），再交给上层入账 */
+/** 点中一张：先把卡面摆出来和实体卡核对一次，确认了才落定（每回合只能抽一次）。
+ *  核对期间选卡弹层整块收起（不叠弹层），<video> 已不在 DOM 上，顺手把摄像头放开。 */
 function pick(card: CardDto) {
+  stopScan()
+  pendingCard.value = card
+}
+
+/** 「重新选」：回到选卡列表，摄像头整条重开（rescan 见流已停会自己走 startScan） */
+function backToList() {
+  pendingCard.value = null
+  if (scanSupported) rescan()
+}
+
+/** 落定：回填识别命中统计（FR-28，失败不影响入账），再交给上层入账 */
+function confirmPick() {
+  const card = pendingCard.value!
   if (lastRecognitionId && game.session) {
     fetch(`/api/recognize/${lastRecognitionId}/chosen`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cardId: card.id }),
     }).catch(() => {})
   }
+  pendingCard.value = null
   stopScan()
   emit('picked', card)
 }
@@ -315,13 +335,12 @@ function close() { stopScan(); emit('close') }
 </script>
 
 <template>
-  <div class="modal-mask" @click.self="close">
-    <div class="modal">
-      <div class="row between">
-        <h2>选卡：{{ deckName }}</h2>
-        <button class="small ghost" @click="close">关闭</button>
-      </div>
-
+  <!-- 选卡弹层。pendingCard 有值时整块收起：核对弹层不叠在它上面（稿子：绝不叠弹层） -->
+  <BaseModal v-if="!pendingCard" :title="`选卡：${deckName}`"
+             source="扫描识别、拍照或手动检索都行"
+             :deck-label="DECK_SHORT[deck] ?? deckName" :deck-color="DECK_COLOR[deck]"
+             dismissable @close="close">
+    <div>
       <div v-if="camOn" class="scan-area">
         <video ref="videoEl" autoplay playsinline muted></video>
         <div class="scan-frame" :class="{ locked: scanState === 'locked' }"></div>
@@ -330,21 +349,22 @@ function close() { stopScan(); emit('close') }
         </div>
       </div>
       <div v-if="liveCands.length" class="scan-cands">
-        <div v-for="x in liveCands" :key="x.card.id" class="list-item" @click="pick(x.card)">
+        <div class="section-title">最可能的几张</div>
+        <button v-for="x in liveCands" :key="x.card.id" class="list-item" @click="pick(x.card)">
           <div class="row between">
             <b>{{ x.card.title }}</b>
-            <span class="muted">{{ Math.round(x.score * 100) }}%</span>
+            <span class="badge" :class="{ turn: x.score >= 0.85 }">{{ x.score >= 0.85 ? '很可能' : '可能' }}</span>
           </div>
           <div class="muted">{{ keyNumbers(x.card) }}</div>
-        </div>
+        </button>
       </div>
 
       <div class="row" style="margin:8px 0">
         <input v-model="q" placeholder="搜标题 / 关键词 / 金额" @input="search" />
-        <button v-if="scanSupported && scanState === 'off'" class="small ghost" @click="startScan">📷 扫描</button>
-        <button v-else-if="scanState === 'locked'" class="small ghost" @click="rescan">🔄 重新扫描</button>
-        <button v-else-if="scanState === 'scanning'" class="small ghost" @click="stopScan">停止扫描</button>
-        <button v-else class="small ghost" :disabled="recognizing" @click="fileInput?.click()">
+        <button v-if="scanSupported && scanState === 'off'" class="btn small ghost" @click="startScan">📷 扫描</button>
+        <button v-else-if="scanState === 'locked'" class="btn small ghost" @click="rescan">🔄 重新扫描</button>
+        <button v-else-if="scanState === 'scanning'" class="btn small ghost" @click="stopScan">停止扫描</button>
+        <button v-else class="btn small ghost" :disabled="recognizing" @click="fileInput?.click()">
           {{ recognizing ? (ocrHint || '识别中…') : '📷 拍照' }}
         </button>
         <input ref="fileInput" type="file" accept="image/*" capture="environment"
@@ -353,13 +373,32 @@ function close() { stopScan(); emit('close') }
       <p v-if="!scanSupported" class="muted" style="margin:0 0 8px">
         拍照识别照常可用（在本机识别）。想要实时扫描框？<a href="/trust" target="_blank">开启扫描识别（一次性信任证书）</a>
       </p>
-      <div v-for="c in cards" :key="c.id" class="list-item" @click="pick(c)">
-        <b>{{ c.title }}</b>
-        <div class="muted">{{ keyNumbers(c) }}</div>
+      <div>
+        <button v-for="c in cards" :key="c.id" class="list-item" @click="pick(c)">
+          <b>{{ c.title }}</b>
+          <div class="muted">{{ keyNumbers(c) }}</div>
+        </button>
       </div>
       <p v-if="!cards.length" class="muted">没有匹配的卡，请换个关键词</p>
     </div>
-  </div>
+    <template #actions>
+      <button class="btn ghost grow" @click="close">关闭</button>
+    </template>
+  </BaseModal>
+
+  <!-- 落定前和实体卡核对一次：每回合只能抽一次 -->
+  <BaseModal v-if="pendingCard" title="确认是这张？"
+             source="和手里的实体卡核对，每回合只能抽一次"
+             :deck-label="DECK_SHORT[pendingCard.deck] ?? deckName"
+             :deck-color="DECK_COLOR[pendingCard.deck]"
+             @close="backToList()">
+    <GameCard :card="pendingCard" compact />
+    <template #actions>
+      <button class="btn grow" @click="confirmPick">就是这张</button>
+      <button class="btn ghost grow" @click="backToList()">重新选</button>
+    </template>
+    <template #note>核对无误再落定；落定后仍可在待办卡上「撤销重选」。</template>
+  </BaseModal>
 </template>
 
 <style scoped>

@@ -80,8 +80,8 @@ async function buy() {
     <div class="row">
       <input type="number" v-model.number="qty" min="1"
              :max="w.canBuy ? undefined : w.held" />
-      <button v-if="w.canSell" :disabled="overSell || qty <= 0" @click="sell">卖出</button>
-      <button v-if="w.canBuy" class="gold" :disabled="qty <= 0" @click="buy">买入</button>
+      <button class="btn" v-if="w.canSell" :disabled="overSell || qty <= 0" @click="sell">卖出</button>
+      <button v-if="w.canBuy" class="btn gold" :disabled="qty <= 0" @click="buy">买入</button>
     </div>
 
     <p v-if="overSell" class="muted" style="color:var(--red)">

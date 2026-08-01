@@ -335,3 +335,52 @@ def test_forced_card_settle_preview():
                 if e["type"] == "DOODAD_PAID"]
         assert paid[0]["payload"]["title"] == "为女儿举行婚礼"
         assert paid[0]["payload"]["note"] == "无孩子，无需支付"
+
+
+def test_log_turn_and_lobby_progress():
+    """日志按轮分组用的 turn 字段（含撤销行不推进轮次）+ 大厅列表的「第几轮 · 轮到谁」。"""
+    with TestClient(app) as client:
+        host = client.post("/api/rooms", json={"nickname": "房主", "name": "分组局"}).json()
+        code = host["roomCode"]
+        guest = client.post(f"/api/rooms/{code}/join", json={"nickname": "小明"}).json()
+
+        rooms = {r["code"]: r for r in client.get("/api/rooms").json()}
+        assert rooms[code]["turnCount"] == 0            # 未开局不报轮次
+        assert rooms[code]["currentPlayer"] is None
+
+        with client.websocket_connect(f"/ws?token={host['playerToken']}") as wa, \
+             client.websocket_connect(f"/ws?token={guest['playerToken']}") as wb:
+            wa.receive_json(); wb.receive_json()
+            _act(wa, "SELECT_PROFESSION", professionId="prof-006"); wb.receive_json()
+            _act(wb, "SELECT_PROFESSION", professionId="prof-010"); wa.receive_json()
+            _act(wa, "SELECT_DREAM", dreamId="ft-d-safari"); wb.receive_json()
+            _act(wb, "SELECT_DREAM", dreamId="ft-d-jet"); wa.receive_json()
+            _act(wa, "SET_TURN_ORDER", order=[host["playerId"], guest["playerId"]])
+            wb.receive_json()
+            _act(wa, "START_GAME"); wb.receive_json()
+
+            _act(wa, "PAYDAY"); wb.receive_json()
+            _act(wa, "END_TURN"); wb.receive_json()     # 第 1 轮 · 房主结束
+            _act(wb, "PAYDAY"); wa.receive_json()
+            _act(wb, "END_TURN"); wa.receive_json()     # 回到首位 → 第 2 轮
+            _act(wa, "PAYDAY"); wb.receive_json()
+
+        log = client.get(f"/api/rooms/{code}/log").json()
+        turns = lambda t: [e["turn"] for e in log if e["type"] == t]   # noqa: E731
+        assert turns("PLAYER_JOINED") == [0, 0]         # 开局前的事件不属于任何一轮
+        assert turns("GAME_STARTED") == [0]
+        assert turns("TURN_ENDED") == [1, 1]            # 记的是「结束的那一轮」
+        assert turns("PAYDAY") == [1, 1, 2]
+
+        rooms = {r["code"]: r for r in client.get("/api/rooms").json()}
+        assert rooms[code]["turnCount"] == 2
+        assert rooms[code]["currentPlayer"] == "房主"
+
+        # 撤销那条让轮次进位的 TURN_ENDED：之后的行退回第 1 轮（撤销行不参与重放）
+        wrap = max(e["seq"] for e in log if e["type"] == "TURN_ENDED")
+        with client.websocket_connect(f"/ws?token={host['playerToken']}") as wa:
+            wa.receive_json()
+            _act(wa, "HOST_REVERT", eventSeq=wrap, reason="测试撤销")
+        after = client.get(f"/api/rooms/{code}/log").json()
+        assert next(e for e in after if e["seq"] == wrap)["revoked"] is True
+        assert [e["turn"] for e in after if e["type"] == "PAYDAY"] == [1, 1, 1]

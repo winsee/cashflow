@@ -256,13 +256,27 @@ class RoomSession:
             conns.clear()
 
     def log_rows(self) -> list[dict]:
+        """事件流 + 每行所属轮次（日志页按轮分组用）。
+
+        轮次由引擎自身重放给出，零漂移：靠 TURN_ENDED 反推会被停赛/出局玩家带偏
+        （_advance_turn 可能连跳好几个座位）。撤销行不参与重放——与 _revert 同一手法，
+        否则重放出的状态和真实状态对不上。开局前的事件记 turn=0，前端显示「开局前」。
+        """
         rows = self.db.events_for_room(self.room_id, include_revoked=True)
         nick = {pid: p.nickname for pid, p in self.state.players.items()}
         out = []
+        state = RoomState()
         for r in rows:
             payload = json.loads(r["payload"])
+            turn = state.turn_count if state.status is RoomStatus.PLAYING else 0
+            if r["revoked_by"] is None:
+                try:
+                    state = E.apply(state, {"type": r["type"], "payload": payload})
+                except Exception:
+                    pass          # 日志是只读视图，重放不成也不能让整页拿不到
             out.append({
                 "seq": r["seq"],
+                "turn": turn,
                 "actorId": r["actor_player_id"],
                 "actor": nick.get(r["actor_player_id"],
                                   payload.get("nickname", r["actor_player_id"])),
@@ -356,6 +370,7 @@ class RoomManager:
         out = []
         for sess in self.rooms.values():
             s = sess.state
+            cur = s.players.get(s.current_player_id or "")
             out.append({
                 "code": sess.code,
                 "name": s.settings.name,
@@ -364,6 +379,9 @@ class RoomManager:
                 "maxPlayers": s.settings.max_players,
                 "hasPassword": sess.password_hash is not None,
                 "onlineCount": sess.online_count,
+                # 大厅要写清「第几轮 · 轮到谁」，未开局的房间这两项没有意义
+                "turnCount": s.turn_count if s.status is RoomStatus.PLAYING else 0,
+                "currentPlayer": cur.nickname if s.status is RoomStatus.PLAYING and cur else None,
                 "createdAt": sess.created_at,
             })
         out.sort(key=lambda r: r["createdAt"], reverse=True)

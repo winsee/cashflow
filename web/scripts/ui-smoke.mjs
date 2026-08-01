@@ -1,0 +1,339 @@
+/**
+ * UI 冒烟：在真浏览器里开两个页面跑一局，覆盖这次重构改动最大的几屏，逐屏截图。
+ *
+ * 它挡的是「类型过了、构建过了、但一进页面就白屏」这类错误 —— 双设备端到端仍需人在
+ * 现场按 README 的验收清单走一遍，这里只保证渲染链路不断。
+ *
+ * 依赖：npm run build 先跑过（服务端挂 web/dist）；系统装了 Edge/Chrome。
+ * 用法：npm run ui-smoke
+ * 产物：build/ui-smoke/*.png（不进 git）
+ */
+import { spawn } from 'node:child_process'
+import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import puppeteer from 'puppeteer-core'
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const repo = resolve(root, '..')
+const OUT = join(repo, 'build', 'ui-smoke')
+const PORT = 8391
+const BASE = `http://127.0.0.1:${PORT}`
+
+const BROWSERS = [
+  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+  'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
+  'C:/Program Files/Google/Chrome/Application/chrome.exe',
+]
+const browserPath = BROWSERS.find(existsSync)
+if (!browserPath) { console.error('找不到 Edge/Chrome'); process.exit(1) }
+if (!existsSync(join(root, 'dist', 'index.html'))) {
+  console.error('缺少 dist/，先跑 npm run build'); process.exit(1)
+}
+
+rmSync(OUT, { recursive: true, force: true })
+mkdirSync(OUT, { recursive: true })
+
+const py = join(repo, 'server', '.venv', 'Scripts', 'python.exe')
+const server = spawn(py, ['-m', 'app.serve'], {
+  cwd: join(repo, 'server'),
+  env: { ...process.env, CASHFLOW_HTTPS: 'off', CASHFLOW_HTTP_PORT: String(PORT) },
+  // 管道必须有人读，否则 uvicorn 写满缓冲就卡住不动
+  stdio: ['ignore', 'pipe', 'pipe'],
+})
+server.stdout.on('data', () => {})
+server.stderr.on('data', d => { if (/Traceback|Error/.test(String(d))) process.stdout.write(String(d)) })
+
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+async function waitServer() {
+  for (let i = 0; i < 60; i++) {
+    try { if ((await fetch(`${BASE}/api/health`)).ok) return } catch {}
+    await sleep(500)
+  }
+  throw new Error('服务端没起来')
+}
+
+/** 直接走 REST 建房/入座，避免把冒烟测试写成脆弱的点击脚本 */
+async function api(path, body) {
+  const r = await fetch(BASE + path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!r.ok) throw new Error(`${path} → ${r.status} ${await r.text()}`)
+  return r.json()
+}
+
+const failures = []
+const killers = []
+// 断线那一屏是故意把网切掉的：重连失败的 WS 报错是被测行为本身，不算问题
+let offlineOnPurpose = false
+const EXPECTED_OFFLINE = /WebSocket connection to .* failed/
+// tesseract 的 WASM 引擎启动时会往 console.error 刷一串 “Parameter not found”，
+// 是它自己的配置项告警，不是本项目的代码问题
+const OCR_NOISE = /Parameter not found|Estimating resolution|Warning: Invalid resolution/
+
+/** 截图并断言这一屏确实渲染出来了（要求出现的选择器写在 must 里） */
+async function shot(page, name, must) {
+  await sleep(500)
+  await page.screenshot({ path: join(OUT, `${name}.png`) })
+  const ok = await page.evaluate(sel => {
+    const text = (document.getElementById('app')?.innerText ?? '').trim()
+    return text.length >= 8 && (!sel || !!document.querySelector(sel))
+  }, must ?? '')
+  if (!ok) failures.push(`${name}: 没渲染出预期内容（${must ?? '非空'}）`)
+  console.log(`  ${ok ? '✓' : '✗'} ${name}`)
+}
+
+/** 文案断言：有些屏的关键不是「有没有元素」，而是「写没写清楚 / 有没有多出不该有的按钮」 */
+async function expectText(page, name, { has = [], hasNot = [], noButtons = [] } = {}) {
+  const { text, buttons } = await page.evaluate(() => ({
+    text: document.getElementById('app')?.innerText ?? '',
+    buttons: [...document.querySelectorAll('.btn')].map(b => b.textContent.trim()),
+  }))
+  for (const s of has) if (!text.includes(s)) failures.push(`${name}: 少了「${s}」`)
+  for (const s of hasNot) if (text.includes(s)) failures.push(`${name}: 不该出现「${s}」`)
+  for (const s of noButtons) if (buttons.includes(s)) failures.push(`${name}: 不该有「${s}」按钮`)
+}
+
+async function main() {
+  await waitServer()
+
+  // 建房 + 两名玩家（A 房主 / B）
+  const a = await api('/api/rooms', { nickname: '阿明', name: '冒烟局', maxPlayers: 4, password: null })
+  const b = await api(`/api/rooms/${a.roomCode}/join`, { nickname: '小雨', password: null })
+
+  // 不用 puppeteer.launch：Windows 上的 Edge 会把启动交接给别的进程再自己退出
+  // （puppeteer 报 "Failed to launch the browser process: Code: 0"）。自己拉起来再连调试端口。
+  const dbgPort = 9700 + (process.pid % 200)
+  const edge = spawn(browserPath, [
+    '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
+    `--remote-debugging-port=${dbgPort}`,
+    `--user-data-dir=${join(tmpdir(), `cashflow-ui-smoke-${process.pid}`)}`,
+    'about:blank',
+  ], { stdio: 'ignore' })
+  killers.push(() => edge.kill())
+  for (let i = 0; ; i++) {
+    try { if ((await fetch(`http://127.0.0.1:${dbgPort}/json/version`)).ok) break } catch {}
+    if (i > 100) throw new Error(`浏览器调试端口 ${dbgPort} 没起来`)
+    await sleep(200)
+  }
+  const browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${dbgPort}` })
+
+  // 每个玩家一个独立的浏览器上下文：同一个 profile 里两个 tab 共享 localStorage，
+  // 会话会互相覆盖，第二个人一开就把第一个人的身份顶掉。
+  async function openAs(session) {
+    const ctx = await browser.createBrowserContext()
+    const page = await ctx.newPage()
+    await page.setViewport({ width: 400, height: 860, deviceScaleFactor: 2 })
+    page.on('pageerror', e => failures.push(`控制台异常: ${e.message}`))
+    page.on('console', m => {
+      if (m.type() !== 'error') return
+      if (offlineOnPurpose && EXPECTED_OFFLINE.test(m.text())) return
+      if (OCR_NOISE.test(m.text())) return
+      failures.push(`console.error: ${m.text()}`)
+    })
+    await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+    await page.evaluate((s, nick) => {
+      localStorage.setItem('cashflow.session', JSON.stringify(s))
+      localStorage.setItem('cashflow.nickname', nick)   // 没有昵称会被路由守卫弹回欢迎页
+    }, session, session.nickname)
+    // 只改 hash 不会重新加载页面，store 就永远拿不到刚写进去的会话 —— 必须真刷一次
+    await page.goto(`${BASE}/#/play`, { waitUntil: 'domcontentloaded' })
+    await page.reload({ waitUntil: 'networkidle2' })
+    await page.waitForSelector('.page', { timeout: 10000 }).catch(() => {})
+    return page
+  }
+
+  const pa = await openAs({ ...a, nickname: '阿明' })
+  const pb = await openAs({ ...b, nickname: '小雨' })
+
+  // 房间准备：职业/梦想横滑选择器
+  await pa.goto(`${BASE}/#/room`, { waitUntil: 'networkidle2' })
+  await shot(pa, '01-房间准备-职业卡横滑', '.swipe .pcard')
+
+  // 走 WS 太绕，直接用 REST 之外的路径不现实 —— 改在页面里点
+  const send = (page, type, payload = {}) => page.evaluate((t, p) => {
+    const s = JSON.parse(localStorage.getItem('cashflow.session'))
+    return new Promise(res => {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+      const ws = new WebSocket(`${proto}://${location.host}/ws?token=${s.playerToken}`)
+      ws.onopen = () => ws.send(JSON.stringify({ actionId: String(Math.random()), type: t, payload: p }))
+      ws.onmessage = e => {
+        const m = JSON.parse(e.data)
+        if (m.type === 'ack' || m.type === 'error') { ws.close(); res(m) }
+      }
+      setTimeout(() => { ws.close(); res({ type: 'timeout' }) }, 4000)
+    })
+  }, type, payload)
+
+  await send(pa, 'SELECT_PROFESSION', { professionId: 'prof-006' })   // 医生
+  await send(pb, 'SELECT_PROFESSION', { professionId: 'prof-010' })   // 经理
+  await send(pa, 'SELECT_DREAM', { dreamId: 'ft-d-safari' })
+  await send(pb, 'SELECT_DREAM', { dreamId: 'ft-d-jet' })
+  await pa.reload({ waitUntil: 'networkidle2' })
+  await shot(pa, '02-房间准备-已选完', '.steps .s.ok')
+
+  await send(pa, 'SET_TURN_ORDER', { order: [a.playerId, b.playerId] })
+  await send(pa, 'START_GAME')
+  await sleep(400)
+
+  // 老鼠赛跑：行动页 / 报表页 / 总览 / 日志
+  await pa.goto(`${BASE}/#/play`, { waitUntil: 'networkidle2' })
+  await shot(pa, '03-老鼠赛跑-行动页', '.hud .cash')
+
+  // 选卡 → 核对：两层都走统一弹层，且**绝不叠**（核对时选卡列表整块收起）
+  const clickText = (page, sel, text) => page.evaluate((s, t) => {
+    const el = [...document.querySelectorAll(s)].find(x => x.textContent.includes(t))
+    if (el) el.click()
+  }, sel, text)
+
+  await clickText(pa, '.pill', '大买卖')
+  // 弹层一开就并行拉起浏览器端 OCR（WASM 十几 MB），首帧渲染会被拖慢，等它一下
+  await pa.waitForSelector('.modal .list-item', { timeout: 20000 }).catch(() => {})
+  await shot(pa, '03b-选卡弹层', '.modal .list-item')
+  await pa.evaluate(() => document.querySelector('.modal .list-item')?.click())
+  await pa.waitForSelector('.modal .gcard', { timeout: 5000 }).catch(() => {})
+  await shot(pa, '03c-选卡核对', '.modal .gcard')
+  const layers = await pa.evaluate(() => document.querySelectorAll('.modal-mask').length)
+  if (layers !== 1) failures.push(`03c-选卡核对: 弹层叠了 ${layers} 层`)
+  await clickText(pa, '.modal .btn', '重新选')
+  await clickText(pa, '.modal .btn', '关闭')
+
+  // 二次确认：压在弹层之上的那一层（--z-confirm）
+  await clickText(pa, '.pill', '结算银行结算日')
+  await shot(pa, '03d-二次确认', '.modal-mask.confirm')
+  await clickText(pa, '.modal .btn', '取消')
+
+  // 抽一张大买卖卡 → 两台应同时显示同一张卡面
+  await send(pa, 'DRAW_CARD', { cardId: 'bd-001' })
+  await sleep(600)
+  await shot(pa, '04-抽卡人看到的卡面', '.gcard-title')
+  await shot(pb, '05-旁观者看到同一张卡', '.gcard-title')
+
+  await send(pa, 'CARD_DECISION', { decision: 'pass' })
+  await sleep(300)
+
+  await pa.evaluate(() => document.querySelectorAll('.tabbar button')[0].click())
+  await shot(pa, '06-报表页-老鼠赛跑', 'table.fin')
+  await pa.evaluate(() => document.querySelectorAll('.tabbar button')[2].click())
+  await shot(pa, '07-总览页', '.progress')
+  await pa.evaluate(() => document.querySelectorAll('.tabbar button')[3].click())
+  await shot(pa, '08-日志页', '.logdot')
+
+  // 被动回执：房主给小雨调账 → 小雨没操作却被改了账，应收到「刚刚发生在你身上」
+  await pa.evaluate(() => document.querySelectorAll('.tabbar button')[1].click())
+  await send(pa, 'HOST_ADJUST', { playerId: b.playerId, delta: -1500, reason: '冒烟：代收罚款' })
+  await sleep(600)
+  await shot(pb, '08b-被动回执', '.receipt')
+
+  // 市场求购：阿明名下两套 2 室公寓 → 小雨抽到求购卡 → 阿明这边应弹出逐套勾选的弹层
+  await send(pa, 'HOST_ADJUST', { playerId: a.playerId, delta: 100000, reason: '冒烟：买房本金' })
+  for (let i = 0; i < 2; i++) {
+    await send(pa, 'DRAW_CARD', { cardId: 'bd-001' })
+    await send(pa, 'CARD_DECISION', { decision: 'buy' })
+    await send(pa, 'END_TURN')
+    await send(pb, 'END_TURN')
+    await sleep(250)          // 每条动作各开一条 WS，别让下一轮抢在广播前面
+  }
+  await send(pa, 'END_TURN')
+  await send(pb, 'DRAW_CARD', { cardId: 'mk-020' })   // 求购公寓，按间计价
+  await sleep(800)
+  await shot(pa, '08c-市场求购-逐套勾选', '.apick')
+  // 抽卡人侧：写清通知了谁、谁还没决定；不该出现那个按下会报 BAD_CARD 的「结算」
+  await shot(pb, '08d-市场求购-抽卡人侧', '.badge')
+  await expectText(pb, '08d-市场求购-抽卡人侧', {
+    has: ['已通知 1 位持有该资产的玩家', '待决定'],
+    hasNot: ['强制卡'],
+    noButtons: ['结算'],
+  })
+  await pa.evaluate(() => {
+    const el = [...document.querySelectorAll('.modal .btn')].find(x => x.textContent.includes('都不卖'))
+    if (el) el.click()
+  })
+  await sleep(600)
+  await send(pb, 'END_TURN')
+
+  // 现金流调整卡：影响所有持有该类资产的人 → 抽卡人侧应逐人列出各变多少
+  await send(pa, 'DRAW_CARD', { cardId: 'sd-018' })      // 自建企业 · 小型机械公司
+  await send(pa, 'CARD_DECISION', { decision: 'buy' })
+  await send(pa, 'END_TURN')
+  await send(pb, 'DRAW_CARD', { cardId: 'mk-008' })      // 小企业的营业额增加 +$250/月
+  await sleep(800)
+  await shot(pb, '08e-现金流调整-波及范围', '.gcard-title')
+  await expectText(pb, '08e-现金流调整-波及范围', { has: ['这张卡影响了 1 人', '阿明'] })
+  await send(pb, 'END_TURN')
+
+  // 用房主调账凑不出被动收入，改为直接买一张高现金流企业卡（医生总支出 $9,650）
+  for (const cardId of ['bd-031', 'bd-031', 'bd-031']) {
+    await send(pa, 'HOST_ADJUST', { playerId: a.playerId, delta: 500000, reason: '冒烟：代替攒钱' })
+    await send(pa, 'DRAW_CARD', { cardId })
+    await send(pa, 'CARD_DECISION', { decision: 'buy' })
+    await send(pa, 'END_TURN')
+    await send(pb, 'END_TURN')
+  }
+  await sleep(600)
+  await pa.reload({ waitUntil: 'networkidle2' })
+  await shot(pa, '09-达成条件-HUD金色横幅', '.hud-banner')
+
+  await pa.evaluate(() => {
+    const el = document.querySelector('.hud-banner')
+    if (el) el.click()
+  })
+  await shot(pa, '10-逃出老鼠赛跑-换算过场', '.curtain.ftx .cline.hero')
+
+  await pa.evaluate(() => {
+    const el = [...document.querySelectorAll('.curtain .btn')].find(x => x.textContent.includes('进入快车道'))
+    if (el) el.click()
+  })
+  await sleep(900)
+  await shot(pa, '11-快车道-整屏转金', 'body.skin-ft .hud')
+  await shot(pb, '12-其他玩家收到广播', '.hud .cash')
+
+  await pa.evaluate(() => document.querySelectorAll('.tabbar button')[0].click())
+  await shot(pa, '13-快车道记录卡-已翻面', '.card.quiet')
+
+  await pa.evaluate(() => document.querySelectorAll('.tabbar button')[1].click())
+  await sleep(200)
+  await pa.evaluate(() => {
+    const el = [...document.querySelectorAll('.pill')].find(x => x.textContent.includes('企业投资'))
+    if (el) el.click()
+  })
+  await shot(pa, '14-快车道-企业选择器弹层', '.modal .fcard.biz')
+
+  // 断线：红条常驻 + 明说操作不可用（界面保留但失效）
+  offlineOnPurpose = true
+  await pb.setOfflineMode(true)
+  // Chrome 的离线模式不掐已建立的 WebSocket，得自己关一次；
+  // 之后的自动重连在离线下必然失败，界面才会真正停在断线态
+  await pb.evaluate(() => document.querySelector('#app').__vue_app__
+    .config.globalProperties.$pinia.state.value.game.ws?.close())
+  await sleep(1200)
+  await shot(pb, '15-断线态', '.toast.err')
+  await expectText(pb, '15-断线态', { has: ['连接断开，正在重连…', '重新连上之前，操作暂不可用'] })
+  await pb.setOfflineMode(false)
+  await sleep(1800)          // 等自动重连接上，别把重连期的报错算到后面的屏上
+  offlineOnPurpose = false
+
+  // 大厅：继续对局写清第几轮/几人在线/轮到谁
+  await pa.goto(`${BASE}/#/`, { waitUntil: 'networkidle2' })
+  await shot(pa, '16-大厅-继续对局', '.card.gold')
+  await expectText(pa, '16-大厅-继续对局', { has: ['继续对局', '回到牌桌', '人在线'] })
+  await clickText(pa, '.bigbtn', '创建房间')
+  await shot(pa, '17-大厅-创建房间弹层', '.modal input')
+
+  await browser.disconnect()
+
+  if (failures.length) {
+    console.error('\n发现问题：')
+    for (const f of [...new Set(failures)]) console.error('  ✗ ' + f)
+    process.exitCode = 1
+  } else {
+    console.log(`\n全部通过，截图在 ${OUT}`)
+  }
+}
+
+main()
+  .catch(e => { console.error(e); process.exitCode = 1 })
+  .finally(() => { server.kill(); for (const k of killers) k() })

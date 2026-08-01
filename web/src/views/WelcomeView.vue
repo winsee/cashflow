@@ -30,7 +30,7 @@ function submit() {
       <input v-model="nickname" maxlength="12" placeholder="例如：老王"
              @keyup.enter="submit" autofocus />
       <p class="muted hint">昵称会记在这台设备上，之后创建/加入房间都自动带上，随时可改。</p>
-      <button class="block" style="margin-top:12px" :disabled="!nickname.trim()" @click="submit">
+      <button class="btn block" style="margin-top:12px" :disabled="!nickname.trim()" @click="submit">
         {{ editing ? '保存' : '进入大厅' }} →
       </button>
     </div>

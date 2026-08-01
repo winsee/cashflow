@@ -75,7 +75,7 @@ async function takeover() {
 
     <div class="card" v-if="notFound">
       <p style="color:var(--red)">{{ notFound }}</p>
-      <button class="block ghost" @click="router.replace('/')">返回大厅</button>
+      <button class="btn block ghost" @click="router.replace('/')">返回大厅</button>
     </div>
 
     <div class="card" v-else-if="pickSeat">
@@ -87,7 +87,7 @@ async function takeover() {
         <label>房间密码</label>
         <input v-model="password" maxlength="16" placeholder="向房主索取" />
       </template>
-      <button class="block" :disabled="busy || !seatId || (seats?.hasPassword && !password)"
+      <button class="btn block" :disabled="busy || !seatId || (seats?.hasPassword && !password)"
               @click="takeover">恢复该座位</button>
       <p v-if="!started" class="muted" style="margin-top:12px;text-align:center">
         想以新身份进来？
@@ -103,7 +103,7 @@ async function takeover() {
         <label>房间密码</label>
         <input v-model="password" maxlength="16" placeholder="向房主索取" />
       </template>
-      <button class="block"
+      <button class="btn block"
               :disabled="busy || !nickname.trim() || (seats?.hasPassword && !password)"
               @click="join">进入房间</button>
       <p v-if="seats?.players.length" class="muted" style="margin-top:12px;text-align:center">

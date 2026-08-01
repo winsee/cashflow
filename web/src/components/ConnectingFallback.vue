@@ -29,7 +29,7 @@ function backToLobby() {
     <div class="card" v-else>
       <p style="color:var(--red)">连不上对局，服务器可能已重启或房间已结束。</p>
       <p class="muted">仍在后台重试，恢复后会自动回到对局。</p>
-      <button class="block ghost" @click="backToLobby">先回大厅（对局身份会保留）</button>
+      <button class="btn block ghost" @click="backToLobby">先回大厅（对局身份会保留）</button>
     </div>
   </div>
 </template>

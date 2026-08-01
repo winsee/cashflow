@@ -55,13 +55,13 @@ onMounted(async () => {
   <div class="page no-tabbar">
     <div class="row between">
       <h1>📖 游戏说明书</h1>
-      <button class="small ghost" @click="$router.back()">返回</button>
+      <button class="btn small ghost" @click="$router.back()">返回</button>
     </div>
     <template v-if="pages.length">
       <div class="row between" style="margin:8px 0">
-        <button class="small ghost" :disabled="idx === 0" @click="go(-1)">上一页</button>
+        <button class="btn small ghost" :disabled="idx === 0" @click="go(-1)">上一页</button>
         <span class="muted">第 {{ idx + 1 }} / {{ pages.length }} 页</span>
-        <button class="small ghost" :disabled="idx >= pages.length - 1" @click="go(1)">下一页</button>
+        <button class="btn small ghost" :disabled="idx >= pages.length - 1" @click="go(1)">下一页</button>
       </div>
       <div ref="viewer" class="viewer" :class="{ zoomed }">
         <img :src="pageUrl(pages[idx])" :alt="`说明书第 ${idx + 1} 页`" @click="toggleZoom" />

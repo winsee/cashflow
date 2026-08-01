@@ -5,6 +5,7 @@ import { ApiError, loadNickname, saveNickname, useGame } from '../store'
 import type { RoomListItem, RoomSeats } from '../types'
 import { confirmAction } from '../confirm'
 import SeatPicker from '../components/SeatPicker.vue'
+import BaseModal from '../components/base/BaseModal.vue'
 
 const game = useGame()
 const router = useRouter()
@@ -209,6 +210,13 @@ function submitDialog() {
   else doDelete(d.room, { password: password.value })
 }
 
+/** 「继续对局」那张卡上的实时状态：第几轮、几人在线、轮到谁（大厅列表里就有） */
+const myRoom = computed(() => rooms.value.find(r => r.code === game.session?.roomCode) ?? null)
+
+const SHEET_TITLE: Record<string, string> = {
+  create: '创建房间', joincode: '输入房间码', rename: '修改昵称',
+}
+
 function continueGame() {
   game.connect()
   router.push(game.state?.status === 'PLAYING' || game.state?.status === 'FINISHED' ? '/play' : '/room')
@@ -224,16 +232,24 @@ function continueGame() {
       </div>
     </div>
 
-    <!-- 继续对局 -->
-    <div class="card" v-if="game.session" style="border-color:#cdb98a;background:linear-gradient(160deg,#FFFDF8,#F6ECD3)">
+    <!-- 继续对局：永远排第一，写清进行到哪一步了 -->
+    <div class="card gold" v-if="game.session">
       <div class="row between">
         <div>
-          <b>你有一局进行中</b>
-          <div class="muted">房间 {{ game.session.roomCode }}</div>
+          <div class="muted" style="font-size:11px">继续对局</div>
+          <div style="font-size:15px;font-weight:800;margin-top:2px">
+            {{ myRoom?.name ?? '你有一局进行中' }}
+            <template v-if="myRoom?.turnCount"> · 第 {{ myRoom.turnCount }} 轮</template>
+          </div>
+          <div class="muted">
+            房间 {{ game.session.roomCode }}
+            <template v-if="myRoom"> · {{ myRoom.onlineCount }} 人在线</template>
+            <template v-if="myRoom?.currentPlayer"> · 轮到{{ myRoom.currentPlayer }}</template>
+          </div>
         </div>
         <div class="row">
-          <button class="small" @click="continueGame">继续对局</button>
-          <button class="small ghost" @click="game.clearSession()">清除</button>
+          <button class="btn small gold" @click="continueGame">回到牌桌</button>
+          <button class="btn small ghost" @click="game.clearSession()">清除</button>
         </div>
       </div>
     </div>
@@ -255,7 +271,7 @@ function continueGame() {
     <!-- 房间大厅 -->
     <div class="row between">
       <div class="section-title">房间大厅</div>
-      <button class="small ghost" :disabled="loading" @click="refresh">🔄 刷新</button>
+      <button class="btn small ghost" :disabled="loading" @click="refresh">🔄 刷新</button>
     </div>
     <div class="card" style="padding:2px 14px" v-if="rooms.length">
       <div v-for="room in rooms" :key="room.code" class="list-item row between" @click="tapRoom(room)">
@@ -266,12 +282,14 @@ function continueGame() {
           <div class="muted" style="margin-top:3px">
             <span class="badge" :class="{ turn: room.status === 'PLAYING' }">
               {{ STATUS_LABEL[room.status] ?? room.status }}</span>
-            {{ room.playerCount }}/{{ room.maxPlayers }} 人
-            <span v-if="!room.onlineCount" class="badge">无人在线</span>
-            <template v-if="room.status !== 'LOBBY'">· 点击恢复座位</template>
+            {{ room.playerCount }} / {{ room.maxPlayers }} 人 ·
+            {{ room.onlineCount ? `${room.onlineCount} 人在线` : '无人在线' }}
+            <template v-if="room.turnCount"> · 第 {{ room.turnCount }} 轮</template>
+            <template v-if="room.currentPlayer"> · 轮到{{ room.currentPlayer }}</template>
+            <template v-if="room.status !== 'LOBBY'"> · 点击恢复座位</template>
           </div>
         </div>
-        <button class="small ghost" @click.stop="tapDelete(room)">🗑</button>
+        <button class="btn small ghost" @click.stop="tapDelete(room)">🗑</button>
       </div>
     </div>
     <p v-else class="muted" style="text-align:center;padding:18px 0">
@@ -283,11 +301,10 @@ function continueGame() {
       <router-link to="/entry" style="color:var(--muted)">🗂️ 卡牌录入</router-link>
     </p>
 
-    <!-- ===== 底部 sheet ===== -->
-    <div v-if="sheet" class="modal-mask" @click.self="sheet = null">
-      <div class="modal">
+    <!-- ===== 底部弹层：创建 / 输入房间码 / 改名 ===== -->
+    <BaseModal v-if="sheet" :title="SHEET_TITLE[sheet]" dismissable @close="sheet = null">
+      <div>
         <template v-if="sheet === 'create'">
-          <h2>创建房间</h2>
           <label>房间名</label>
           <input v-model="roomName" maxlength="20" placeholder="例如：周末局" />
           <label>房间密码（可选，防止别人随意加入）</label>
@@ -296,14 +313,9 @@ function continueGame() {
           <select v-model.number="maxPlayers">
             <option v-for="n in [2,3,4,5,6]" :key="n" :value="n">{{ n }} 人</option>
           </select>
-          <button class="block" style="margin-top:14px"
-                  :disabled="busy || !roomName.trim() || !nickname.trim()" @click="create">
-            创建房间（你作为房主）
-          </button>
         </template>
 
         <template v-else-if="sheet === 'joincode'">
-          <h2>输入房间码</h2>
           <label>房间码（4 位）</label>
           <input v-model="joinCode" maxlength="6" placeholder="例如：JP8Q"
                  style="text-transform:uppercase;letter-spacing:3px;font-weight:700"
@@ -311,28 +323,32 @@ function continueGame() {
           <label>房间密码（若有）</label>
           <input v-model="codePassword" maxlength="16" placeholder="没有就留空" @keyup.enter="submitCode" />
           <p v-if="codeError" class="muted" style="color:var(--red)">{{ codeError }}</p>
-          <button class="block" style="margin-top:14px"
-                  :disabled="busy || !joinCode.trim() || !nickname.trim()" @click="submitCode">
-            加入
-          </button>
         </template>
 
         <template v-else>
-          <h2>修改昵称</h2>
           <label>昵称会记在本机，之后自动带上</label>
           <input v-model="nickname" maxlength="12" placeholder="例如：老王" @keyup.enter="sheet = null" />
-          <button class="block" style="margin-top:14px" :disabled="!nickname.trim()" @click="sheet = null">
-            完成
-          </button>
         </template>
       </div>
-    </div>
+      <template #actions>
+        <button v-if="sheet === 'create'" class="btn grow"
+                :disabled="busy || !roomName.trim() || !nickname.trim()" @click="create">
+          创建房间（你作为房主）
+        </button>
+        <button v-else-if="sheet === 'joincode'" class="btn grow"
+                :disabled="busy || !joinCode.trim() || !nickname.trim()" @click="submitCode">加入</button>
+        <button v-else class="btn grow" :disabled="!nickname.trim()" @click="sheet = null">完成</button>
+        <button class="btn ghost grow" @click="sheet = null">取消</button>
+      </template>
+    </BaseModal>
 
-    <!-- ===== 列表房间：加入 / 接管 / 删除弹窗 ===== -->
-    <div v-if="dialog" class="modal-mask" @click.self="dialog = null">
-      <div class="modal">
+    <!-- ===== 列表房间：加入 / 接管 / 删除 ===== -->
+    <BaseModal v-if="dialog" dismissable @close="dialog = null"
+               :title="dialog.mode === 'join' ? `加入 ${dialog.room.name}`
+                 : dialog.mode === 'takeover' ? `恢复座位 · ${dialog.room.name}`
+                 : `删除房间 ${dialog.room.name}`">
+      <div>
         <template v-if="dialog.mode === 'join'">
-          <h2>加入 {{ dialog.room.name }}</h2>
           <label>你的昵称</label>
           <input v-model="nickname" maxlength="12" placeholder="例如：老王" />
           <template v-if="dialog.room.hasPassword">
@@ -346,7 +362,6 @@ function continueGame() {
           </p>
         </template>
         <template v-else-if="dialog.mode === 'takeover'">
-          <h2>恢复座位 · {{ dialog.room.name }}</h2>
           <p class="muted">选中你自己的座位即可拿回身份（该座位的原设备会立即下线）。</p>
           <SeatPicker :players="dialog.seats?.players ?? []" v-model="dialog.seatId" />
           <template v-if="dialog.seats?.hasPassword">
@@ -361,7 +376,6 @@ function continueGame() {
           </p>
         </template>
         <template v-else>
-          <h2>删除房间 {{ dialog.room.name }}</h2>
           <p style="color:var(--red);font-weight:700">⚠️ 对局尚未结束，删除后所有玩家将被踢出且无法恢复！</p>
           <template v-if="dialog.room.hasPassword">
             <label>输入房间密码以确认</label>
@@ -370,19 +384,19 @@ function continueGame() {
           <p v-else class="muted">
             该房间未设密码且仍有人在线，只有房主（在房主手机上）才能删除。</p>
         </template>
-        <div class="row" style="margin-top:14px">
-          <button class="grow" :class="{ warn: dialog.mode === 'delete' }"
-                  :disabled="busy
-                    || (dialog.mode === 'join' && !nickname.trim())
-                    || (dialog.mode === 'takeover' && !dialog.seatId)
-                    || (dialog.mode !== 'takeover' && dialog.room.hasPassword && !password)
-                    || (dialog.mode === 'delete' && !dialog.room.hasPassword)"
-                  @click="submitDialog">
-            {{ dialog.mode === 'join' ? '加入' : dialog.mode === 'takeover' ? '恢复该座位' : '删除' }}
-          </button>
-          <button class="grow ghost" @click="dialog = null">取消</button>
-        </div>
       </div>
-    </div>
+      <template #actions>
+        <button class="btn grow" :class="{ warn: dialog.mode === 'delete' }"
+                :disabled="busy
+                  || (dialog.mode === 'join' && !nickname.trim())
+                  || (dialog.mode === 'takeover' && !dialog.seatId)
+                  || (dialog.mode !== 'takeover' && dialog.room.hasPassword && !password)
+                  || (dialog.mode === 'delete' && !dialog.room.hasPassword)"
+                @click="submitDialog">
+          {{ dialog.mode === 'join' ? '加入' : dialog.mode === 'takeover' ? '恢复该座位' : '删除' }}
+        </button>
+        <button class="btn ghost grow" @click="dialog = null">取消</button>
+      </template>
+    </BaseModal>
   </div>
 </template>

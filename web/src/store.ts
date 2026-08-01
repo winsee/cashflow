@@ -1,5 +1,15 @@
 import { defineStore } from 'pinia'
+import { buildCardImpact, buildReceipts, type CardImpact, type Receipt } from './receipts'
 import type { CardDto, LogEntry, Player, Prompt, RoomListItem, RoomSeats, RoomStateDto } from './types'
+
+/** toast 的四种口吻：成功 / 出错 / 仪式（金色高光）/ 中性信息 */
+export type FlashVariant = 'ok' | 'err' | 'gold' | 'info'
+
+export interface Notice {
+  id: number
+  msg: string
+  variant: FlashVariant
+}
 
 interface Session {
   roomCode: string
@@ -72,14 +82,21 @@ export const useGame = defineStore('game', {
     seq: 0,
     connected: false,
     lastError: '' as string,
-    notice: '' as string,
+    /** toast 队列：同时来两条就排队，一次只显示一条，绝不叠加 */
+    notices: [] as Notice[],
     sessionLost: false,          // 服务端拒绝了本机身份；App.vue 据此跳回大厅
     ws: null as WebSocket | null,
     pendingResolvers: new Map<string, (ok: boolean) => void>(),
     pendingTypes: {} as Record<string, boolean>,
+    /** 我最近发出的行动类型 → 时间戳。用于把「自己主动做的事」从被动回执里排掉 */
+    recentActionAt: {} as Record<string, number>,
     reconnectTimer: 0 as any,
     noticeTimer: 0 as any,
     stockDismissed: '' as string,   // 我点过「不需要」的股票窗口 key（纯本地，不广播）
+    /** 「刚刚发生在你身上」：没操作却改了我的账的事，停在行动页顶部直到本人确认 */
+    receipts: [] as Receipt[],
+    /** 当前这张卡波及了谁（全员可见的「大声读出来」那一份），随卡失效 */
+    lastImpact: null as CardImpact | null,
   }),
   getters: {
     me(): Player | null {
@@ -121,6 +138,20 @@ export const useGame = defineStore('game', {
       const w = this.myStockWindow
       return !!w && this.stockDismissed !== w.key
     },
+    /** 当前该显示的那一条 toast（队首） */
+    notice(): Notice | null {
+      return this.notices[0] ?? null
+    },
+    /** 当前活动卡的波及范围；换一张卡（或换一轮抽到同一张）即自动作废 */
+    cardImpact(): CardImpact | null {
+      const ac = this.state?.activeCard
+      if (!ac || !this.lastImpact) return null
+      return this.lastImpact.key === `${ac.card_id}@${this.state!.turnCount}` ? this.lastImpact : null
+    },
+    /** 我是不是在快车道：整屏换肤、报表翻面、HUD 换算都看它 */
+    inFasttrack(): boolean {
+      return this.me?.phase === 'FAST_TRACK'
+    },
   },
   actions: {
     saveSession(s: Session) {
@@ -141,6 +172,7 @@ export const useGame = defineStore('game', {
     clearSession() {
       this.session = null
       this.state = null
+      this.receipts = []
       localStorage.removeItem('cashflow.session')
       this.ws?.close()
       this.ws = null
@@ -218,6 +250,9 @@ export const useGame = defineStore('game', {
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data)
         if (msg.type === 'snapshot' || msg.type === 'state') {
+          // 先用「旧快照 + 本批事件」算回执，再换上新快照：
+          // 被没收的资产在新快照里已经不存在了，名字只能从旧的那份拿。
+          if (msg.type === 'state' && msg.lastEvents?.length) this.ingestEvents(msg.lastEvents)
           this.seq = msg.seq
           this.state = msg.state
         } else if (msg.type === 'ack') {
@@ -248,16 +283,48 @@ export const useGame = defineStore('game', {
         }
       }
     },
-    /** 「不需要」：只收起我自己这一次的股票交易窗口，不发事件、不影响别人 */
+    /** 「不需要」：只收起我自己这一次的股票交易窗口，不发事件、不影响别人。
+     *  窗口本身活到抽卡人回合结束，收起后行动页顶部仍留一个重新打开的入口。 */
     dismissStockWindow() {
       const w = this.myStockWindow
       if (w) this.stockDismissed = w.key
     },
-    /** 成功提示（绿色 toast，3 秒自动消失） */
-    flash(msg: string) {
-      this.notice = msg
+    reopenStockWindow() {
+      this.stockDismissed = ''
+    },
+    /** 一句提示（默认绿色，3 秒自动消失）。同时来两条就排队，一次只显示一条。 */
+    flash(msg: string, variant: FlashVariant = 'ok') {
+      this.notices.push({ id: Date.now() + this.notices.length, msg, variant })
+      if (this.notices.length === 1) this.scheduleNotice()
+    },
+    /** 队首显示满 3 秒（金色仪式提示停久一点）后出队，接着显示下一条 */
+    scheduleNotice() {
       clearTimeout(this.noticeTimer)
-      this.noticeTimer = setTimeout(() => { this.notice = '' }, 3000)
+      const cur = this.notices[0]
+      if (!cur) return
+      this.noticeTimer = setTimeout(() => this.dismissNotice(), cur.variant === 'gold' ? 4500 : 3000)
+    },
+    dismissNotice() {
+      this.notices.shift()
+      this.scheduleNotice()
+    },
+
+    /** 从本批事件里挑出「没经我操作却改了我的账」的部分，推成可消回执。
+     *  必须在换上新快照之前调用（见 connect 里的注释）。 */
+    ingestEvents(events: { type: string; payload: Record<string, any> }[]) {
+      const meId = this.session?.playerId
+      if (!meId || !this.state) return
+      const fresh = buildReceipts(events, this.state, meId, this.recentActionAt)
+      if (fresh.length) this.receipts.push(...fresh)
+      // 波及范围与回执用同一批事件、同一个「换快照前」的时机：被没收的资产名只在旧快照里有
+      const impact = buildCardImpact(events, this.state)
+      if (impact) this.lastImpact = impact
+    },
+    dismissReceipt(id: string) {
+      this.receipts = this.receipts.filter(r => r.id !== id)
+    },
+    clearReceipts() {
+      this.receipts = []
     },
     /** 发送行动；返回是否被服务器接受（错误会展示在 lastError）。
      *  同类型行动在途时忽略后续点击，防止双击造成两笔贷款/结算。 */
@@ -273,6 +340,7 @@ export const useGame = defineStore('game', {
           return
         }
         this.pendingTypes[type] = true
+        this.recentActionAt[type] = Date.now()
         const actionId = uuid()
         this.pendingResolvers.set(actionId, (ok) => {
           this.pendingResolvers.delete(actionId)
@@ -323,6 +391,14 @@ export function loadNickname(): string {
 
 export function saveNickname(n: string) {
   try { localStorage.setItem('cashflow.nickname', n) } catch { /* 隐私模式下忽略 */ }
+}
+
+/** 快车道胜利条件之一：现金流量日收入比进场时多出 $50,000（说明书 P.5） */
+export const FT_WIN_INCREMENT = 50_000
+
+/** 快车道胜利进度（%）。别再散着写 `/500` 这种魔数。 */
+export function ftWinProgress(f: { initial_income: number; current_income: number }): number {
+  return Math.min(100, Math.round((f.current_income - f.initial_income) / FT_WIN_INCREMENT * 100))
 }
 
 export function fmt(n: number | undefined | null): string {

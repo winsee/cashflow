@@ -38,11 +38,51 @@ subtype（骰子赌局/收藏品/溢价收购/现金流调整/分期收款）、
 根因是 `saveSession` 换令牌时没关旧 WebSocket，新会话永远连不上、旧房间广播还会触发
 「你已不在该房间」把会话清掉——这条已修并有回归覆盖。
 
+**UX/UI 重构已完成（呈现层重做，功能流程未动）。** 设计稿 45 屏，实现要点：
+① **阶段换肤**——老鼠赛跑墨绿、快车道金箔，`<body>` 上挂 `.skin-ft` 覆盖一层颜色变量即整屏换肤，
+不逐个组件染色；语义色（正绿负红）与三种卡面不参与换肤。
+② **三种卡面组件**（`components/cards/`）：牌堆卡 `GameCard`（渲染 `raw.{title,body,fields,notes}`，
+米白卡纸 + 宋体首行缩进两字 + 顶部牌堆色条）、职业卡 `ProfessionCard`（照实体的黑条分区两栏表）、
+快车道格子 `FtSquareCard`（绿格/粉格）。为此 `/api/cards` 增加下发 `raw`。
+③ **全员同步看牌**——`ActionTab` 里卡面对所有人渲染，抽卡人得到操作区、其他人看到等待态。
+④ **统一弹层** `BaseModal`——「我的待办→页内聚焦卡；别人的动作波及到我→底部弹层」，六个固定槽位。
+求购卡按 `card_id` 归组、逐套勾选（服务端本就一套资产一条 prompt，协议未改）。
+⑤ **被动回执** `receipts.ts`——从 WS `state.lastEvents`（服务端本就下发）派生，
+用 `recentActionAt` 把自己主动做的事排除掉；`flash()` 改成带 variant 的队列。
+⑥ 裸 `button` 降级为中性重置，主按钮改显式 `.btn`；抽出 `BaseModal/PageHeader/BaseButton/EmptyState/StatRow`。
+⑦ PWA：`vite-plugin-pwa` 预缓存离线壳，`/tesseract/`（13MB）走 CacheFirst 运行时缓存
+（详见 `web/vite.config.ts` 里的取舍说明；2026-08-01 复查设计稿对预缓存无要求，房主定案维持现状）；
+图标由 `python tools/make_pwa_icons.py` 生成。
+
+**按设计稿收尾（2026-08-01）**：
+⑧ **市场风云抽卡人侧**——写清「已通知 N 位持有该资产的玩家 + 谁还没决定」（`state.prompts` 派生，
+零协议改动）；市场卡在抽卡瞬间就 `resolved`（`_a_card_drawn`：效果在伴随事件里完成），
+所以这一段按牌堆判断而非 `resolved`，卡面上方的状态文案也随之改成「正在等 N 位玩家答复」。
+强制卡分支收紧为显式的 `EXPENSE_EVENT/CASH/INSTALLMENT`，新 subtype 不会再静默落进去。
+⑨ **波及范围**（`receipts.buildCardImpact` + store `cardImpact`）——现金流调整/强制没收这类
+影响多人的卡，逐人列出「谁 · 哪项资产 · 变多少」，全员可见。数据取自事件里引擎算好的
+`targets`/`asset_ids`，客户端不重算匹配。（设计稿 §08 画的是「全员支付」的额外支出卡，
+但 194 张卡里没有这种卡，故挂到现金流调整卡上，不动卡库与引擎。）
+⑩ **日志按轮分组**——`log_rows()` 顺带重放事件流给出每行的 `turn`（撤销行不参与重放），
+开局前记 0；前端按 `turn` 分组。靠 `TURN_ENDED` 反推会被停赛/出局玩家带偏，故由服务端给。
+⑪ **断线态**——顶部常驻红条「连接断开，正在重连…」（独立槽位，不进 toast 队列）+
+内容区「重新连上之前，操作暂不可用」。
+⑫ **弹层全部收编**（8/8）：`ConfirmDialog`（`layer="confirm"` 压在上层）、`CardPicker`
+（核对弹层出现时选卡层整块收起，不叠层）、大厅两个手写 sheet 均改走 `BaseModal`。
+⑬ **大厅文案**——`/api/rooms` 增发 `turnCount`/`currentPlayer`，「继续对局」与房间列表
+写出「第 N 轮 · X 人在线 · 轮到谁」。
+`npm run ui-smoke` 已扩到 **24 屏**（含选卡/核对不叠层、二次确认、市场抽卡人侧、波及范围、断线态、大厅）。
+
+**规则改动：进入快车道即发放启动资金**（design/02 §9）。金额 = 换算出的现金流量日收入
+（非工资收入千元四舍五入 ×100），依 P.5「将获得 100 倍的非工资收入（即您的财产）」，房主定案为进入即到账；
+此后每次停在/经过现金流量日再领同额。同时清零老鼠赛跑的 `charity_turns`，
+并给 `PAY_OFF_DEBT` 加阶段闸门（记录卡已翻面，快车道不能再清偿）。
+
 **破产已回到说明书的「判定」语义（design/02 §8）**：结算日算出付不出到期款项时，`PAYDAY` 直接产出
 `PAYDAY_UNPAYABLE` + `BANKRUPTCY_STARTED` 强制进清算，不再抛 `NEED_LOAN_OR_BANKRUPTCY` 让玩家
 「先去贷款」——旧实现把 P.5 的判定写成了二选一，配合无上限贷款就能靠续贷把负现金流永远拖下去。
 一并结算多个月时逐月判，付得起的月份照付；`PAYDAY_UNPAYABLE` 只审计不动账，付不出的那个月不结算也不补缴。
-贷款本身按说明书不设额度上限（P.4 没有），但破产后不得再贷款。测试 **428 passed / 1 skipped**。
+贷款本身按说明书不设额度上限（P.4 没有），但破产后不得再贷款。测试 **433 passed / 1 skipped**。
 
 ## 开发必读（按顺序）
 
@@ -92,7 +132,8 @@ subtype（骰子赌局/收藏品/溢价收购/现金流调整/分期收款）、
 ## 环境备注
 
 - 开发机 Windows 11，shell 是 PowerShell（5.1，无 `&&`）；根目录用系统 Python 跑 `tools/*.py`，**server 必须用 `server\.venv\Scripts\python.exe`**（项目锁 3.12，PaddleOCR 兼容性）。`tools/eval_browser_ocr.py` 要 import server 的模块，也得用 venv 的 python
-- 识别相关的三个 npm 脚本都在 `web/` 下跑：`ocr-bench`（194 张实拍图跑 OCR）、`ocr-smoke`（真实浏览器冒烟，用系统装的 Edge）、`sync-tesseract`（构建期自动跑，一般不用手动）
+- `web/` 下的 npm 脚本：`ocr-bench`（194 张实拍图跑 OCR）、`ocr-smoke`（识别链路真实浏览器冒烟）、`sync-tesseract`（构建期自动跑，一般不用手动）、`ui-smoke`（**UI 冒烟**：真浏览器开两个上下文跑一局，从房间准备一路走到快车道，逐屏截图并断言关键选择器出现，产物在 `build/ui-smoke/`）。三个浏览器相关的脚本都用系统装的 Edge，先 `npm run build`
+- 前端类型检查：`npx vue-tsc --noEmit`（vite build 本身不做类型检查）
 - 设计文档与代码注释、UI 文案一律中文
 - `build/` 是工具产物（裁剪图、核对页、说明书渲染图），不进 git，可随时重新生成
 - 说明书两条渲染链路别混：`tools/render_manual.py` → `build/manual/*.png`（74MB，给人/模型核对规则用）；`tools/build_manual_pages.py` → `server/manual_pages/p01..p16.webp`（3.5MB，App 的 /manual 页面用，**入 git 随镜像交付**）。两者都从 `docs/现金流游戏说明书.pdf` 生成

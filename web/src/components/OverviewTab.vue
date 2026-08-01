@@ -2,9 +2,10 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { confirmAction } from '../confirm'
-import { fmt, useGame } from '../store'
+import { fmt, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
 import type { Player } from '../types'
 import StatementTab from './StatementTab.vue'
+import BaseModal from './base/BaseModal.vue'
 
 const game = useGame()
 const router = useRouter()
@@ -50,9 +51,10 @@ async function leaveGame() {
 
 <template>
   <div v-if="st">
+    <!-- 出局的人降透明度但不隐藏 —— 他还在桌上 -->
     <div v-for="p in st.players" :key="p.id" class="card"
-         style="cursor:pointer"
-         :style="p.id === st.currentPlayerId ? 'border-color:var(--brand)' : ''"
+         :class="{ current: p.id === st.currentPlayerId }"
+         :style="{ cursor: 'pointer', opacity: p.phase === 'OUT' ? .55 : 1 }"
          @click="detailPlayer = p">
       <div class="row between">
         <div>
@@ -77,9 +79,13 @@ async function leaveGame() {
         </div>
       </template>
       <template v-else-if="p.phase === 'FAST_TRACK'">
-        <div class="muted" style="margin-top:6px">
-          现金流量日收入 {{ fmt(p.fasttrack.current_income) }}
-          （胜利进度 +{{ fmt(p.fasttrack.current_income - p.fasttrack.initial_income) }} / $50,000）
+        <!-- 两个阶段用各自的进度语言，但卡片结构一致，便于横向比较 -->
+        <div class="row between muted" style="margin-top:6px">
+          <span>现金流量日收入 {{ fmt(p.fasttrack.current_income) }}</span>
+          <span>距胜利还差 {{ fmt(Math.max(0, p.fasttrack.initial_income + FT_WIN_INCREMENT - p.fasttrack.current_income)) }}</span>
+        </div>
+        <div class="progress gold" style="margin-top:4px">
+          <div :style="{ width: ftWinProgress(p.fasttrack) + '%' }" />
         </div>
       </template>
 
@@ -93,30 +99,29 @@ async function leaveGame() {
       <div class="row between" style="margin-top:6px;align-items:center">
         <span class="muted" style="font-size:12px">📋 查看记录卡 ›</span>
         <button v-if="isHost && p.id !== game.me?.id && p.phase !== 'OUT' && st.status === 'PLAYING'"
-                class="small ghost warn" @click.stop="removePlayer(p)">移除玩家</button>
+                class="btn small ghost warn" @click.stop="removePlayer(p)">移除玩家</button>
       </div>
     </div>
 
     <div v-if="!isHost" class="card" style="border-color:var(--red)">
       <h2>退出对局</h2>
       <p class="muted">退出后不能自行接管该座位；误退出请联系房主在日志中撤销。</p>
-      <button class="block warn" @click="leaveGame">退出对局</button>
+      <button class="btn block warn" @click="leaveGame">退出对局</button>
     </div>
 
     <div v-if="isHost" class="card" style="border-color:var(--red)">
       <h2>房主操作</h2>
       <p class="muted">结束对局后所有玩家自动返回首页；重开一局请重新创建房间。</p>
-      <button class="block warn" @click="endGame">🛑 结束对局</button>
+      <button class="btn block warn" @click="endGame">🛑 结束对局</button>
     </div>
 
-    <div v-if="detailPlayer" class="modal-mask" @click.self="detailPlayer = null">
-      <div class="modal">
-        <div class="row between" style="margin-bottom:8px;align-items:center">
-          <h2 style="margin:0">{{ detailPlayer.nickname }} 的记录卡</h2>
-          <button class="small ghost" @click="detailPlayer = null">关闭</button>
-        </div>
-        <StatementTab :player="detailPlayer" />
-      </div>
-    </div>
+    <BaseModal v-if="detailPlayer" :title="`${detailPlayer.nickname} 的记录卡`"
+               :source="detailPlayer.professionTitle || '—'" dismissable
+               @close="detailPlayer = null">
+      <StatementTab :player="detailPlayer" />
+      <template #actions>
+        <button class="btn ghost grow" @click="detailPlayer = null">关闭</button>
+      </template>
+    </BaseModal>
   </div>
 </template>

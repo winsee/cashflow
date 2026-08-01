@@ -177,8 +177,10 @@ async def list_cards(deck: str | None = Query(None), q: str = Query("")):
         cards = [c for c in cards
                  if needle in c.title.lower()
                  or any(needle in k.lower() for k in c.ocr_keywords)]
+    # raw = 卡面原文（标题/正文/数值栏/脚注），前端据此逐字渲染卡面；
+    # data 仍是引擎唯一取数来源，两者不可互换（design/04 §2.5 卡库双轨）
     return [{"id": c.id, "deck": c.deck, "subtype": c.subtype,
-             "title": c.title, "data": c.data} for c in cards]
+             "title": c.title, "data": c.data, "raw": c.raw} for c in cards]
 
 
 @app.get("/api/board/fasttrack")

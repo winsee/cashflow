@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { confirmAction } from '../confirm'
 import type { CardDto } from '../types'
 import { DECKS, FIELDS, SUBTYPES, SUBTYPE_NAMES, readField } from '../entry-fields'
 
@@ -100,35 +101,40 @@ function formDirty(): boolean {
     ([k, v]) => !['id', 'subtype'].includes(k) && v !== '' && v !== undefined && v !== null)
 }
 
-function confirmDiscard(): boolean {
-  return !formDirty() || confirm('表单尚未保存，确定放弃当前编辑？')
+async function confirmDiscard(): Promise<boolean> {
+  if (!formDirty()) return true
+  return confirmAction({
+    title: '放弃当前编辑？',
+    lines: ['表单尚未保存，切走后填写的内容会丢失'],
+    danger: true, okText: '放弃',
+  })
 }
 
-function switchDeck(d: string) {
-  if (!confirmDiscard()) return
+async function switchDeck(d: string) {
+  if (!await confirmDiscard()) return
   editing.value = false
   deck.value = d
   refresh()
 }
 
-function newCard() {
-  if (!confirmDiscard()) return
+async function newCard() {
+  if (!await confirmDiscard()) return
   form.value = { id: '', title: '', subtype: SUBTYPES[deck.value][0], keywords: '' }
   ocrLines.value = []
   ocrAmounts.value = []
   editing.value = true
 }
 
-function editCard(c: CardDto) {
-  if (!confirmDiscard()) return
+async function editCard(c: CardDto) {
+  if (!await confirmDiscard()) return
   const f: Record<string, any> = { id: c.id, title: c.title, subtype: c.subtype, keywords: '' }
   for (const [key] of FIELDS[c.subtype] ?? []) f[key] = readField(c.data, key) ?? ''
   editing.value = true
   form.value = f
 }
 
-function cancelEdit() {
-  if (!confirmDiscard()) return
+async function cancelEdit() {
+  if (!await confirmDiscard()) return
   editing.value = false
 }
 
@@ -168,10 +174,10 @@ async function save() {
   }
   if (!form.value.title) { msg.value = '❌ 标题不能为空'; return }
   const isEdit = !!form.value.id
-  const hint = isEdit
-    ? `将覆盖已有卡「${form.value.title}」(${form.value.id})：\n${summary(data)}\n确认保存？`
-    : `新增「${form.value.title}」(${SUBTYPE_NAMES[subtype.value]})：\n${summary(data)}\n确认入库？`
-  if (!confirm(hint)) return
+  const ok = await confirmAction(isEdit
+    ? { title: `覆盖已有卡「${form.value.title}」？`, lines: [form.value.id, summary(data)] }
+    : { title: `新增「${form.value.title}」？`, lines: [SUBTYPE_NAMES[subtype.value], summary(data)] })
+  if (!ok) return
   const body = {
     id: form.value.id ?? '', deck: deck.value, subtype: subtype.value,
     title: form.value.title, data,
@@ -189,7 +195,12 @@ async function save() {
 }
 
 async function remove(c: CardDto) {
-  if (!confirm(`删除「${c.title}」？（从 JSON 文件中移除）`)) return
+  const ok = await confirmAction({
+    title: `删除「${c.title}」？`,
+    lines: ['将从录入库的 JSON 文件中移除'],
+    danger: true, okText: '删除',
+  })
+  if (!ok) return
   const r = await fetch(`/api/entry/cards/${c.id}`, { method: 'DELETE' })
   const d = await r.json()
   msg.value = r.ok ? `✅ 已删除「${c.title}」` : '❌ ' + d.message
@@ -198,8 +209,19 @@ async function remove(c: CardDto) {
 
 async function clearDeck() {
   const n = cards.value.length
-  if (!confirm(`清空录入库「${DECKS[deck.value]}」整叠？（不影响游戏运行时库）`)) return
-  if (!confirm(`再次确认：将删除录入库 ${DECKS[deck.value]} 全部 ${n} 张卡！`)) return
+  const ok = await confirmAction({
+    title: `清空录入库「${DECKS[deck.value]}」整叠？`,
+    lines: [`将删除录入库这一叠全部 ${n} 张卡`, '不影响游戏运行时库'],
+    warning: '此操作不可撤销',
+    danger: true, okText: '继续',
+  })
+  if (!ok) return
+  const again = await confirmAction({
+    title: '再次确认',
+    lines: [`真的要删掉 ${DECKS[deck.value]} 的全部 ${n} 张卡？`],
+    danger: true, okText: '确认清空',
+  })
+  if (!again) return
   const r = await fetch(`/api/entry/decks/${deck.value}`, { method: 'DELETE' })
   const d = await r.json()
   msg.value = r.ok ? `✅ 已清空录入库 ${DECKS[deck.value]}` : '❌ ' + d.message
@@ -219,8 +241,12 @@ async function publish() {
   const pr = await fetch('/api/entry/publish/preview')
   const pd = await pr.json()
   if (!pr.ok) { msg.value = '❌ 发布前校验失败：' + pd.message; return }
-  const text = diffText(pd.diff)
-  if (!confirm(`将录入库发布到游戏运行时库：\n${text}\n\n进行中的对局不受影响（新抽卡用新数据）。确认发布？`)) return
+  const ok = await confirmAction({
+    title: '把录入库发布到游戏运行时库？',
+    lines: [...diffText(pd.diff).split('\n'), '进行中的对局不受影响（新抽卡才用新数据）'],
+    okText: '发布',
+  })
+  if (!ok) return
   const r = await fetch('/api/entry/publish', { method: 'POST' })
   const d = await r.json()
   msg.value = r.ok ? '✅ 已发布到游戏运行时库' : '❌ ' + d.message
@@ -233,9 +259,9 @@ async function publish() {
     <div class="row between">
       <h1>🗂️ 卡牌录入工具</h1>
       <div class="row">
-        <button class="small ghost" @click="$router.push('/entry/review')">🔍 核对</button>
-        <button class="small ghost" @click="$router.back()">返回</button>
-        <button class="small ghost" @click="$router.push('/')">🏠 大厅</button>
+        <button class="btn small ghost" @click="$router.push('/entry/review')">🔍 核对</button>
+        <button class="btn small ghost" @click="$router.back()">返回</button>
+        <button class="btn small ghost" @click="$router.push('/')">🏠 大厅</button>
       </div>
     </div>
     <p class="muted">录入库为纯数据记录（server/data/entry/），随录随存；
@@ -243,11 +269,11 @@ async function publish() {
       <span v-for="(s, d) in stats" :key="d">{{ DECKS[d] }} {{ s.entry }}/{{ s.runtime }} · </span></p>
 
     <div class="row wrap" style="margin:8px 0">
-      <button v-for="(name, d) in DECKS" :key="d" class="small"
+      <button v-for="(name, d) in DECKS" :key="d" class="btn small"
               :class="{ ghost: deck !== d }" @click="switchDeck(d as string)">{{ name }}</button>
-      <button class="small gold" @click="newCard">＋ 新增</button>
-      <button class="small" @click="publish">🚀 发布</button>
-      <button class="small warn" v-if="cards.length" @click="clearDeck">清空本叠</button>
+      <button class="btn small gold" @click="newCard">＋ 新增</button>
+      <button class="btn small" @click="publish">🚀 发布</button>
+      <button class="btn small warn" v-if="cards.length" @click="clearDeck">清空本叠</button>
     </div>
     <p v-if="msg" class="muted">{{ msg }}</p>
 
@@ -255,7 +281,7 @@ async function publish() {
       <p v-if="form.id" class="muted">编辑中：{{ form.id }}（id 由系统生成，不可改）</p>
       <p v-else class="muted">新卡 id 将由系统自动生成</p>
       <div class="row" style="margin-bottom:6px">
-        <button class="small ghost" :disabled="ocrBusy" @click="ocrInput?.click()">
+        <button class="btn small ghost" :disabled="ocrBusy" @click="ocrInput?.click()">
           {{ ocrBusy ? '识别中…' : '📷 拍卡预填' }}
         </button>
         <input ref="ocrInput" type="file" accept="image/*" capture="environment"
@@ -264,10 +290,10 @@ async function publish() {
       <div v-if="ocrLines.length" class="card" style="padding:8px">
         <p class="muted">点文本行填标题（已有标题则进关键词）；点金额进关键词：</p>
         <div class="row wrap">
-          <button v-for="(l, i) in ocrLines" :key="'l' + i" class="small ghost" @click="useLine(l)">{{ l }}</button>
+          <button v-for="(l, i) in ocrLines" :key="'l' + i" class="btn small ghost" @click="useLine(l)">{{ l }}</button>
         </div>
         <div class="row wrap" v-if="ocrAmounts.length" style="margin-top:4px">
-          <button v-for="a in ocrAmounts" :key="'a' + a" class="small gold"
+          <button v-for="a in ocrAmounts" :key="'a' + a" class="btn small gold"
                   @click="appendKeyword(a.toLocaleString('en-US'))">{{ a.toLocaleString('en-US') }}</button>
         </div>
       </div>
@@ -284,8 +310,8 @@ async function publish() {
       <label>识别关键词（逗号分隔；同名多版本卡每张必填，用于区分）</label>
       <input v-model="form.keywords" placeholder="如：游艇, 17,000, 340" />
       <div class="row" style="margin-top:10px">
-        <button class="grow" @click="save">保存入库</button>
-        <button class="ghost" @click="cancelEdit">取消</button>
+        <button class="btn grow" @click="save">保存入库</button>
+        <button class="btn ghost" @click="cancelEdit">取消</button>
       </div>
     </div>
 
@@ -297,8 +323,8 @@ async function publish() {
           <div class="muted">{{ c.id }}</div>
         </div>
         <div class="row">
-          <button class="small ghost" @click="editCard(c)">改</button>
-          <button class="small warn" @click="remove(c)">删</button>
+          <button class="btn small ghost" @click="editCard(c)">改</button>
+          <button class="btn small warn" @click="remove(c)">删</button>
         </div>
       </div>
     </div>

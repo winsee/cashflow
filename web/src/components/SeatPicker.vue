@@ -5,7 +5,8 @@
  *  但不禁用在线座位：旧设备的僵尸连接会让正当的换设备恢复卡死，见 design/01 FR-4。 */
 import type { Seat } from '../types'
 
-defineProps<{ players: Seat[]; modelValue: string }>()
+// modelValue 允许 undefined：大厅弹窗刚打开时还没选中任何座位
+defineProps<{ players: Seat[]; modelValue?: string }>()
 const emit = defineEmits<{ 'update:modelValue': [string] }>()
 </script>
 

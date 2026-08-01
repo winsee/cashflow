@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { confirmAction } from '../confirm'
+import { COLOR_DREAM, COLOR_FASTTRACK, COLOR_PAYDAY, DECK_COLOR } from '../decks'
 import { fmt, useGame } from '../store'
 import type { LogEntry } from '../types'
 
@@ -49,6 +50,30 @@ const LABELS: Record<string, string> = {
   GAME_ENDED: '结束对局', PLAYER_REMOVED: '移除玩家', PLAYER_LEFT: '玩家退出',
 }
 
+/** 事件点用牌堆色：抬头看棋盘、低头看日志，同一套颜色编码。
+ *  取不到牌堆归属的（转账、贷款、房主操作）用中性灰。 */
+const DOT: Record<string, string> = {
+  CARD_DRAWN: DECK_COLOR.SMALL_DEAL, CARD_PASSED: DECK_COLOR.SMALL_DEAL,
+  CARD_RESOLVED: DECK_COLOR.SMALL_DEAL, ASSET_BOUGHT: DECK_COLOR.BIG_DEAL,
+  RESELL_OFFERED: DECK_COLOR.BIG_DEAL, RESELL_CONFIRMED: DECK_COLOR.BIG_DEAL,
+  RESELL_REJECTED: DECK_COLOR.BIG_DEAL,
+  STOCK_BOUGHT: DECK_COLOR.SMALL_DEAL, STOCK_SOLD: DECK_COLOR.SMALL_DEAL,
+  SHARES_ADJUSTED: DECK_COLOR.MARKET,
+  MARKET_PROMPTED: DECK_COLOR.MARKET, MARKET_SOLD: DECK_COLOR.MARKET,
+  MARKET_DECLINED: DECK_COLOR.MARKET, ASSETS_SURRENDERED: DECK_COLOR.MARKET,
+  LOSS_PAID: DECK_COLOR.DOODAD, EXPENSE_EVENT_PAID: DECK_COLOR.DOODAD,
+  DOODAD_PAID: DECK_COLOR.DOODAD, INSTALLMENT_ADDED: DECK_COLOR.DOODAD,
+  PAYDAY: COLOR_PAYDAY, PAYDAY_UNPAYABLE: COLOR_PAYDAY,
+  CHARITY_DONATED: COLOR_PAYDAY, FT_CHARITY_DONATED: COLOR_PAYDAY,
+  FT_PAYDAY: COLOR_PAYDAY, GAME_STARTED: COLOR_PAYDAY,
+  ENTERED_FASTTRACK: COLOR_FASTTRACK, FT_BUSINESS_BOUGHT: COLOR_FASTTRACK,
+  FT_DREAM_BOUGHT: COLOR_DREAM, FT_DREAM_DOUBLED: COLOR_DREAM,
+  FT_CASH_HIT: 'var(--red)', BANKRUPTCY_STARTED: 'var(--red)',
+  BANKRUPTCY_ASSET_SOLD: 'var(--red)', BANKRUPTCY_RESOLVED: 'var(--red)',
+  UNEMPLOYMENT_HIT: 'var(--red)',
+}
+const dotOf = (e: LogEntry) => DOT[e.type] ?? 'var(--muted)'
+
 function amountOf(e: LogEntry): string {
   const p = e.payload
   for (const k of ['amount', 'cashflow', 'down_payment', 'price', 'proceeds', 'cost', 'net', 'delta', 'price_paid', 'fee'])
@@ -63,6 +88,19 @@ function detailOf(e: LogEntry): string {
   if (!p.note) return base
   return base ? `${base}（${p.note}）` : p.note   // 如「参加婚礼（无孩子，无需支付）」
 }
+
+/** 按轮分组：行是 seq 倒序、轮次随 seq 单调，所以相邻同轮的合成一组即可。
+ *  轮次由服务端重放给出（rooms.log_rows），前端不反推。 */
+const groups = computed(() => {
+  const out: { turn: number; items: LogEntry[] }[] = []
+  for (const e of rows.value) {
+    if (filter.value && !(e.actor ?? '').includes(filter.value)) continue
+    const last = out[out.length - 1]
+    if (last && last.turn === e.turn) last.items.push(e)
+    else out.push({ turn: e.turn, items: [e] })
+  }
+  return out
+})
 
 async function refresh() { rows.value = (await game.fetchLog()).reverse() }
 onMounted(refresh)
@@ -100,21 +138,41 @@ async function correct(e: LogEntry) {
 <template>
   <div>
     <input v-model="filter" placeholder="按玩家昵称过滤" style="margin-bottom:8px" />
-    <div v-for="e in rows.filter(r => !filter || (r.actor ?? '').includes(filter))" :key="e.seq"
-         class="card" :style="e.revoked ? 'opacity:0.45;text-decoration:line-through' : ''" >
-      <div class="row between">
-        <div>
-          <b>{{ LABELS[e.type] ?? e.type }}</b>
-          <span class="muted"> · {{ e.actor ?? '系统' }}</span>
-          <span class="muted" v-if="detailOf(e)"> · {{ detailOf(e) }}</span>
+    <p class="muted" style="margin:0 2px 10px">
+      这是可审计的账本：被撤销的条目保留划线痕迹，不会悄悄删掉。
+    </p>
+    <!-- 按轮分组的时间轴：事件点用牌堆色，一眼看出这笔账来自哪种格子 -->
+    <template v-for="g in groups" :key="g.turn">
+    <div class="section-title" style="margin-top:14px">{{ g.turn ? `第 ${g.turn} 轮` : '开局前' }}</div>
+    <div class="logline">
+      <div v-for="e in g.items" :key="e.seq"
+           class="logitem" :class="{ revoked: e.revoked }">
+        <span class="logdot" :style="{ background: dotOf(e) }"></span>
+        <div class="row between">
+          <div class="grow">
+            <b>{{ LABELS[e.type] ?? e.type }}</b>
+            <span class="muted"> · {{ e.actor ?? '系统' }}</span>
+            <span class="muted" v-if="detailOf(e)"> · {{ detailOf(e) }}</span>
+          </div>
+          <div class="num">{{ amountOf(e) }}</div>
         </div>
-        <div class="num">{{ amountOf(e) }}</div>
-      </div>
-      <div class="row between">
-        <div class="muted">#{{ e.seq }} · {{ e.at }}<span v-if="e.revoked">（已撤销）</span></div>
-        <button v-if="revertable(e)" class="small ghost" @click="revert(e)">撤销</button>
-        <button v-else-if="correctable(e)" class="small ghost" @click="correct(e)">更正</button>
+        <div class="row between">
+          <div class="muted">#{{ e.seq }} · {{ e.at }}<span v-if="e.revoked">（已撤销）</span></div>
+          <button v-if="revertable(e)" class="btn small ghost" @click="revert(e)">撤销</button>
+          <button v-else-if="correctable(e)" class="btn small ghost" @click="correct(e)">更正</button>
+        </div>
       </div>
     </div>
+    </template>
+    <p v-if="!rows.length" class="muted">还没有任何记录。</p>
   </div>
 </template>
+
+<style scoped>
+.logline { border-left: 2px solid var(--line-2); padding-left: 14px; display: flex; flex-direction: column; gap: 14px; }
+.logitem { position: relative; }
+.logdot { position: absolute; left: -19px; top: 6px; width: 8px; height: 8px; border-radius: 50%; }
+/* 被撤销的只给标题划线：金额与时间仍要看得清，账本不能糊 */
+.logitem.revoked { opacity: .45; }
+.logitem.revoked b { text-decoration: line-through; }
+</style>
