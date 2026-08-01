@@ -147,18 +147,17 @@ def test_full_game_rat_race_to_fasttrack_win(duo):
     duo.act("B", "PAYDAY")
     assert duo.player("B").cash == cash_before + F.monthly_cashflow(b)
 
-    # 进快车道：现金交回银行，初始现金流量日收入 = 非工资收入千元四舍五入 ×100
+    # 进快车道：老鼠赛跑现金交回银行，随即发一笔等额启动资金
+    # 初始现金流量日收入 = 非工资收入千元四舍五入 ×100
     duo.act("B", "ENTER_FASTTRACK")
     b = duo.player("B")
     assert b.phase == Phase.FAST_TRACK
-    assert b.cash == 0
+    assert b.cash == 500_000
     assert b.fasttrack.initial_income == F.fasttrack_initial_income(passive) == 500_000
 
-    # 快车道：领钱 → 买企业 → 收入增量达 $50,000 即获胜
+    # 快车道：买企业 → 收入增量达 $50,000 即获胜
     duo.act("B", "END_TURN")
     duo.act("A", "END_TURN")
-    duo.act("B", "FT_PAYDAY")
-    assert duo.player("B").cash == 500_000
     duo.act("B", "FT_BUY_BUSINESS", squareId="ft-b-beauty")   # $250,000 → +$10,000/月
     b = duo.player("B")
     assert b.cash == 250_000

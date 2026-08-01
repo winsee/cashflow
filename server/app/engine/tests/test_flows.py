@@ -460,10 +460,44 @@ def test_enter_fasttrack_conversion(duo):
     duo.act("A", "ENTER_FASTTRACK")
     a = duo.player("A")
     assert a.phase == Phase.FAST_TRACK
-    assert a.cash == 0                               # 现金交回银行
     assert a.fasttrack.initial_income == 1_000_000   # 9,700→10,000×100
-    duo.act("A", "FT_PAYDAY")
+    # 老鼠赛跑现金交回银行，同时按 P.5 立刻发放一笔等额启动资金
+    assert a.cash == 1_000_000
+    duo.act("A", "FT_PAYDAY")                        # 此后经过现金流量日再领
+    assert duo.player("A").cash == 2_000_000
+
+
+def test_enter_fasttrack_grants_seed_money_regardless_of_old_cash(duo):
+    """启动资金只看换算结果，与老鼠赛跑剩多少现金无关。"""
+    _give_passive(duo, "A", 9700)
+    duo.state.players["A"].cash = 123_456
+    duo.act("A", "ENTER_FASTTRACK")
     assert duo.player("A").cash == 1_000_000
+
+
+def test_enter_fasttrack_clears_charity_turns(duo):
+    """老鼠赛跑的慈善轮次不带进快车道（否则会一直显示「慈善生效中」）。"""
+    _give_passive(duo, "A", 9700)
+    duo.state.players["A"].charity_turns = 3
+    duo.act("A", "ENTER_FASTTRACK")
+    assert duo.player("A").charity_turns == 0
+
+
+def test_enter_fasttrack_event_carries_passive_income(duo):
+    """过场动画要展示换算前的原值。"""
+    _give_passive(duo, "A", 9700)
+    duo.act("A", "ENTER_FASTTRACK")
+    ev = next(e for e in reversed(duo.events) if e["type"] == "ENTERED_FASTTRACK")
+    assert ev["payload"]["passive_income"] == 9700
+    assert ev["payload"]["initial_income"] == 1_000_000
+
+
+def test_pay_off_debt_rejected_in_fasttrack(duo):
+    """记录卡已翻面封存，快车道不能再清偿老鼠赛跑的负债。"""
+    _give_passive(duo, "A", 9700)
+    duo.act("A", "ENTER_FASTTRACK")
+    with pytest.raises(EngineError, match="记录卡已翻面"):
+        duo.act("A", "PAY_OFF_DEBT", liabilityId="car_loan")
 
 
 def test_enter_fasttrack_rejected_when_not_eligible(duo):
@@ -484,8 +518,7 @@ def _enter_ft(duo, pid, passive=9700):
     _give_passive(duo, pid, passive)
     if duo.state.current_player_id != pid:
         duo.act(duo.state.current_player_id, "END_TURN")
-    duo.act(pid, "ENTER_FASTTRACK")
-    duo.act(pid, "FT_PAYDAY")                        # 领第一笔现金
+    duo.act(pid, "ENTER_FASTTRACK")                  # 启动资金进场即到账
 
 
 def test_ft_business_and_income_victory(duo):
@@ -631,7 +664,8 @@ def test_ft_actions_require_own_turn(duo):
 
 
 def test_ft_payday_once_per_turn(duo):
-    _enter_ft(duo, "A")                              # 内含一次 FT_PAYDAY
+    _enter_ft(duo, "A")
+    duo.act("A", "FT_PAYDAY")
     with pytest.raises(EngineError) as ei:
         duo.act("A", "FT_PAYDAY")
     assert ei.value.code == "PAYDAY_DONE"

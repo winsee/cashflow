@@ -759,6 +759,9 @@ _PAYOFF_MAP = {
 def _d_pay_off_debt(state, actor_id, p, lib) -> list[Event]:
     # 破产清偿也走本入口，故不设 _require_no_bankruptcy
     player = _require_current(state, actor_id)
+    if player.phase != Phase.RAT_RACE:
+        # 进快车道后老鼠赛跑的记录卡已翻面封存，那边的负债不再参与计算
+        raise EngineError("WRONG_PHASE", "已进入快车道，老鼠赛跑的记录卡已翻面，不能再清偿")
     lid = p["liabilityId"]
     if lid in _PAYOFF_MAP:
         liab_field, _ = _PAYOFF_MAP[lid]
@@ -1553,7 +1556,11 @@ def _a_bankruptcy_resolved(s: RoomState, p) -> None:
 def _a_entered_fasttrack(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.phase = Phase.FAST_TRACK
-    pl.cash = 0                                  # 现金交回银行（按说明书）
+    # 老鼠赛跑的现金交回银行（按说明书），随即按 P.5「将获得 100 倍的非工资收入
+    # （即您的财产）」发放一笔启动资金 —— 进入即到账，此后每次停在或经过
+    # 「现金流量日」再领同样金额。
+    pl.cash = p["initial_income"]
+    pl.charity_turns = 0                         # 老鼠赛跑的慈善轮次不带进快车道
     pl.fasttrack.initial_income = p["initial_income"]
     pl.fasttrack.current_income = p["initial_income"]
 
