@@ -104,6 +104,9 @@ const stockSheet = computed(() =>
   game.stockWindowOpen && !(iAmDrawer.value && ac.value && !ac.value.resolved))
 const stockCollapsed = computed(() =>
   !!game.myStockWindow && !game.stockWindowOpen && !(iAmDrawer.value && ac.value && !ac.value.resolved))
+// 本次窗口内是否已经点过买入——不能看 held（可能是之前几轮留下的旧仓位）
+const stockBoughtThisWindow = computed(() =>
+  !!stockWin.value && game.stockBoughtAt === stockWin.value.key)
 
 // bd-031 比萨饼特许专卖店是全库唯一无市场买家的资产：标注出来，免得被当成 bug
 const NO_MARKET_BUYER_TYPES = ['特许专卖店']
@@ -157,13 +160,22 @@ async function decideBuy() {
 
 async function decidePass(stockWindow = false) {
   const ok = await confirmAction({
-    title: stockWindow ? '这张股票我不买？' : '放弃这次机会？',
+    title: stockWindow
+      ? (stockBoughtThisWindow.value ? '结束这次交易？' : '这张股票我不买？')
+      : '放弃这次机会？',
     // 放弃购买不关闭交易窗口：全员（含自己）本回合仍可按今日价卖出持仓
     lines: stockWindow
-      ? ['只表示你不按今日价买入', '全员的卖出窗口开到本回合结束']
+      ? (stockBoughtThisWindow.value
+          ? ['持仓仍可按今日价卖出', '窗口开到本回合结束，随时可从行动页重新打开']
+          : ['只表示你不按今日价买入', '全员的卖出窗口开到本回合结束'])
       : ['机会卡将作废（本回合不能再抽卡）'],
   })
-  if (ok && await game.act('CARD_DECISION', { decision: 'pass' })) activeCardInfo.value = null
+  if (ok && await game.act('CARD_DECISION', { decision: 'pass' })) {
+    activeCardInfo.value = null
+    // 抽卡人自己已经在页内卡里处理过这个窗口了，表态后不该再被同一个底部浮层
+    // 弹一遍——按「已收起」处理，行动页留一个「重新打开」的入口即可
+    if (stockWindow) game.dismissStockWindow()
+  }
 }
 
 // 选错卡反悔：撤销这次抽卡（FR-29 本人更正），随后重新打开同牌堆选卡列表
@@ -531,7 +543,9 @@ const bkGap = computed(() => Math.max(0, -(me.value?.derived.monthlyCashflow ?? 
             <p class="muted">区间 {{ fmt(activeCardInfo.data.priceRange?.[0]) }}–{{ fmt(activeCardInfo.data.priceRange?.[1]) }}</p>
             <StockTradeBox />
             <p class="muted">持有该股的玩家此刻也可按今日价卖出（他们的手机上会弹出交易窗口）</p>
-            <button class="btn ghost block" @click="decidePass(true)">我不买</button>
+            <button class="btn ghost block" @click="decidePass(true)">
+              {{ stockBoughtThisWindow ? '不再交易，收起' : '我不买' }}
+            </button>
           </template>
 
           <template v-else-if="ac.subtype === 'DICE_GAMBLE'">

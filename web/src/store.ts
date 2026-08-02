@@ -93,6 +93,9 @@ export const useGame = defineStore('game', {
     reconnectTimer: 0 as any,
     noticeTimer: 0 as any,
     stockDismissed: '' as string,   // 我点过「不需要」的股票窗口 key（纯本地，不广播）
+    /** 我在本窗口内成功买入过的 key（纯本地）：区分「这次没买，历史仓位」和
+     *  「这次真买了」，前者按钮该说「我不买」，后者不该——旧仓位不代表这次已表态 */
+    stockBoughtAt: '' as string,
     /** 「刚刚发生在你身上」：没操作却改了我的账的事，停在行动页顶部直到本人确认 */
     receipts: [] as Receipt[],
     /** 当前这张卡波及了谁（全员可见的「大声读出来」那一份），随卡失效 */
@@ -291,6 +294,11 @@ export const useGame = defineStore('game', {
     },
     reopenStockWindow() {
       this.stockDismissed = ''
+    },
+    /** 在当前股票窗口里成功买入了一次：记下窗口 key，供文案区分「没买」vs「买过」 */
+    markStockBought() {
+      const w = this.myStockWindow
+      if (w) this.stockBoughtAt = w.key
     },
     /** 一句提示（默认绿色，3 秒自动消失）。同时来两条就排队，一次只显示一条。 */
     flash(msg: string, variant: FlashVariant = 'ok') {

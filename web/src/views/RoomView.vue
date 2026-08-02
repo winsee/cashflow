@@ -242,8 +242,8 @@ async function copyUrl() {
       </template>
     </template>
 
-    <!-- 出牌顺序：线下掷骰后由房主排先后 -->
-    <div class="card">
+    <!-- 出牌顺序：选完梦想后才出现，线下掷骰后由房主排先后 -->
+    <div v-if="doneSetup" class="card">
       <div class="row between" style="margin-bottom:9px">
         <h2 style="margin:0">出牌顺序</h2>
         <span class="badge" v-if="isHost">房主</span>

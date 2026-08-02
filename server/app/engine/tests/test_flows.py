@@ -591,6 +591,28 @@ def test_ft_buy_own_dream_victory(duo):
     assert duo.player("A").cash == 1_000_000 - 100000
 
 
+def test_ft_claim_unowned_dream_is_pure_cash_sink(duo):
+    """没人选的梦想（ft-d-ski，A 选 safari，B 选 jet）可按原价买下占位，
+    但不获胜、不加价、对任何人都没有影响（房主裁决，design/02 §10）。"""
+    _enter_ft(duo, "A")
+    duo.act("A", "FT_CLAIM_DREAM", squareId="ft-d-ski")        # 150,000
+    assert duo.player("A").cash == 1_000_000 - 150000
+    assert duo.state.status == RoomStatus.PLAYING              # 不获胜
+    assert duo.state.winner_id is None
+    assert duo.state.dream_price_bumps.get("ft-d-ski", 0) == 0  # 不加价
+    assert duo.state.turn_square_used is True
+
+
+def test_ft_claim_dream_rejects_already_chosen(duo):
+    _enter_ft(duo, "A")
+    with pytest.raises(EngineError, match="有主") as ei:
+        duo.act("A", "FT_CLAIM_DREAM", squareId="ft-d-jet")   # B 已选定
+    assert ei.value.code == "DREAM_CHOSEN"
+    with pytest.raises(EngineError) as ei2:
+        duo.act("A", "FT_CLAIM_DREAM", squareId="ft-d-safari")  # 自己的梦想，也算"有主"
+    assert ei2.value.code == "DREAM_CHOSEN"
+
+
 def test_ft_cash_hits_and_charity(duo, lib):
     _enter_ft(duo, "A")
     duo.act("A", "FT_TAX_AUDIT")

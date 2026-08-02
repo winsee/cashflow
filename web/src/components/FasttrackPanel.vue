@@ -119,6 +119,15 @@ async function doubleDream(d: FtDream) {
   if (ok && await game.act('FT_DOUBLE_DREAM', { squareId: d.id })) game.flash(`已加价 ${d.name}`)
 }
 
+/** 没人选的梦想：按原价买下纯粹是占位，不获胜、不影响任何人 */
+async function claimDream(d: FtDream) {
+  const ok = await confirmAction({
+    title: `买下「${d.name}」占位？`,
+    lines: [`支付原价 ${fmt(dreamPrice(d))}`, '没人选这个梦想，买下不会获胜，对任何人都没有影响'],
+  })
+  if (ok && await game.act('FT_CLAIM_DREAM', { squareId: d.id })) game.flash(`已买下 ${d.name} 占位`)
+}
+
 async function ftCharity() {
   const ok = await confirmAction({
     title: '快车道慈善捐款？',
@@ -222,14 +231,13 @@ async function ftHit(action: string, title: string, desc: string, amount: number
 
     <!-- 梦想选择器：身份直接写在卡的类别行上 -->
     <BaseModal v-if="sheet === 'dream'" title="你停在哪一个梦想？"
-               source="停自己的梦想可买下获胜，停别人的可以加价"
+               source="停自己的梦想可买下获胜，停别人的可以加价，没人选的可以原价买下占位"
                deck-label="快车道" :deck-color="COLOR_DREAM" dismissable @close="sheet = ''">
       <div class="stack">
         <FtSquareCard v-for="d in dreamList" :key="d.id" kind="dream"
                       :kind-label="d.id === me.dreamId ? '梦想 · 这是你的'
                         : ownerOf(d) ? `梦想 · ${ownerOf(d)!.nickname}的` : '梦想 · 无人认领'"
                       :name="d.name" :mine="d.id === me.dreamId"
-                      :taken="!ownerOf(d)"
                       :nums="d.id === me.dreamId
                         ? [{ label: '当前价', value: fmt(dreamPrice(d)) }, { label: '你的现金', value: fmt(me.cash) }]
                         : ownerOf(d)
@@ -237,7 +245,7 @@ async function ftHit(action: string, title: string, desc: string, amount: number
                           : [{ label: '价格', value: fmt(d.price) }]"
                       :tip="d.id === me.dreamId ? '买下立刻获胜，游戏结束。'
                         : ownerOf(d) ? `你付 ${fmt(dreamPrice(d))}（当前价，不是原价），对方的梦想涨到 ${fmt(d.price * (bumps(d) + 2))}。你不会拥有它，纯粹是拖慢对方。`
-                        : '没人选这个梦想，无需加价。'">
+                        : '没人选这个梦想，你可以按原价买下占位，但不会获胜，对任何人都没有影响。'">
           <template #action>
             <button v-if="d.id === me.dreamId" class="btn small gold"
                     :disabled="squareLocked || me.cash < dreamPrice(d)" @click="buyDream(d)">
@@ -247,7 +255,10 @@ async function ftHit(action: string, title: string, desc: string, amount: number
                     :disabled="squareLocked || me.cash < dreamPrice(d)" @click="doubleDream(d)">
               {{ me.cash < dreamPrice(d) ? `差 ${fmt(dreamPrice(d) - me.cash)}` : '加价' }}
             </button>
-            <button v-else class="btn small off" disabled>没人选</button>
+            <button v-else class="btn small"
+                    :disabled="squareLocked || me.cash < dreamPrice(d)" @click="claimDream(d)">
+              {{ me.cash < dreamPrice(d) ? `差 ${fmt(dreamPrice(d) - me.cash)}` : '买下占位' }}
+            </button>
           </template>
         </FtSquareCard>
       </div>

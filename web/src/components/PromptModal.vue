@@ -79,12 +79,20 @@ async function submitSell(sellPicked: boolean) {
   if (busy.value) return
   busy.value = true
   try {
-    for (const p of sellGroup.value) {
-      const accept = sellPicked && picked.value.has(p.id)
+    // 固化本轮快照：提交循环期间服务端每处理一条就会广播新 state，
+    // sellGroup 随之变短，若循环体内继续读响应式的 picked/sellGroup，
+    // 后续几条会被自动清空的勾选状态误判成「不卖」。
+    const group = sellGroup.value
+    const pickedIds = new Set(picked.value)
+    const chosen = group.filter(p => pickedIds.has(p.id))
+    for (const p of group) {
+      const accept = sellPicked && pickedIds.has(p.id)
       await game.act('MARKET_SELL', { promptId: p.id, accept })
     }
-    if (sellPicked && pickedList.value.length)
-      game.flash(`已卖出 ${pickedList.value.length} 项，到手 ${fmt(sumCash.value)}`)
+    if (sellPicked && chosen.length) {
+      const cash = chosen.reduce((a, p) => a + netOf(p), 0)
+      game.flash(`已卖出 ${chosen.length} 项，到手 ${fmt(cash)}`)
+    }
   } finally { busy.value = false }
 }
 

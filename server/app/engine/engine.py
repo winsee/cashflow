@@ -973,6 +973,18 @@ def _d_ft_double_dream(state, actor_id, p, lib) -> list[Event]:
                 name=dream.name, price_paid=price, base_price=dream.price)]
 
 
+def _d_ft_claim_dream(state, actor_id, p, lib) -> list[Event]:
+    player = _require_ft(state, actor_id)
+    _require_square_free(state)
+    dream = lib.get_ft_dream(p["squareId"])
+    if any(pl.dream_id == dream.id for pl in state.players.values()):
+        raise EngineError("DREAM_CHOSEN", "该梦想已经有主，只能加价或（如果是你自己的）直接买下")
+    price = _dream_price(state, dream)
+    _require_cash(player, price, loan_hint=False)
+    return [_ev("FT_DREAM_CLAIMED", player_id=player.id, square_id=dream.id,
+                name=dream.name, price=price)]
+
+
 def _d_ft_charity(state, actor_id, p, lib) -> list[Event]:
     player = _require_ft(state, actor_id)
     _require_square_free(state)
@@ -1096,6 +1108,7 @@ _HANDLERS = {
     "FT_BUY_BUSINESS": _d_ft_buy_business,
     "FT_BUY_DREAM": _d_ft_buy_dream,
     "FT_DOUBLE_DREAM": _d_ft_double_dream,
+    "FT_CLAIM_DREAM": _d_ft_claim_dream,
     "FT_CHARITY": _d_ft_charity,
     "FT_TAX_AUDIT": _d_ft_cash_hit("TAX_AUDIT", "半额"),
     "FT_DIVORCE": _d_ft_cash_hit("DIVORCE", "全额"),
@@ -1607,6 +1620,12 @@ def _a_ft_dream_doubled(s: RoomState, p) -> None:
     s.turn_square_used = True
 
 
+def _a_ft_dream_claimed(s: RoomState, p) -> None:
+    pl = s.players[p["player_id"]]
+    pl.cash -= p["price"]
+    s.turn_square_used = True
+
+
 def _a_ft_charity_donated(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["amount"]
@@ -1754,6 +1773,7 @@ _APPLIERS = {
     "FT_BUSINESS_BOUGHT": _a_ft_business_bought,
     "FT_DREAM_BOUGHT": _a_ft_dream_bought,
     "FT_DREAM_DOUBLED": _a_ft_dream_doubled,
+    "FT_DREAM_CLAIMED": _a_ft_dream_claimed,
     "FT_CHARITY_DONATED": _a_ft_charity_donated,
     "FT_CASH_HIT": _a_ft_cash_hit,
     "HOST_ADJUSTED": _a_host_adjusted,

@@ -49,8 +49,10 @@ async function buy() {
     title: `买入 ${win.symbol} ×${qty.value}？`,
     lines: [`${fmt(win.price)}/股 × ${qty.value} = ${fmt(amount.value)}`],
   })
-  if (ok && await game.act('STOCK_BUY', { qty: qty.value }))
+  if (ok && await game.act('STOCK_BUY', { qty: qty.value })) {
+    game.markStockBought()
     game.flash(`已买入 ${win.symbol} ×${qty.value}，支付 ${fmt(amount.value)}`)
+  }
 }
 </script>
 
