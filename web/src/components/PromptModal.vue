@@ -7,6 +7,7 @@
  *  **绝不替玩家决定卖哪一套，也绝不一次全卖** —— 每套的抵押与现金流都不一样，
  *  卖错一套可能直接把自己送进破产。要约也不因为「卖了会亏」而隐藏或折叠。 */
 import { computed, ref, watch } from 'vue'
+import { confirmAction } from '../confirm'
 import { DECK_COLOR, DECK_SHORT } from '../decks'
 import { fmt, useGame } from '../store'
 import type { Prompt } from '../types'
@@ -16,6 +17,26 @@ import GameCard from './cards/GameCard.vue'
 import type { CardDto } from '../types'
 
 const game = useGame()
+
+/** 求购/分期要约不可点遮罩收起（必须给出答复），但如果这张市场卡根本抽错了，
+ *  抽卡人自己被困在这一屏、够不着「行动」页里的撤销入口——这里给他一条直达的路，
+ *  不改弹层本身能不能收起。只有抽卡人自己看得到这条链接。 */
+const iAmDrawer = computed(() => game.state?.activeCard?.drawer_id === game.me?.id)
+const undoing = ref(false)
+async function undoDraw() {
+  const cardId = game.state?.activeCard?.card_id
+  if (!cardId || undoing.value) return
+  const ok = await confirmAction({
+    title: '撤销这次抽卡？',
+    lines: ['将撤销这次抽卡，可重新选卡', '全员账目立即重算，日志保留划线痕迹'],
+    danger: true,
+  })
+  if (!ok) return
+  undoing.value = true
+  try {
+    if (await game.undoCardDraw(cardId)) game.flash('已撤销，请到「行动」页重新选卡')
+  } finally { undoing.value = false }
+}
 
 /** 当前这一条（或这一组）。市场求购按 card_id 归组，其余一条一屏。 */
 const head = computed<Prompt | null>(() => game.myPrompts[0] ?? null)
@@ -125,6 +146,10 @@ const me = computed(() => game.me)
       这张卡求购<b style="color:var(--text)">{{ matchedTypes || '这类资产' }}</b>，
       你名下有 <b style="color:var(--text)">{{ sellGroup.length }} 项</b>属于这一类，选择卖哪几项。
     </p>
+    <!-- 这张卡其实是抽错的：不必先勾/先答复才能改口，抽卡人自己在这一屏就能直接撤销重选 -->
+    <button v-if="iAmDrawer" class="btn ghost small" style="margin-top:6px" :disabled="undoing" @click="undoDraw">
+      抽错卡了？撤销这次抽卡
+    </button>
 
     <div class="stack">
       <button v-for="p in sellGroup" :key="p.id" class="apick" :class="{ on: picked.has(p.id) }"
@@ -177,6 +202,9 @@ const me = computed(() => game.me)
       <StatRow label="每月收款" :value="head.payload.monthly_delta" signed />
       <StatRow label="共计" :value="`${head.payload.duration_months} 个月`" />
     </div>
+    <button v-if="iAmDrawer" class="btn ghost small" style="margin-top:6px" :disabled="undoing" @click="undoDraw">
+      抽错卡了？撤销这次抽卡
+    </button>
     <template #actions>
       <button class="btn grow" :disabled="busy" @click="answer('MARKET_SELL', true)">接受</button>
       <button class="btn ghost grow" :disabled="busy" @click="answer('MARKET_SELL', false)">不卖</button>

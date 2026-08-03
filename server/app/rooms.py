@@ -106,6 +106,54 @@ class RoomSession:
         "MARKET_SOLD", "MARKET_DECLINED",
     })
 
+    # 市场卡的效果分好几条事件落地（design/06 §6.3）：抽出的一瞬间就伴随生成求购/强制效果，
+    # 玩家的答复又是各自独立的后续行动。只撤单独一行会留下幽灵 MARKET_PROMPTED——
+    # 重放时它照样把同一条求购 prompt 塞回去，弹层原样弹回，抽卡人回不到「重新选卡」。
+    _MARKET_BATCH_TYPES = frozenset({
+        "MARKET_PROMPTED", "CASHFLOW_MODIFIED", "ASSETS_SURRENDERED", "CARD_RESOLVED",
+    })
+    _MARKET_RESPONSE_TYPES = frozenset({
+        "MARKET_SOLD", "MARKET_DECLINED", "INSTALLMENT_SCHEDULED",
+    })
+
+    def _market_cascade(self, rows: list[dict], target: dict, target_seq: int
+                        ) -> tuple[set[int], set[int]]:
+        """给定一条市场卡的 CARD_DRAWN，圈出同批伴随事件 + 后续答复事件的 seq 集合。
+
+        返回 (撤销集合, 「别人做出的答复」所属 seq 集合)——后者用于本人更正时的权限判断。
+        非市场卡直接返回只含自身的集合。
+        """
+        tp = json.loads(target["payload"])
+        if target["type"] != "CARD_DRAWN" or tp.get("deck") != "MARKET":
+            return {target_seq}, set()
+        card_id = tp["card_id"]
+        cascade = {target_seq}
+        prompt_ids: set[str] = set()
+        # 同一次 decide() 产出、seq 紧邻的伴随事件：房间级锁保证批内不会被其它行动插入。
+        for r in rows:
+            if r["seq"] <= target_seq or r["revoked_by"] is not None:
+                continue
+            rp = json.loads(r["payload"])
+            if r["type"] in self._MARKET_BATCH_TYPES and rp.get("card_id") == card_id:
+                cascade.add(r["seq"])
+                if r["type"] == "MARKET_PROMPTED":
+                    prompt_ids.add(rp["prompt_id"])
+                continue
+            break   # 遇到跟这张卡无关的行动，说明这一批已经结束
+        # 答复可能是几秒后才提交的独立行动，不限于紧邻范围，要扫全量。
+        other_response_seqs: set[int] = set()
+        for r in rows:
+            if r["revoked_by"] is not None or r["seq"] in cascade:
+                continue
+            if r["type"] not in self._MARKET_RESPONSE_TYPES:
+                continue
+            rp = json.loads(r["payload"])
+            if rp.get("prompt_id") in prompt_ids:
+                cascade.add(r["seq"])
+                if r["actor_player_id"] != target["actor_player_id"]:
+                    other_response_seqs.add(r["seq"])
+        return cascade, other_response_seqs
+
     def _revert(self, actor_id: str, payload: dict, as_host: bool) -> list[dict]:
         actor = self.state.players.get(actor_id)
         if actor is None:
@@ -134,7 +182,12 @@ class RoomSession:
                            default=0)
             if target_seq < last_end:
                 raise EngineError("TURN_CLOSED", "该回合已结束，请房主在日志中撤销")
-        remaining = [r for r in rows if r["seq"] != target_seq]
+        target_seqs, other_response_seqs = self._market_cascade(rows, target, target_seq)
+        if not as_host and other_response_seqs:
+            # 别人对这张卡的求购要约已经做出了实质决定（卖/不卖/接受分期），
+            # 不能靠抽卡人一句「选错卡」就悄悄把别人的选择也撤掉。
+            raise EngineError("MARKET_RESPONDED", "已有其他玩家对这张卡做出回应，只能请房主在日志中撤销")
+        remaining = [r for r in rows if r["seq"] not in target_seqs]
         try:
             state = RoomState()
             for r in remaining:
@@ -152,7 +205,9 @@ class RoomSession:
                           "target_title": tp.get("title") or tp.get("name") or tp.get("symbol") or ""}}
         self.seq += 1
         rid = self.db.append_event(self.room_id, self.seq, actor_id, ev["type"], ev["payload"])
-        self.db.revoke_event(self.room_id, target_seq, rid)
+        # 同一批全部挂到这一条审计事件上：日志里这几行会一起被划线标记为「已撤销」。
+        for seq in target_seqs:
+            self.db.revoke_event(self.room_id, seq, rid)
         self.state = state           # HOST_REVERTED 本身不改状态，仅留审计痕迹
         # 撤销可能撤掉了一次房主转让：把 DB 侧的 is_host 重新对齐到重放后的状态，
         # 否则被撤销转让的旧房主令牌仍会被 delete_room 当作房主凭证。

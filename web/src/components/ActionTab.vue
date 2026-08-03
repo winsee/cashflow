@@ -188,13 +188,8 @@ async function undoDraw() {
     danger: true,
   })
   if (!ok) return
-  const log = await game.fetchLog()
-  const drawn = [...log].reverse().find(e =>
-    e.type === 'CARD_DRAWN' && !e.revoked
-    && e.actorId === game.session?.playerId && e.payload.card_id === cur.card_id)
-  if (!drawn) { game.flash('未找到抽卡记录，请在「日志」中处理', 'info'); return }
   const deck = cur.deck
-  if (await game.act('PLAYER_CORRECT', { eventSeq: drawn.seq, reason: '选错卡重选' })) {
+  if (await game.undoCardDraw(cur.card_id)) {
     activeCardInfo.value = null
     pickerDeck.value = deck
     game.flash('已撤销，请重新选卡')
@@ -622,14 +617,18 @@ const bkGap = computed(() => Math.max(0, -(me.value?.derived.monthlyCashflow ?? 
               发起转卖（待对方确认）
             </button>
           </div>
-
-          <button class="btn ghost small" style="margin-top:10px" @click="undoDraw">↩️ 选错卡？撤销重选</button>
         </template>
 
         <p v-else-if="!ac.resolved" class="muted" style="margin:0">
           等 {{ drawerName }} 决定。若这张卡和你有关（求购你的资产、股票开放交易、转卖给你），
           会弹出需要你答复的窗口。
         </p>
+
+        <!-- 撤销重选：市场卡抽出即 resolved，没有买/放弃的操作区，这个入口容易被以为不存在——
+             独立于上面的操作区之外，抽卡人在自己回合内随时看得见 -->
+        <button v-if="iAmDrawer" class="btn ghost small" style="margin-top:10px" @click="undoDraw">
+          ↩️ 选错卡？撤销重选
+        </button>
       </div>
 
       <!-- 不是我的回合、也没有活动卡：显示牌桌。围观也是玩——他走到哪一步了，看得见 -->

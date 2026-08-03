@@ -11,6 +11,7 @@ import pytest
 from ...rooms import RoomManager, RoomSession
 from ...store.db import Database
 from ..errors import EngineError
+from ..models import RealEstate
 
 
 @pytest.fixture
@@ -142,3 +143,96 @@ def test_revert_event_carries_target_identity(mgr):
     assert p["target_type"] == "CARD_DRAWN"
     assert p["target_player_id"] == a
     assert p["target_title"]
+
+
+# ---------- 市场卡撤销要级联，不留幽灵 MARKET_PROMPTED ----------
+
+def _give_apt(sess, pid, id_, rooms=2, cashflow=450):
+    """给玩家一套「公寓」资产，命中 mk-020（BUYER_OFFER，PER_ROOM 计价）。"""
+    sess.state.players[pid].real_estates.append(RealEstate(
+        id=id_, card_id="x", asset_type="公寓", rooms=rooms, name=f"{rooms}室公寓",
+        cost=60000, down_payment=6000, mortgage=54000, cashflow=cashflow))
+
+
+def _prompted(sess, pid=None):
+    return [p for p in sess.state.prompts
+            if p.kind == "MARKET_SELL" and (pid is None or p.target_player_id == pid)]
+
+
+def test_market_card_revert_clears_prompt(mgr):
+    """撤销市场卡的 CARD_DRAWN 必须把它撒出去的求购 prompt 一并撤掉，不能留幽灵。"""
+    sess, a, b, act = _setup(mgr)
+    _give_apt(sess, b, "apt-b")
+    act(a, "DRAW_CARD", cardId="mk-020")
+    assert len(_prompted(sess, b)) == 1
+
+    act(a, "PLAYER_CORRECT", eventSeq=_seq_of(sess, "CARD_DRAWN", card_id="mk-020"))
+    assert sess.state.active_card is None
+    assert _prompted(sess) == []                   # 幽灵不复活
+
+
+def test_market_card_own_decline_can_be_reverted(mgr):
+    """抽卡人自己持有匹配资产、自己点了「不卖」：这仍是本人的决定，撤销抽卡要放行。"""
+    sess, a, b, act = _setup(mgr)
+    _give_apt(sess, a, "apt-a")
+    act(a, "DRAW_CARD", cardId="mk-020")
+    prompt = _prompted(sess, a)[0]
+    act(a, "MARKET_SELL", promptId=prompt.id, accept=False)
+    assert _prompted(sess) == []                    # 已回答，prompt 先被正常移除
+
+    act(a, "PLAYER_CORRECT", eventSeq=_seq_of(sess, "CARD_DRAWN", card_id="mk-020"))
+    assert sess.state.active_card is None
+    assert _prompted(sess) == []
+
+
+def test_market_card_other_response_blocks_self_correct(mgr):
+    """别人已经对求购要约做出了实质决定：抽卡人不能自己一句「选错卡」把别人的选择也撤了。
+
+    走真实购房事件（而非直接塞对象到 state）：撤销会把 state 整个从事件流重放重建，
+    直接塞进去、没经过事件的资产在任何一次 revert 后都会凭空消失，跟这条测试想验证的
+    「撤销要把 B 的成交也一并回滚」是两回事。
+    """
+    sess, a, b, act = _setup(mgr)
+    act(a, "END_TURN")                              # 轮到 B，先让 B 买一套「公寓」
+    act(b, "TAKE_LOAN", amount=8000)
+    act(b, "DRAW_CARD", cardId="bd-017")             # 公寓 · 2 室 · 首付 $8,000
+    act(b, "CARD_DECISION", decision="buy")
+    assert len(sess.state.players[b].real_estates) == 1
+    act(b, "END_TURN")                               # 交回 A
+
+    act(a, "DRAW_CARD", cardId="mk-020")
+    prompt = _prompted(sess, b)[0]
+    b_cash0 = sess.state.players[b].cash
+    act(b, "MARKET_SELL", promptId=prompt.id, accept=True)     # B 卖了
+    assert sess.state.players[b].cash > b_cash0
+    assert sess.state.players[b].real_estates == []
+
+    seq = _seq_of(sess, "CARD_DRAWN", card_id="mk-020")
+    with pytest.raises(EngineError) as ei:
+        act(a, "PLAYER_CORRECT", eventSeq=seq)
+    assert ei.value.code == "MARKET_RESPONDED"
+
+    act(a, "HOST_REVERT", eventSeq=seq)             # 房主这条路不受此限制
+    assert sess.state.active_card is None
+    assert _prompted(sess) == []
+    assert sess.state.players[b].cash == b_cash0    # B 的成交也一并回滚
+    assert len(sess.state.players[b].real_estates) == 1
+
+
+def test_cashflow_modifier_card_revert_rolls_back_effect(mgr):
+    """CASHFLOW_MODIFIER 子类不推 prompt、抽出即生效：撤销抽卡要把这份效果也撤掉。"""
+    sess, a, b, act = _setup(mgr)
+    act(a, "END_TURN")                               # 轮到 B，先让 B 买一家「自建企业」
+    act(b, "TAKE_LOAN", amount=3000)
+    act(b, "DRAW_CARD", cardId="sd-018")              # 自建企业 · 首付 $3,000
+    act(b, "CARD_DECISION", decision="buy")
+    assert len(sess.state.players[b].businesses) == 1
+    cf0 = sess.state.players[b].businesses[0].cashflow
+    act(b, "END_TURN")                                # 交回 A
+
+    act(a, "DRAW_CARD", cardId="mk-008")
+    assert sess.state.players[b].businesses[0].cashflow == cf0 + 250
+
+    act(a, "PLAYER_CORRECT", eventSeq=_seq_of(sess, "CARD_DRAWN", card_id="mk-008"))
+    assert sess.state.players[b].businesses[0].cashflow == cf0
+    assert sess.state.active_card is None

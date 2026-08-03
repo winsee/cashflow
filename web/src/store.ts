@@ -390,6 +390,17 @@ export const useGame = defineStore('game', {
       const r = await fetch('/api/board/fasttrack')
       return r.json()
     },
+    /** 选错卡撤销重选（FR-29）：找到自己最近一条未撤销的同卡 CARD_DRAWN 并本人更正。
+     *  只负责撤销本身，撤销后要不要重开选卡器由调用方决定——
+     *  「行动」页要重开 CardPicker，市场求购弹层里只需要让自己消失即可。 */
+    async undoCardDraw(cardId: string): Promise<boolean> {
+      const log = await this.fetchLog()
+      const drawn = [...log].reverse().find(e =>
+        e.type === 'CARD_DRAWN' && !e.revoked
+        && e.actorId === this.session?.playerId && e.payload.card_id === cardId)
+      if (!drawn) { this.flash('未找到抽卡记录，请在「日志」中处理', 'info'); return false }
+      return this.act('PLAYER_CORRECT', { eventSeq: drawn.seq, reason: '选错卡重选' })
+    },
   },
 })
 
