@@ -151,7 +151,7 @@ async function copyUrl() {
 </script>
 
 <template>
-  <div class="page no-tabbar" v-if="game.state">
+  <div class="page fill no-tabbar" v-if="game.state">
     <PageHeader :title="`${game.state.settings.name} · ${game.state.roomCode}`"
                 back="📤 邀请" @back="showInvite = true">
       <template #actions>
@@ -167,116 +167,129 @@ async function copyUrl() {
     <input ref="urlInput" readonly :value="joinUrl" tabindex="-1" aria-hidden="true"
            style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
 
-    <!-- 两步：职业卡 → 梦想。选完后整块收成一行摘要，把版面让给出牌顺序。 -->
-    <div class="steps">
-      <span class="s" :class="game.me?.professionId ? 'ok' : 'now'">
-        <span class="n">{{ game.me?.professionId ? '✓' : '1' }}</span>职业卡</span>
-      <span class="ln"></span>
-      <span class="s" :class="game.me?.dreamId ? 'ok' : (game.me?.professionId ? 'now' : '')">
-        <span class="n">{{ game.me?.dreamId ? '✓' : '2' }}</span>梦想</span>
-    </div>
+    <!-- 内容区自己滚动，操作按钮固定钉在可视区域底部（同 BaseModal 的 dvh+overflow 思路），
+         小屏上卡片再高也不会把「选这张」「开始对局」这类关键按钮推出首屏 -->
+    <div class="page-scroll">
+      <!-- 两步：职业卡 → 梦想。选完后整块收成一行摘要，把版面让给出牌顺序。 -->
+      <div class="steps">
+        <span class="s" :class="game.me?.professionId ? 'ok' : 'now'">
+          <span class="n">{{ game.me?.professionId ? '✓' : '1' }}</span>职业卡</span>
+        <span class="ln"></span>
+        <span class="s" :class="game.me?.dreamId ? 'ok' : (game.me?.professionId ? 'now' : '')">
+          <span class="n">{{ game.me?.dreamId ? '✓' : '2' }}</span>梦想</span>
+      </div>
 
-    <!-- 都选好了就收成一行摘要，把版面让给出牌顺序；想改随时展开 -->
-    <div v-if="doneSetup && !editing" class="card">
-      <div class="row between">
-        <div>
-          <b>{{ game.me?.professionTitle }}</b>
-          <div class="muted">梦想：{{ dreamById(game.me?.dreamId ?? '')?.name ?? '已选' }}</div>
+      <!-- 都选好了就收成一行摘要，把版面让给出牌顺序；想改随时展开 -->
+      <div v-if="doneSetup && !editing" class="card">
+        <div class="row between">
+          <div>
+            <b>{{ game.me?.professionTitle }}</b>
+            <div class="muted">梦想：{{ dreamById(game.me?.dreamId ?? '')?.name ?? '已选' }}</div>
+          </div>
+          <button class="btn ghost small" @click="editing = true; step = 1">重选</button>
         </div>
-        <button class="btn ghost small" @click="editing = true; step = 1">重选</button>
+      </div>
+
+      <template v-else>
+        <!-- 步骤 1：职业卡。挤成网格每张只剩两三个数字，而玩家要核对的是整张卡 -->
+        <template v-if="step === 1">
+          <h2 style="margin-bottom:2px">找到你手上那张职业卡</h2>
+          <p class="muted" style="margin:0">左右滑动，和手里那张核对</p>
+          <SwipePicker v-if="professions.length" v-model="curProfession" :items="profItems" :half-width="143">
+            <template #default="{ item }">
+              <ProfessionCard :card="profById(item.id)!" :taken-by="takenProfessions.get(item.id)" />
+            </template>
+            <template #meta>
+              <span>
+                共 {{ professions.length }} 张
+                <template v-if="takenProfessions.get(curProfession)">
+                  · {{ profById(curProfession)?.title }}已被{{ takenProfessions.get(curProfession) }}选走
+                </template>
+              </span>
+            </template>
+          </SwipePicker>
+          <p v-else class="muted">正在加载职业卡…</p>
+        </template>
+
+        <!-- 步骤 2：梦想 -->
+        <template v-else>
+          <div class="row between">
+            <button class="btn ghost small" @click="step = 1">上一步</button>
+            <span class="muted">已选 {{ game.me?.professionTitle || '—' }}</span>
+          </div>
+          <h2 style="margin-bottom:2px">挑一个梦想</h2>
+          <p class="muted" style="margin:0">在快车道上买下它就赢了。别人踩到可以加价，选贵的更保险。</p>
+          <SwipePicker v-if="dreams.length" v-model="curDream" :items="dreamItems" :half-width="122">
+            <template #default="{ item }">
+              <div class="fcard dream dreampick" :class="{ taken: !!takenDreams.get(item.id) }">
+                <div class="fcard-kind">{{ takenDreams.get(item.id) ? '梦想 · 已被选走' : '梦想' }}</div>
+                <div class="fcard-name">{{ dreamById(item.id)!.name }}</div>
+                <div class="fcard-nums">
+                  <div><span>价格</span><b>{{ fmt(dreamById(item.id)!.price) }}</b></div>
+                  <div><span>被加价一次</span><b>{{ fmt(dreamById(item.id)!.price * 2) }}</b></div>
+                </div>
+                <p class="fcard-tip">{{ dreamTip(dreamById(item.id)!) }}</p>
+              </div>
+            </template>
+            <template #meta><span>共 {{ dreams.length }} 个</span></template>
+          </SwipePicker>
+          <p v-else class="muted">正在加载梦想…</p>
+        </template>
+      </template>
+
+      <!-- 出牌顺序：选完梦想后才出现，线下掷骰后由房主排先后 -->
+      <div v-if="doneSetup" class="card">
+        <div class="row between" style="margin-bottom:9px">
+          <h2 style="margin:0">出牌顺序</h2>
+          <span class="badge" v-if="isHost">房主</span>
+          <span class="badge" v-else>{{ players.length }}/{{ game.state.settings.max_players }} 人</span>
+        </div>
+        <div v-for="(p, i) in orderedPlayers" :key="p.id" class="card inner">
+          <div class="row between">
+            <div class="row" style="gap:8px">
+              <span class="num" style="width:18px;color:var(--muted)">{{ i + 1 }}</span>
+              <div>
+                <b style="font-size:13px">{{ p.nickname }}<span v-if="p.id === game.me?.id">（你）</span></b>
+                <div class="muted">
+                  {{ p.professionTitle || '还没选职业' }}<template v-if="p.dreamId"> · 已选梦想</template>
+                </div>
+              </div>
+            </div>
+            <div class="row" style="gap:4px" v-if="isHost">
+              <button class="btn ghost small" @click="move(i, -1)">↑</button>
+              <button class="btn ghost small" @click="move(i, 1)">↓</button>
+            </div>
+            <span v-else-if="!p.professionId || !p.dreamId" class="badge">等待中</span>
+          </div>
+        </div>
       </div>
     </div>
 
-    <template v-else>
-      <!-- 步骤 1：职业卡。挤成网格每张只剩两三个数字，而玩家要核对的是整张卡 -->
-      <template v-if="step === 1">
-        <h2 style="margin-bottom:2px">找到你手上那张职业卡</h2>
-        <p class="muted" style="margin:0">左右滑动，和手里那张核对</p>
-        <SwipePicker v-if="professions.length" v-model="curProfession" :items="profItems" :half-width="143">
-          <template #default="{ item }">
-            <ProfessionCard :card="profById(item.id)!" />
-          </template>
-          <template #meta>
-            <span>
-              共 {{ professions.length }} 张
-              <template v-if="takenProfessions.get(curProfession)">
-                · {{ profById(curProfession)?.title }}已被{{ takenProfessions.get(curProfession) }}选走
-              </template>
-            </span>
-          </template>
-        </SwipePicker>
-        <p v-else class="muted">正在加载职业卡…</p>
+    <!-- 操作区：常驻贴底，同一时刻只对应当前该做的那一步 -->
+    <div class="page-cta">
+      <template v-if="doneSetup && !editing">
+        <!-- 置灰必须给理由：谁没好，写在按钮上 -->
+        <button v-if="isHost" class="btn block" :disabled="players.length < 2 || notReady.length > 0" @click="start">
+          <template v-if="players.length < 2">开始对局 · 至少还需 1 人</template>
+          <template v-else-if="notReady.length">开始对局 · 还有 {{ notReady.length }} 人没准备好</template>
+          <template v-else>开始对局（自动发钱）</template>
+        </button>
+        <p v-else class="muted" style="text-align:center">等待房主开始对局…</p>
+      </template>
+      <template v-else-if="step === 1">
         <button class="btn block" :disabled="!curProfession || takenProfessions.has(curProfession)"
                 @click="pickProfession">
           {{ takenProfessions.has(curProfession) ? '这张已被选走' : '选这张，下一步' }}
         </button>
         <button v-if="game.me?.dreamId" class="btn ghost block small" @click="step = 2">跳到梦想</button>
       </template>
-
-      <!-- 步骤 2：梦想 -->
       <template v-else>
-        <div class="row between">
-          <button class="btn ghost small" @click="step = 1">上一步</button>
-          <span class="muted">已选 {{ game.me?.professionTitle || '—' }}</span>
-        </div>
-        <h2 style="margin-bottom:2px">挑一个梦想</h2>
-        <p class="muted" style="margin:0">在快车道上买下它就赢了。别人踩到可以加价，选贵的更保险。</p>
-        <SwipePicker v-if="dreams.length" v-model="curDream" :items="dreamItems" :half-width="122">
-          <template #default="{ item }">
-            <div class="fcard dream dreampick">
-              <div class="fcard-kind">梦想</div>
-              <div class="fcard-name">{{ dreamById(item.id)!.name }}</div>
-              <div class="fcard-nums">
-                <div><span>价格</span><b>{{ fmt(dreamById(item.id)!.price) }}</b></div>
-                <div><span>被加价一次</span><b>{{ fmt(dreamById(item.id)!.price * 2) }}</b></div>
-              </div>
-              <p class="fcard-tip">{{ dreamTip(dreamById(item.id)!) }}</p>
-            </div>
-          </template>
-          <template #meta><span>共 {{ dreams.length }} 个</span></template>
-        </SwipePicker>
-        <p v-else class="muted">正在加载梦想…</p>
         <button class="btn block" :disabled="!curDream || takenDreams.has(curDream)" @click="pickDream">
           {{ takenDreams.has(curDream) ? '这个已被选走' : '我准备好了' }}
         </button>
       </template>
-    </template>
-
-    <!-- 出牌顺序：选完梦想后才出现，线下掷骰后由房主排先后 -->
-    <div v-if="doneSetup" class="card">
-      <div class="row between" style="margin-bottom:9px">
-        <h2 style="margin:0">出牌顺序</h2>
-        <span class="badge" v-if="isHost">房主</span>
-        <span class="badge" v-else>{{ players.length }}/{{ game.state.settings.max_players }} 人</span>
-      </div>
-      <div v-for="(p, i) in orderedPlayers" :key="p.id" class="card inner">
-        <div class="row between">
-          <div class="row" style="gap:8px">
-            <span class="num" style="width:18px;color:var(--muted)">{{ i + 1 }}</span>
-            <div>
-              <b style="font-size:13px">{{ p.nickname }}<span v-if="p.id === game.me?.id">（你）</span></b>
-              <div class="muted">
-                {{ p.professionTitle || '还没选职业' }}<template v-if="p.dreamId"> · 已选梦想</template>
-              </div>
-            </div>
-          </div>
-          <div class="row" style="gap:4px" v-if="isHost">
-            <button class="btn ghost small" @click="move(i, -1)">↑</button>
-            <button class="btn ghost small" @click="move(i, 1)">↓</button>
-          </div>
-          <span v-else-if="!p.professionId || !p.dreamId" class="badge">等待中</span>
-        </div>
-      </div>
+      <button class="btn block ghost" @click="leaveGame">退出对局</button>
     </div>
-
-    <!-- 置灰必须给理由：谁没好，写在按钮上 -->
-    <button v-if="isHost" class="btn block" :disabled="players.length < 2 || notReady.length > 0" @click="start">
-      <template v-if="players.length < 2">开始对局 · 至少还需 1 人</template>
-      <template v-else-if="notReady.length">开始对局 · 还有 {{ notReady.length }} 人没准备好</template>
-      <template v-else>开始对局（自动发钱）</template>
-    </button>
-    <p v-else class="muted" style="text-align:center">等待房主开始对局…</p>
-    <button class="btn block ghost" @click="leaveGame">退出对局</button>
 
     <InviteDialog v-if="showInvite" :code="game.state.roomCode" :url="joinUrl"
                   :nickname="game.me?.nickname" @close="showInvite = false" />

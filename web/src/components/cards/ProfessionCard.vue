@@ -7,7 +7,7 @@
 import { computed } from 'vue'
 import type { CardDto } from '../../types'
 
-const props = defineProps<{ card: CardDto }>()
+const props = defineProps<{ card: CardDto; takenBy?: string }>()
 
 type Row = { label: string; value: string }
 const raw = computed(() => props.card.raw ?? {})
@@ -35,8 +35,8 @@ const isZero = (v: string) => /^0$|^\$?0$/.test(v.trim())
 </script>
 
 <template>
-  <div class="pcard">
-    <div class="pcard-hd">{{ raw.subtitle || '您的职业' }}</div>
+  <div class="pcard" :class="{ taken: !!takenBy }">
+    <div class="pcard-hd">{{ takenBy ? `已被 ${takenBy} 选走` : (raw.subtitle || '您的职业') }}</div>
     <div class="pcard-name">{{ raw.title || card.title }}</div>
     <div v-if="raw.body?.[0]" class="pcard-tip">{{ raw.body[0] }}</div>
     <div v-if="raw.body?.[1]" class="pcard-goal">{{ raw.body[1] }}</div>
