@@ -5,9 +5,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { confirmAction } from '../confirm'
 import { COLOR_DREAM, COLOR_FASTTRACK } from '../decks'
-import { fmt, useGame } from '../store'
+import { FT_WIN_INCREMENT, fmt, useGame } from '../store'
 import type { FtBusiness, FtDream } from '../types'
 import BaseModal from './base/BaseModal.vue'
+import StatRow from './base/StatRow.vue'
 import FtSquareCard from './cards/FtSquareCard.vue'
 
 const game = useGame()
@@ -17,6 +18,16 @@ const myTurn = computed(() => game.isMyTurn)
 // 停留格与收款每回合各一次（服务端权威校验，这里做禁用引导）
 const squareLocked = computed(() => !myTurn.value || st.value.turnSquareUsed)
 const paydayLocked = computed(() => !myTurn.value || st.value.turnPaydayUsed)
+
+/** 进场那一回合、且进场前已在老鼠赛跑走过一格：棋子刚落到外环「在此进入」箭头，本回合到此为止。
+ *  这一屏若照常渲染就是一排点不动的灰按钮，玩家不知道为什么，所以整块换成进场引导。
+ *  必须带 myTurn —— 同一轮里别人行动时 entered_turn 仍等于 turnCount。 */
+const justLanded = computed(() =>
+  myTurn.value && st.value.turnSquareUsed
+  && me.value.fasttrack.entered_turn === st.value.turnCount)
+/** 距胜利还差多少（另一条路是买下自己的梦想），口径同总览页 */
+const toWin = computed(() => Math.max(
+  0, me.value.fasttrack.initial_income + FT_WIN_INCREMENT - me.value.fasttrack.current_income))
 
 const businesses = ref<FtBusiness[]>([])
 const dreams = ref<FtDream[]>([])
@@ -144,6 +155,27 @@ async function ftHit(action: string, title: string, desc: string, amount: number
 
 <template>
   <div>
+    <!-- 进场当回合（老鼠赛跑里已走过一格）：本回合到此为止，别拿一排灰按钮糊玩家一脸 -->
+    <div v-if="justLanded" class="card focus ft-landed">
+      <div class="todo-label gold">🏁 你已进入快车道</div>
+      <p class="landed-lead">
+        本回合你在老鼠赛跑里已经走过一格，棋子现在落在外环「在此进入」箭头上。
+      </p>
+      <p class="landed-lead">
+        <b>本回合到此为止</b> —— 点下方「结束回合」。下一回合起，每次掷 <b>2 粒骰子</b>在外环移动{{
+          me.fasttrack.charity_forever ? '（你已行善，可选 1–3 粒）' : '' }}。
+      </p>
+      <div class="landed-nums">
+        <StatRow label="启动资金已到账" :value="me.cash" />
+        <StatRow label="现金流量日收入" :value="me.fasttrack.current_income" />
+        <StatRow label="距胜利还差" :value="toWin" />
+      </div>
+      <p class="muted" style="margin:10px 0 0">
+        另一条胜利之路是买下你自己的梦想，下回合停在它上面就能付款。
+      </p>
+    </div>
+
+    <template v-else>
     <!-- 三步进度条：与老鼠赛跑同构 -->
     <div class="steps">
       <span class="s" :class="stepPayday ? 'ok' : 'now'"><span class="n">{{ stepPayday ? '✓' : '1' }}</span>现金流量日</span>
@@ -199,6 +231,7 @@ async function ftHit(action: string, title: string, desc: string, amount: number
     </div>
 
     <p class="muted" style="margin:0 2px">快车道没有银行贷款，现金不够就买不了。</p>
+    </template>
 
     <!-- 企业选择器：一格只能被一个人买走，骰子点数收进对应那张卡 -->
     <BaseModal v-if="sheet === 'biz'" title="你停在哪一格企业？"

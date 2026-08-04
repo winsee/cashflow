@@ -269,6 +269,20 @@ export function buildReceipts(
         }
         break
       }
+
+      // 有人换赛道了：不动我的账，但这是一局里最该被看见的一件事。
+      // 全屏祝贺（store.catchCheer）点掉之后，这条留在行动页顶部当存根。
+      // 用 player_id 判当事人，不进 SELF_ACTION 表 —— 那张表靠 6 秒时间窗，这里有确定的 id。
+      case 'ENTERED_FASTTRACK': {
+        if (p.player_id === meId) break
+        out.push(make({
+          tone: 'gold', icon: '🏁',
+          title: `${nickOf(p.player_id)} 逃出老鼠赛跑了`,
+          why: '非工资收入超过总支出，已进入快车道',
+          amount: `现金流量日收入 ${money(p.initial_income ?? 0)}`,
+        }))
+        break
+      }
     }
   }
   return out

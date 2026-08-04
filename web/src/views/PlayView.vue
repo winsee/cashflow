@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { fmt, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
 import StatementTab from '../components/StatementTab.vue'
 import ActionTab from '../components/ActionTab.vue'
@@ -9,6 +9,7 @@ import PromptModal from '../components/PromptModal.vue'
 import ResultView from '../components/ResultView.vue'
 import ConnectingFallback from '../components/ConnectingFallback.vue'
 import FasttrackIntro from '../components/FasttrackIntro.vue'
+import FasttrackCheer from '../components/FasttrackCheer.vue'
 
 const game = useGame()
 const tab = ref<'statement' | 'action' | 'overview' | 'log'>('action')
@@ -37,16 +38,46 @@ const actionAlert = computed(() =>
   (game.isMyTurn && !!game.state?.activeCard && !game.state.activeCard.resolved
     && game.state.activeCard.drawer_id === game.session?.playerId))
 
-// 逃出老鼠赛跑：达成条件的横幅提到 HUD 正下方，点开才是全屏换算预演。
-// 「看看能换到多少」而不是「进入快车道」—— 点主按钮才真正提交。
+// 逃出老鼠赛跑：一局只有一次的转折点，达成条件就直接把全屏换算推到脸上。
+// 屏上按钮仍是「进入快车道」/「再想想」—— 看的是预演，点主按钮才真正提交。
 const showIntro = ref(false)
 const canEscape = computed(() =>
   !!me.value && me.value.phase === 'RAT_RACE' && !me.value.inBankruptcy
   && me.value.derived.canEnterFasttrack)
 
+// 自动弹屏的条件比 canEscape 严：服务端 _d_enter_fasttrack 要求必须是当前玩家，
+// 而别人的市场卡完全可能把我的非工资收入顶过线。非我回合就只留 HUD 下的横幅当入口。
+const escapeReady = computed(() =>
+  canEscape.value && game.isMyTurn
+  && !game.myPrompts.length                    // 别盖住待我答复的求购/市场弹层
+  && !(game.state?.activeCard && !game.state.activeCard.resolved))
+
+/** 「再想想」记在 sessionStorage：不然刷新一次就把已经推开的过场重新糊到脸上 */
+const dismissKey = computed(() =>
+  `ftIntro:${game.session?.roomCode ?? ''}:${game.session?.playerId ?? ''}`)
+const introDismissed = ref(sessionStorage.getItem(dismissKey.value) === '1')
+function dismissIntro() {
+  showIntro.value = false
+  introDismissed.value = true
+  sessionStorage.setItem(dismissKey.value, '1')
+}
+
+watch(escapeReady, v => {
+  if (v && !introDismissed.value) showIntro.value = true
+}, { immediate: true })
+// 收入被市场卡打回线下：收起过场并复位，下次再达成还会自动弹
+watch(canEscape, v => {
+  if (!v) {
+    showIntro.value = false
+    introDismissed.value = false
+    sessionStorage.removeItem(dismissKey.value)
+  }
+})
+
 async function confirmEnterFasttrack() {
   if (await game.act('ENTER_FASTTRACK')) {
     showIntro.value = false
+    sessionStorage.removeItem(dismissKey.value)
     game.flash('🏁 你进入快车道了，启动资金已到账', 'gold')
   }
 }
@@ -97,8 +128,8 @@ async function confirmEnterFasttrack() {
       </template>
     </div>
 
-    <!-- 达成逃出条件：横幅就在 HUD 正下方，不埋进分诊卡底部 -->
-    <button v-if="canEscape" class="hud-banner" @click="showIntro = true">
+    <!-- 达成逃出条件但轮不到自己（或刚推开过场）：横幅留在 HUD 正下方当入口 -->
+    <button v-if="canEscape && !showIntro" class="hud-banner" @click="showIntro = true">
       <span class="ic">🏁</span>
       <span class="grow">
         <span class="t">你赢下老鼠赛跑了</span>
@@ -119,7 +150,8 @@ async function confirmEnterFasttrack() {
     </div>
 
     <PromptModal />
-    <FasttrackIntro v-if="showIntro" @close="showIntro = false" @confirm="confirmEnterFasttrack" />
+    <FasttrackCheer v-if="game.cheer" :cheer="game.cheer" @close="game.cheer = null" />
+    <FasttrackIntro v-if="showIntro" @close="dismissIntro" @confirm="confirmEnterFasttrack" />
 
     <nav class="tabbar">
       <button :class="{ active: tab === 'statement' }" @click="tab = 'statement'">📋 报表</button>

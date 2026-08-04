@@ -11,6 +11,7 @@
   /* ---------- 阶段色（会被 .skin-ft 覆盖） ---------- */
   --bg: #F1E9DA;            /* 温暖纸底 */
   --bg-2: #F6F0E4;          /* 渐变高点 */
+  --bg-mid: #F4EDDF;        /* 渐变中段：老鼠赛跑下取两者之间，三段退化成看不出接缝的一条 */
   --panel: #FFFDF8;         /* 卡面·暖白 */
   --panel2: #F7F0E1;        /* 内嵌/输入底 */
   --line: #E5DAC3;          /* 暖色发丝线 */
@@ -108,8 +109,11 @@
    不跟着变：正负数语义色、警示红、三种卡面（实体物复刻）
    ============================================================ */
 .skin-ft {
-  --bg: #F3E7CC;
-  --bg-2: #F8EFDC;
+  /* 底色三段与 .curtain.ftx 逐字一致：换算过场的帘幕落下时直接融进界面，
+     而不是切回一张几乎看不出区别的浅米纸 —— 换了赛道就该一眼看得出来 */
+  --bg-2: #FFF6DC;
+  --bg-mid: #F3E3B8;
+  --bg: #E8D296;
   --panel: #FFFCF2;
   --panel2: #F7EEDA;
   --line: #E6D6B4;
@@ -118,14 +122,15 @@
   --brand-dark: #96691C;
   --brand-soft: #F4E8CB;
   --brand-hi: #DCAE45;
-  --glow: rgba(212, 168, 66, .30);
+  --glow: transparent;      /* 底色自带亮心，#app 上再叠一层金晕就过曝了 */
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
+  /* 几何与 .curtain.ftx 同一条，快车道下两者才对得上 */
   background:
-    radial-gradient(1100px 620px at 50% -8%, var(--bg-2), var(--bg));
+    radial-gradient(120% 80% at 50% 0%, var(--bg-2), var(--bg-mid) 55%, var(--bg));
   background-attachment: fixed;
   color: var(--text);
   font-family: var(--font);
@@ -138,7 +143,8 @@ body {
 #app {
   max-width: 560px; margin: 0 auto; min-height: 100dvh;
   display: flex; flex-direction: column;
-  /* 快车道的金晕：呼应逃出那一屏的过场，老鼠赛跑下 --glow 是透明的 */
+  /* 顶部光晕：两种皮肤下 --glow 现在都是透明的（快车道的亮心已由 body 底色给出），
+     留着这条是为了随时能给某个阶段单独加一层，不必再动 #app 的结构 */
   background-image: radial-gradient(120% 30% at 50% 0%, var(--glow), transparent 70%);
 }
 
@@ -191,6 +197,9 @@ h3 { font-size: 1rem; color: var(--muted); }
 .card.urgent { border-color: #e0a6a2; box-shadow: var(--shadow), 0 0 0 2px var(--red-soft) inset; }
 .card.gold { background: linear-gradient(158deg, var(--panel), #F5E9CC); border-color: #E3D1A4; }
 .card.quiet { background: transparent; box-shadow: none; border-style: dashed; }
+/* 金底比纸底深一档，两种「靠边框说话」的卡要跟着加深，否则虚线框直接糊进背景 */
+.skin-ft .card.quiet { border-color: #C4A55F; }
+.skin-ft .card.gold { border-color: #C9A45C; }
 /* 修饰类：消化散落在模板里的内联 border-color */
 .card.selected { border-color: var(--brand); background: var(--brand-soft); }
 .card.danger { border-color: var(--red); }
@@ -514,6 +523,14 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .prow .money { font-size: var(--fs-base); color: var(--text); }
 .prow .arrow { color: var(--muted); margin: 0 var(--sp-1); }
 
+/* 进入快车道那一回合的落地卡：本回合已在老鼠赛跑走过一格，这里只交代「到此为止」 */
+.ft-landed .landed-lead { margin: var(--sp-2) 2px 0; font-size: var(--fs-sm); line-height: 1.65; }
+.ft-landed .landed-lead b { color: var(--gold-deep); }
+.ft-landed .landed-nums {
+  margin-top: var(--sp-3); padding: 11px 13px; border-radius: var(--r);
+  background: var(--panel2); display: grid; gap: 7px;
+}
+
 /* 三步进度条（结算日 → 停留格 → 结束） */
 .steps { display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--muted); margin: var(--sp-2) 0; }
 .steps .s { display: flex; align-items: center; gap: var(--sp-1); }
@@ -736,7 +753,9 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   display: flex; flex-direction: column; gap: var(--sp-3); text-align: center;
   padding: calc(var(--sp-5) + env(safe-area-inset-top)) 20px calc(var(--sp-4) + env(safe-area-inset-bottom));
 }
-.curtain.ftx { background: radial-gradient(120% 80% at 50% 0%, #FFF6DC, #F3E3B8 55%, #E8D296); }
+/* ftx 这条金箔同时是快车道的整屏底色（见 .skin-ft 的 --bg-*），帘幕落下时严丝合缝地接上 */
+.curtain.ftx,
+.curtain.cheer { background: radial-gradient(120% 80% at 50% 0%, #FFF6DC, #F3E3B8 55%, #E8D296); }
 .curtain.win { background: radial-gradient(120% 80% at 50% 10%, #FFF8E2, #F0DFAE 60%, #DFC57F); }
 .curtain .glyph { font-size: 42px; line-height: 1; }
 .curtain h2 { font-size: 21px; font-weight: 800; letter-spacing: -.3px; color: #5A4310; margin: 0; }

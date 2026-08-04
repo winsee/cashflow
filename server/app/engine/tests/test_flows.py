@@ -500,6 +500,58 @@ def test_pay_off_debt_rejected_in_fasttrack(duo):
         duo.act("A", "PAY_OFF_DEBT", liabilityId="car_loan")
 
 
+def _buy_pizza(duo, pid="A"):
+    """走真实过线路径：抽卡买下比萨专卖店（+$5,000/月）。DRAW_CARD 会置 turn_square_used。"""
+    duo.state.players[pid].cash += 100_000        # 跳过攒钱，只测进场那一步
+    duo.act(pid, "DRAW_CARD", cardId="bd-031")
+    duo.act(pid, "CARD_DECISION", decision="buy")
+
+
+def test_enter_fasttrack_mid_turn_closes_the_turn(duo):
+    """自己回合抽卡买资产当场过线：本回合已经走过一格，进场后停留格与现金流量日一并关闭。
+
+    _give_passive 直接往 state 塞资产，绕过了 DRAW_CARD，所以这条真实路径要单独钉。
+    """
+    _buy_pizza(duo)
+    _cycle(duo)
+    _buy_pizza(duo)                               # 非工资 10,000 > 总支出 9,650
+    assert duo.state.turn_square_used             # 抽卡即占掉本回合的停留格
+    duo.act("A", "ENTER_FASTTRACK")
+
+    a = duo.player("A")
+    assert a.phase == Phase.FAST_TRACK
+    assert a.fasttrack.entered_turn == duo.state.turn_count
+    # 棋子只是移到外环「在此进入」箭头，本回合不再掷骰移动 → 两个标志都关上
+    assert duo.state.turn_square_used and duo.state.turn_payday_used
+    with pytest.raises(EngineError, match="本回合已结算过"):
+        duo.act("A", "FT_PAYDAY")                 # 启动资金刚发过，不许再白领一笔
+    with pytest.raises(EngineError, match="本回合已声明过停留格"):
+        duo.act("A", "FT_BUY_BUSINESS", squareId="ft-b-inn")
+
+    # 锁只管进场那一回合：轮转一圈回来，快车道三步全部恢复
+    _cycle(duo)
+    assert not duo.state.turn_square_used and not duo.state.turn_payday_used
+    assert duo.player("A").fasttrack.entered_turn != duo.state.turn_count
+    duo.act("A", "FT_PAYDAY")
+    duo.act("A", "FT_BUY_BUSINESS", squareId="ft-b-inn")
+
+
+def test_enter_fasttrack_at_turn_start_keeps_actions(duo):
+    """上一轮被别人的卡顶过线、回合开始就进场：本回合还没行动，快车道三步一切正常。"""
+    _buy_pizza(duo)
+    _cycle(duo)
+    _buy_pizza(duo)
+    _cycle(duo)                                   # 过线后先把这一回合让掉
+
+    assert not duo.state.turn_square_used and not duo.state.turn_payday_used
+    duo.act("A", "ENTER_FASTTRACK")
+    assert not duo.state.turn_square_used and not duo.state.turn_payday_used
+    duo.act("A", "FT_PAYDAY")
+    duo.act("A", "FT_BUY_BUSINESS", squareId="ft-b-inn")
+    # 启动资金 + 现金流量日各 1,000,000，减掉家庭用品连锁店首期 300,000
+    assert duo.player("A").cash == 2_000_000 - 300_000
+
+
 def test_enter_fasttrack_rejected_when_not_eligible(duo):
     with pytest.raises(EngineError, match="尚未达成"):
         duo.act("A", "ENTER_FASTTRACK")

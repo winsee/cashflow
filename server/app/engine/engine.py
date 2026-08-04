@@ -906,8 +906,12 @@ def _d_enter_fasttrack(state, actor_id, p, lib) -> list[Event]:
     if passive <= F.total_expenses(player):
         raise EngineError("NOT_ELIGIBLE", "尚未达成 非工资收入 > 总支出")
     initial = F.fasttrack_initial_income(passive)
+    # turn_closed：本回合已经在老鼠赛跑走过一格（抽卡买资产过线当场进场）。
+    # 棋子这一回合只是移到外环「在此进入」箭头，不再掷骰移动，所以快车道的停留格与
+    # 现金流量日一并关闭；回合开始就进场的（上一轮被别人的卡顶过线）则一切照常。
     return [_ev("ENTERED_FASTTRACK", player_id=player.id, passive_income=passive,
-                initial_income=initial, cash_returned=player.cash)]
+                initial_income=initial, cash_returned=player.cash,
+                turn_closed=state.turn_square_used, turn_count=state.turn_count)]
 
 
 def _d_ft_payday(state, actor_id, p, lib) -> list[Event]:
@@ -1576,6 +1580,12 @@ def _a_entered_fasttrack(s: RoomState, p) -> None:
     pl.charity_turns = 0                         # 老鼠赛跑的慈善轮次不带进快车道
     pl.fasttrack.initial_income = p["initial_income"]
     pl.fasttrack.current_income = p["initial_income"]
+    pl.fasttrack.entered_turn = p.get("turn_count")
+    if p.get("turn_closed"):
+        # 本回合已在老鼠赛跑走过一格：停留格标志本就是 True（保持不动，它正是那把锁），
+        # 这里把现金流量日也一并关掉 —— 启动资金刚发过，本回合不再移动，
+        # 不关的话玩家能在启动资金之外再白领一笔 current_income。
+        s.turn_payday_used = True
 
 
 def _a_ft_payday(s: RoomState, p) -> None:

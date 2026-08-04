@@ -113,6 +113,7 @@ class FastTrackState(BaseModel):
     current_income: int = 0
     businesses: list[FastTrackHolding] = Field(default_factory=list)
     charity_forever: bool = False   # 快车道慈善：永久可选 1-3 粒骰
+    entered_turn: int | None = None  # 进场时的 turn_count（前端据此区分「进场当回合」）
 
 
 class PlayerState(BaseModel):

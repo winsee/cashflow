@@ -32,6 +32,15 @@ export interface StockWindow {
   key: string
 }
 
+/** 别人逃出老鼠赛跑那一刻，推给其余所有人的全屏祝贺（一局最多几次，看完点掉） */
+export interface Cheer {
+  playerId: string
+  nickname: string
+  profession: string
+  income: number
+  turn: number
+}
+
 /** 局域网 HTTP（非安全上下文）没有 crypto.randomUUID，用 getRandomValues 兜底 */
 function uuid(): string {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -100,6 +109,8 @@ export const useGame = defineStore('game', {
     receipts: [] as Receipt[],
     /** 当前这张卡波及了谁（全员可见的「大声读出来」那一份），随卡失效 */
     lastImpact: null as CardImpact | null,
+    /** 有人（不是我）逃出老鼠赛跑了：全屏祝贺一屏，点掉为止 */
+    cheer: null as Cheer | null,
   }),
   getters: {
     me(): Player | null {
@@ -327,6 +338,26 @@ export const useGame = defineStore('game', {
       // 波及范围与回执用同一批事件、同一个「换快照前」的时机：被没收的资产名只在旧快照里有
       const impact = buildCardImpact(events, this.state)
       if (impact) this.lastImpact = impact
+      this.catchCheer(events, meId)
+    },
+    /** 别人逃出老鼠赛跑：推一屏全屏祝贺。
+     *  和回执同一入口，所以重连首帧（type: 'snapshot'，不带 lastEvents）天然不会误弹。
+     *  手上有待答复的弹层就不弹了 —— 别拿别人的高光打断我正在做的决策，回执卡照留。 */
+    catchCheer(events: { type: string; payload: Record<string, any> }[], meId: string) {
+      if (this.myPrompts.length) return
+      for (const ev of events) {
+        if (ev.type !== 'ENTERED_FASTTRACK') continue
+        const pid = ev.payload?.player_id
+        if (!pid || pid === meId) continue
+        const who = this.state!.players.find(p => p.id === pid)
+        this.cheer = {
+          playerId: pid,
+          nickname: who?.nickname ?? '有人',
+          profession: who?.professionTitle ?? '',
+          income: ev.payload.initial_income ?? 0,
+          turn: this.state!.turnCount,
+        }
+      }
     },
     dismissReceipt(id: string) {
       this.receipts = this.receipts.filter(r => r.id !== id)

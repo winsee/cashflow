@@ -14,6 +14,9 @@ const game = useGame()
 const me = computed(() => game.me!)
 
 const passive = computed(() => me.value.derived.passiveIncome)
+/** 本回合已在老鼠赛跑走过一格 → 进场后棋子只落到「在此进入」箭头，这一回合就结束了。
+ *  承诺之前先说清楚，别让玩家进去以后才发现点不动。 */
+const turnWillClose = computed(() => !!game.state?.turnSquareUsed)
 /** 说明书 P.5：以千元为单位四舍五入得到「您的财产」，再 ×100 得现金流量日收入 */
 const wealth = computed(() => Math.round(passive.value / 1000) * 1000)
 const initial = computed(() => wealth.value * 100)
@@ -38,6 +41,7 @@ const initial = computed(() => wealth.value * 100)
         <div class="fact"><i>②</i><span>此后每次<b>停在或经过「现金流量日」</b>，再领 {{ fmt(initial) }}。</span></div>
         <div class="fact"><i>③</i><span>老鼠赛跑的记录卡<b>翻面封存</b>，那边的资产、负债与收支不再计入。</span></div>
         <div class="fact"><i>④</i><span>胜利条件二选一：<b>现金流量日收入涨到 {{ fmt(initial + 50000) }}</b>，或<b>买下自己的梦想</b>。</span></div>
+        <div v-if="turnWillClose" class="fact"><i>⑤</i><span>本回合你已经在老鼠赛跑走过一格，<b>进场后本回合就到此为止</b>；下一回合起才在外环掷骰移动。</span></div>
       </div>
 
       <div class="tail">

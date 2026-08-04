@@ -346,10 +346,12 @@ async function startBankruptcy() {
 
 async function endTurn() {
   if (!st.value.turnSquareUsed && !st.value.turnPaydayUsed) {
+    // 快车道那半张记录卡上没有「银行结算日」这个词，别拿老鼠赛跑的说法去问他
+    const payday = me.value!.phase === 'FAST_TRACK' ? '现金流量日' : '银行结算日'
     const ok = await confirmAction({
       title: '结束回合？',
       lines: ['本回合尚未记录任何棋盘事件',
-              '若本轮经过/停在银行结算日，请先点「银行结算日」结算'],
+              `若本轮经过/停在${payday}，请先点「${payday}」结算`],
     })
     if (!ok) return
   }

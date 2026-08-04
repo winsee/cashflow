@@ -390,21 +390,31 @@ async function main() {
   }
   await sleep(600)
   await pa.reload({ waitUntil: 'networkidle2' })
-  await shot(pa, '09-达成条件-HUD金色横幅', '.hud-banner')
+  // 轮到自己 + 手上没别的待办 → 换算过场自动弹，不必再点横幅（横幅退居非我回合的入口）
+  await shot(pa, '09-达成条件-自动进入换算过场', '.curtain.ftx .cline.hero')
+  await expectText(pa, '09-达成条件-自动进入换算过场', { has: ['你逃出老鼠赛跑了', '现金流量日收入'] })
+
+  // 「再想想」推开后横幅接手，且刷新不该把过场重新糊上来（sessionStorage 记着）
+  await clickText(pa, '.curtain .btn', '再想想')
+  await shot(pa, '10-推开过场后-横幅接手', '.hud-banner')
+  await pa.reload({ waitUntil: 'networkidle2' })
+  await sleep(400)
+  await expectText(pa, '10-推开过场后-横幅接手', { has: ['你赢下老鼠赛跑了'] })
 
   await pa.evaluate(() => {
     const el = document.querySelector('.hud-banner')
     if (el) el.click()
   })
-  await shot(pa, '10-逃出老鼠赛跑-换算过场', '.curtain.ftx .cline.hero')
-
-  await pa.evaluate(() => {
-    const el = [...document.querySelectorAll('.curtain .btn')].find(x => x.textContent.includes('进入快车道'))
-    if (el) el.click()
-  })
+  await pa.waitForSelector('.curtain.ftx')
+  await clickText(pa, '.curtain .btn', '进入快车道')
   await sleep(900)
   await shot(pa, '11-快车道-整屏转金', 'body.skin-ft .hud')
-  await shot(pb, '12-其他玩家收到广播', '.hud .cash')
+
+  await shot(pb, '12-其他玩家-祝贺过场', '.curtain.cheer')
+  await expectText(pb, '12-其他玩家-祝贺过场', { has: ['逃出老鼠赛跑了', '现金流量日收入'] })
+  await clickText(pb, '.curtain .btn', '知道了')
+  await shot(pb, '12b-其他玩家-金色回执存根', '.receipt.goldline')
+  await clickText(pb, '.btn', '我知道了')
 
   await pa.evaluate(() => document.querySelectorAll('.tabbar button')[0].click())
   await shot(pa, '13-快车道记录卡-已翻面', '.card.quiet')
@@ -416,6 +426,26 @@ async function main() {
     if (el) el.click()
   })
   await shot(pa, '14-快车道-企业选择器弹层', '.modal .fcard.biz')
+
+  // 另一种进场口径：自己回合抽卡买资产当场过线（阿明走的是「回合开始就进场」那一种）。
+  // 棋子这一回合只是移到外环「在此进入」箭头，本回合到此为止 —— 照常渲染就是一排
+  // 点不动的灰按钮（试玩反馈「只有现金流量日能点」），所以整块换成进场引导卡。
+  await send(pa, 'END_TURN')
+  await send(pa, 'HOST_ADJUST', { playerId: b.playerId, delta: 500000, reason: '冒烟：代替攒钱' })
+  await send(pb, 'DRAW_CARD', { cardId: 'bd-031' })     // 经理总支出 $2,930，一张就过线
+  await send(pb, 'CARD_DECISION', { decision: 'buy' })
+  await sleep(700)
+  await shot(pb, '14a-进场过场-预告本回合到此为止', '.curtain.ftx .fact')
+  await expectText(pb, '14a-进场过场-预告本回合到此为止', { has: ['进场后本回合就到此为止'] })
+
+  await clickText(pb, '.curtain .btn', '进入快车道')
+  await sleep(900)
+  await pb.evaluate(() => document.querySelectorAll('.tabbar button')[1].click())
+  await shot(pb, '14b-进场当回合-本回合到此为止', '.ft-landed')
+  await expectText(pb, '14b-进场当回合-本回合到此为止', {
+    has: ['你已进入快车道', '本回合到此为止', '启动资金已到账'],
+    hasNot: ['本回合待办', '企业投资'],
+  })
 
   // 断线：红条常驻 + 明说操作不可用（界面保留但失效）
   offlineOnPurpose = true

@@ -37,7 +37,8 @@ function isMe(p: Player) { return p.id === game.session?.playerId }
 const detail = ref<null | 'statement' | 'log'>(null)
 
 // 胜利瞬间：一整屏只说一件事 —— 你赢了、怎么赢的。数据留给下一屏（战报）。
-// 这是金箔的第三个、也是最后一个使用场合。
+// 金箔如今是快车道的阶段色（.skin-ft）＋三处仪式屏：逃出换算、他人逃出的祝贺、这一屏。
+// 老鼠赛跑里仍旧一处都不出现 —— 越界一次就意味着有人要换赛道了。
 const showWin = ref(true)
 const iWon = computed(() => st.value.winnerId === game.session?.playerId)
 
