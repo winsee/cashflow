@@ -101,8 +101,8 @@ watch(() => props.items.length, () => nextTick(() => {
               @click="centerOn(i, true)" />
     </div>
     <div class="swipe-cap">
-      <span>当前 <b>{{ items[currentIdx]?.name ?? '—' }}</b></span>
-      <slot name="meta" :current="items[currentIdx]" />
+      当前 <b>{{ items[currentIdx]?.name ?? '—' }}</b>
+      · <slot name="meta" :current="items[currentIdx]" />
     </div>
   </div>
 </template>

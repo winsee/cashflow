@@ -163,15 +163,6 @@ h3 { font-size: 1rem; color: var(--muted); }
 /* ---------- 布局 ---------- */
 .page { padding: var(--sp-3) var(--sp-3) calc(74px + env(safe-area-inset-bottom)); flex: 1; }
 .page.no-tabbar { padding-bottom: calc(var(--sp-5) + env(safe-area-inset-bottom)); }
-/* 内容可滚动、操作区常驻贴底：卡片再高也不会把关键按钮推出首屏。
-   position:fixed 撑满视口（同 .curtain 的写法），不依赖 #app 的 flex 分配是否够高，
-   保证是真正的定高容器，.page-scroll 的 overflow-y 才吃得到「溢出才滚动」。 */
-.page.fill {
-  position: fixed; inset: 0; margin: 0 auto; max-width: 560px; overflow: hidden;
-  display: flex; flex-direction: column;
-}
-.page.fill .page-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.page.fill .page-cta { flex: none; display: flex; flex-direction: column; gap: var(--sp-2); padding-top: var(--sp-3); }
 .row { display: flex; gap: var(--sp-2); align-items: center; }
 .row.between { justify-content: space-between; }
 .row.wrap { flex-wrap: wrap; }
@@ -622,29 +613,27 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 /* ② 职业卡 —— 照实体：白底、深色职业名条、黑条分区、左明细右汇总两栏带框 */
 .pcard {
   background: #FCFAF5; border: 1px solid #D8CEB8; border-radius: var(--r-sm);
-  box-shadow: 0 8px 22px -12px rgba(60, 45, 20, .5); padding: 9px 9px 11px; color: #231F19;
+  box-shadow: 0 8px 22px -12px rgba(60, 45, 20, .5); padding: 7px 8px 8px; color: #231F19;
+  position: relative; overflow: hidden;
 }
-.pcard-hd { text-align: center; font-size: 15px; font-weight: 800; letter-spacing: 3px; padding: 1px 0 5px; }
-/* 已被别人选走：整体降透明度，顶部标题变红 —— 与 .fcard.taken 是同一套视觉语言 */
-.pcard.taken { opacity: .5; }
-.pcard.taken .pcard-hd { color: var(--red); }
-.pcard-name { background: #4A443A; color: #fff; text-align: center; padding: 5px 4px; font-size: 17px; font-weight: 800; letter-spacing: 7px; }
-.pcard-tip { text-align: center; font-size: 8px; color: #7A7060; margin-top: 5px; line-height: 1.45; }
+.pcard-hd { text-align: center; font-size: 14px; font-weight: 800; letter-spacing: 2.5px; padding: 1px 0 3px; }
+.pcard-name { background: #4A443A; color: #fff; text-align: center; padding: 4px 4px; font-size: 16px; font-weight: 800; letter-spacing: 6px; }
+.pcard-tip { text-align: center; font-size: 8px; color: #7A7060; margin-top: 3px; line-height: 1.3; }
 .pcard-goal { text-align: center; font-size: 8.5px; color: #3A342A; margin-top: 2px; font-weight: 700; }
-.pcard-band { background: #2C2822; color: #fff; text-align: center; font-size: 9px; letter-spacing: 6px; padding: 1.5px 0; width: 58%; margin: 9px auto 0; }
-.pcard-grid { display: grid; grid-template-columns: 1.15fr 1fr; border: 1px solid #C4BAA2; margin-top: var(--sp-1); }
-.pcard-grid > div { padding: var(--sp-1) 6px; min-width: 0; }
+.pcard-band { background: #2C2822; color: #fff; text-align: center; font-size: 9px; letter-spacing: 6px; padding: 1.5px 0; width: 58%; margin: 6px auto 0; }
+.pcard-grid { display: grid; grid-template-columns: 1.15fr 1fr; border: 1px solid #C4BAA2; margin-top: 3px; }
+.pcard-grid > div { padding: 3px 6px; min-width: 0; }
 .pcard-grid > div:first-child { border-right: 1px solid #C4BAA2; }
-.pl { display: flex; justify-content: space-between; gap: 5px; font-size: 8.5px; color: #3A342A; line-height: 1.62; }
+.pl { display: flex; justify-content: space-between; gap: 5px; font-size: 8.5px; color: #3A342A; line-height: 1.38; }
 .pl b { font-variant-numeric: tabular-nums; font-weight: 400; flex: none; }
-.pl.k { font-weight: 800; font-size: 9.5px; color: #231F19; line-height: 1.9; }
+.pl.k { font-weight: 800; font-size: 9.5px; color: #231F19; line-height: 1.55; }
 .pl.k b { font-weight: 800; }
 /* 值为 0 的行不删掉，只降成浅灰 —— 实体卡上它们也在，玩家抄写时要按行对照 */
 .pl.dim, .pl.dim b { color: #A2988A; }
-.pcard-fine { font-size: 7px; color: #8A8072; line-height: 1.35; margin-top: 2px; }
-.pcard-flow { display: flex; justify-content: flex-end; gap: 6px; align-items: baseline; font-size: 10.5px; font-weight: 800; margin-top: 6px; padding-right: 5px; }
+.pcard-fine { font-size: 7px; color: #8A8072; line-height: 1.3; margin-top: 2px; }
+.pcard-flow { display: flex; justify-content: flex-end; gap: 6px; align-items: baseline; font-size: 10.5px; font-weight: 800; margin-top: 4px; padding-right: 5px; }
 .pcard-flow b { font-variant-numeric: tabular-nums; }
-.pcard-bands2 { display: grid; grid-template-columns: 1.15fr 1fr; margin-top: 9px; }
+.pcard-bands2 { display: grid; grid-template-columns: 1.15fr 1fr; margin-top: 6px; }
 .pcard-bands2 span { background: #2C2822; color: #fff; text-align: center; font-size: 9px; letter-spacing: 6px; padding: 1.5px 0; margin: 0 14px; }
 
 /* ③ 快车道格子卡 —— 棋盘外环的绿格与粉格 */
@@ -671,6 +660,33 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .fcard.dreampick .fcard-nums { margin-top: 14px; }
 .fcard.dreampick .fcard-nums b { font-size: 16px; }
 .fcard.dreampick .fcard-tip { margin: auto 0 0; padding-top: 14px; }
+/* 选卡场景的"已被选走"改走半透明遮罩，不复用 .fcard.taken 那套发灰+变色
+   （FasttrackPanel 快车道格子选择器的"已被买断"继续用 .fcard.taken 本身，不受影响） */
+.fcard.dreampick.taken {
+  opacity: 1; background: linear-gradient(168deg, #FBF3FC, #F0E2F3); border-color: #DCC2E2;
+}
+.fcard.dreampick.taken .fcard-kind, .fcard.dreampick.taken .fcard-name { color: inherit; }
+
+/* 选卡"已被选走"遮罩：暖色轻磨砂盖住整卡，原卡面隐约可见、不追求可读；
+   中间浮一枚"图章"——双线边框+倾斜，取实体卡牌世界里"这张已经有主了"的盖章感 */
+.taken-overlay {
+  position: absolute; inset: 0; z-index: 2; border-radius: inherit;
+  display: flex; align-items: center; justify-content: center; padding: 12px;
+  background: rgba(241, 233, 218, .55);
+  backdrop-filter: blur(1.5px) saturate(.75);
+  -webkit-backdrop-filter: blur(1.5px) saturate(.75);
+}
+.taken-mark {
+  position: relative; transform: rotate(-8deg);
+  border: 2px solid #93382A; border-radius: 7px;
+  padding: 6px 15px 5px; display: flex; flex-direction: column; align-items: center; gap: 1px;
+}
+.taken-mark::before {
+  content: ""; position: absolute; inset: 3px; border: 1px solid #93382A; border-radius: 4px;
+  opacity: .55; pointer-events: none;
+}
+.taken-mark-label { font-family: var(--font-card); font-size: 13.5px; font-weight: 800; letter-spacing: 4px; color: #93382A; }
+.taken-mark-who { font-family: var(--font-card); font-size: 9.5px; letter-spacing: 3px; color: #93382A; opacity: .82; margin-top: 1px; }
 
 /* ============================================================
    横滑卡堆 —— 首尾都能滑到正中；缩放与提亮由滚动位置驱动
@@ -698,9 +714,10 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 /* 圆点本身只有 6px，热区向外扩到 28×28 */
 .swipe-dots button::after { content: ""; position: absolute; inset: -11px; }
 .swipe-dots button.on { background: var(--brand); width: 18px; }
+/* 居中一行，跟上面居中的圆点在同一条视觉中轴线上；字数多就自然换成两行，不做贴两端的 space-between
+   （曾经的写法会把「当前 XX」和「共 N 张」撑到卡片两端贴边，长卡名一换行就挤成两堵墙） */
 .swipe-cap {
-  display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-2);
-  font-size: 12.5px; color: var(--muted); margin-top: 2px;
+  text-align: center; font-size: 12.5px; color: var(--muted); margin-top: 2px;
 }
 .swipe-cap b { color: var(--text); font-size: 13.5px; }
 

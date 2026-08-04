@@ -171,12 +171,68 @@ async function main() {
     })
   }, type, payload)
 
-  await send(pa, 'SELECT_PROFESSION', { professionId: 'prof-006' })   // 医生
+  // 划到别人已选走的那张：先等阿明自己那条 WS 连接真收到小雨选走的广播（taken 类出现），
+  // 再找是第几个圆点点过去 —— 不然会跟没收到广播之前就已经存在的別的已选走卡片撞在一起，
+  // 断言看到 .taken-overlay 就误判通过，实际截图划到的还是别的卡
+  const gotoTaken = async page => {
+    await page.waitForFunction(
+      () => document.querySelector('.pcard.taken, .fcard.dreampick.taken'),
+      { timeout: 4000 },
+    ).catch(() => {})
+    await page.evaluate(() => {
+      const items = [...document.querySelectorAll('.swipe > div')]
+      const idx = items.findIndex(el => el.querySelector('.pcard.taken, .fcard.dreampick.taken'))
+      if (idx >= 0) document.querySelectorAll('.swipe-dots button')[idx]?.click()
+    })
+    await sleep(400)   // 圆点触发的是 smooth scroll，等它滑到位再截图
+  }
+
+  // 小雨先选定职业，验证阿明视角下"已被选走"半透明遮罩（选卡画面，非快车道格子）
   await send(pb, 'SELECT_PROFESSION', { professionId: 'prof-010' })   // 经理
-  await send(pa, 'SELECT_DREAM', { dreamId: 'ft-d-safari' })
+  await gotoTaken(pa)
+  await shot(pa, '01a-职业卡-已被选走', '.swipe .is-current .taken-overlay')
+
+  await send(pa, 'SELECT_PROFESSION', { professionId: 'prof-006' })   // 医生
+  await sleep(400)   // 阿明自己的 store 收到状态推送，本地 step 才会跳到梦想那屏
+
+  // 小雨也先选定梦想，同样验证阿明视角下的遮罩
   await send(pb, 'SELECT_DREAM', { dreamId: 'ft-d-jet' })
+  await gotoTaken(pa)
+  await shot(pa, '01b-梦想卡-已被选走', '.swipe .is-current .taken-overlay')
+
+  await send(pa, 'SELECT_DREAM', { dreamId: 'ft-d-safari' })
   await pa.reload({ waitUntil: 'networkidle2' })
   await shot(pa, '02-房间准备-已选完', '.steps .s.ok')
+
+  const clickText = (page, sel, text) => page.evaluate((s, t) => {
+    const el = [...document.querySelectorAll(s)].find(x => x.textContent.includes(t))
+    if (el) el.click()
+  }, sel, text)
+
+  // 「重选」：服务端旧选择原封不动，但画面得看起来跟刚进大厅一样——
+  // 出牌顺序、步骤条打勾都得跟着收起，不然像是叠了一层没收干净
+  await clickText(pa, '.btn', '重选')
+  await shot(pa, '02a-点了重选', '.swipe .pcard')
+  await expectText(pa, '02a-点了重选', {
+    has: ['找到你手上那张职业卡'],
+    hasNot: ['出牌顺序'],
+    noButtons: ['重选'],
+  })
+  await pa.evaluate(() => {
+    const ok = document.querySelectorAll('.steps .s.ok')
+    if (ok.length) throw new Error('重选期间步骤条不该还打着勾')
+  }).catch(e => failures.push(`02a-点了重选: ${e.message}`))
+
+  // 重新选完（哪怕选回一样那张），editing 得自己清掉，摘要卡和出牌顺序都要回来——
+  // 这条 doneSetup 全程是 true，watch(doneSetup) 那次性复位逻辑吃不到，得在 pickDream 里自己收尾。
+  // 必须真点按钮走 pickProfession/pickDream，直接用 send() 绕开 UI 是测不出这个修复的
+  // （editing=false 是点按钮那条代码路径自己收的尾，服务端动作本身不知道 editing 是什么）
+  await clickText(pa, '.btn', '选这张')
+  await sleep(400)
+  await clickText(pa, '.btn', '我准备好了')
+  await sleep(400)
+  await shot(pa, '02b-重选完成', '.steps .s.ok')
+  await expectText(pa, '02b-重选完成', { has: ['出牌顺序'] })
 
   await send(pa, 'SET_TURN_ORDER', { order: [a.playerId, b.playerId] })
   await send(pa, 'START_GAME')
@@ -187,10 +243,6 @@ async function main() {
   await shot(pa, '03-老鼠赛跑-行动页', '.hud .cash')
 
   // 选卡 → 核对：两层都走统一弹层，且**绝不叠**（核对时选卡列表整块收起）
-  const clickText = (page, sel, text) => page.evaluate((s, t) => {
-    const el = [...document.querySelectorAll(s)].find(x => x.textContent.includes(t))
-    if (el) el.click()
-  }, sel, text)
 
   // 第 ① 步：银行结算日独立成步，此时**不该**冒出停留格那一堆牌堆按钮
   await shot(pa, '03a-第1步-银行结算日', '.card.focus .todo-label')
