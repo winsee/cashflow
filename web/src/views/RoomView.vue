@@ -10,6 +10,9 @@ import SwipePicker from '../components/SwipePicker.vue'
 import BaseButton from '../components/base/BaseButton.vue'
 import PageHeader from '../components/base/PageHeader.vue'
 import ProfessionCard from '../components/cards/ProfessionCard.vue'
+import ModeBadge from '../components/ModeBadge.vue'
+import BoardView from '../components/board/BoardView.vue'
+import type { BoardSquare } from '../components/board/geom'
 import { copyText } from '../share'
 
 const game = useGame()
@@ -22,7 +25,53 @@ onMounted(async () => {
   professions.value = await game.fetchCards('PROFESSION')
   const board = await game.fetchFasttrackBoard()
   dreams.value = board.dreams
+  if (game.isOnline) await game.fetchBoard()
 })
+
+/** 纯线上：职业由服务端随机发（说明书 P.2 步骤 4 写的是「抽」），回合顺序开局自动排。
+ *  线下辅助模式那边选职业是**录入你摸到的实体卡**，语义正确，一个字不改。 */
+const online = computed(() => game.isOnline)
+
+function showModeLock() {
+  game.flash('对局模式在建房时选定，开局后不可更改', 'info')
+}
+
+async function drawProfession() {
+  if (await game.act('SELECT_PROFESSION')) step.value = 2
+}
+
+/** 梦想在快车道棋盘上点粉格选，选中即在该格插一枚自己颜色的圆点（就是实体那块奶酪） */
+function hue(seat: number): number { return (seat * 67 + 120) % 360 }
+
+const FT_TYPE: Record<string, string> = {
+  'ft-s-charity': 'FT_CHARITY', 'ft-s-cashflow-day': 'FT_PAYDAY',
+  'ft-s-tax-audit': 'FT_TAX_AUDIT', 'ft-s-divorce': 'FT_DIVORCE',
+  'ft-s-lawsuit': 'FT_LAWSUIT',
+}
+function ftType(ref: string): string {
+  if (ref.startsWith('ft-b-')) return 'FT_BUSINESS'
+  if (ref.startsWith('ft-d-')) return 'FT_DREAM'
+  return FT_TYPE[ref] ?? 'FT_LAWSUIT'
+}
+
+const ftSquares = computed<BoardSquare[]>(() => {
+  const refs = game.board?.fastTrack.squares ?? []
+  const claimed = new Map<string, string>()
+  for (const p of players.value) if (p.dreamId) claimed.set(p.dreamId, `hsl(${hue(p.seat)} 55% 62%)`)
+  return refs.map((ref, i) => ({
+    index: i + 1, type: ftType(ref), ref, label: '', dot: claimed.get(ref),
+  }))
+})
+
+async function pickDreamOnBoard(sq: BoardSquare) {
+  if (sq.type !== 'FT_DREAM') return
+  const taken = takenDreams.value.get(sq.ref)
+  if (taken) { game.flash(`这个梦想已被 ${taken} 选走了`, 'err'); return }
+  if (await game.act('SELECT_DREAM', { dreamId: sq.ref })) {
+    editing.value = false
+    game.flash('准备好了，等其他人')
+  }
+}
 
 const joinUrl = computed(() =>
   `${location.origin}/#/join/${game.session?.roomCode ?? ''}`)
@@ -125,7 +174,8 @@ async function saveOrder() {
 }
 
 async function start() {
-  await saveOrder()
+  // 纯线上模式的顺序由服务端开局掷骰排定，房主排的那一份会被拒（ONLINE_AUTO_ORDER）
+  if (!online.value) await saveOrder()
   await game.act('START_GAME')
 }
 
@@ -161,6 +211,8 @@ async function copyUrl() {
     <PageHeader :title="`${game.state.settings.name} · ${game.state.roomCode}`"
                 back="📤 邀请" @back="showInvite = true">
       <template #actions>
+        <!-- 模式在建房时选定：带一把锁，让它看起来就是不可改的，而不是点了报错的控件 -->
+        <ModeBadge :mode="game.state.mode" locked @lock="showModeLock" />
         <BaseButton variant="ghost" small @click="copyUrl">
           {{ copyState === 'copied' ? '已复制' : '复制链接' }}
         </BaseButton>
@@ -196,6 +248,14 @@ async function copyUrl() {
     <template v-else>
       <!-- 步骤 1：职业卡。挤成网格每张只剩两三个数字，而玩家要核对的是整张卡 -->
       <template v-if="step === 1">
+        <!-- 纯线上：说明书写的是「抽」一张职业卡，不是挑。抽过之后界面上不留任何
+             看着能换一张的控件——那会让人以为随机是可以刷的 -->
+        <template v-if="online">
+          <h2 style="margin-bottom:2px">抽一张职业卡</h2>
+          <p class="muted" style="margin:0">说明书里职业是抽的，不是挑的。抽到哪张就是哪张，不能重抽。</p>
+          <button class="btn block" @click="drawProfession">🎴 抽职业卡</button>
+        </template>
+        <template v-else>
         <h2 style="margin-bottom:2px">找到你手上那张职业卡</h2>
         <p class="muted" style="margin:0">左右滑动，和手里那张核对</p>
         <SwipePicker v-if="professions.length" v-model="curProfession" :items="profItems" :half-width="143">
@@ -209,6 +269,7 @@ async function copyUrl() {
                 @click="pickProfession">
           {{ takenProfessions.has(curProfession) ? '这张已被选走' : '选这张，下一步' }}
         </button>
+        </template>
         <button v-if="game.me?.dreamId" class="btn ghost block small" @click="step = 2">跳到梦想</button>
       </template>
 
@@ -220,6 +281,16 @@ async function copyUrl() {
         </div>
         <h2 style="margin-bottom:2px">挑一个梦想</h2>
         <p class="muted" style="margin:0">在快车道上买下它就赢了。别人踩到可以加价，选贵的更保险。</p>
+        <!-- 纯线上：直接在快车道棋盘上点粉格选，选中即在该格插一枚自己颜色的圆点，
+             就是实体游戏里放上去的那块奶酪，全员可见谁选了哪个 -->
+        <template v-if="online">
+          <p class="muted" style="margin:0">点棋盘上的粉色格子挑一个。</p>
+          <BoardView v-if="ftSquares.length" track="FAST_TRACK" :squares="ftSquares"
+                     :players="players" :positions="{}" :me-id="game.session?.playerId ?? ''"
+                     pickable compact style="max-width:332px" @tap="pickDreamOnBoard" />
+          <p v-else class="muted">正在加载快车道棋盘…</p>
+        </template>
+        <template v-else>
         <SwipePicker v-if="dreams.length" v-model="curDream" :items="dreamItems" :half-width="122">
           <template #default="{ item }">
             <div class="fcard dream dreampick" :class="{ taken: !!takenDreams.get(item.id) }">
@@ -244,6 +315,7 @@ async function copyUrl() {
         <button class="btn block" :disabled="!curDream || takenDreams.has(curDream)" @click="pickDream">
           {{ takenDreams.has(curDream) ? '这个已被选走' : '我准备好了' }}
         </button>
+        </template>
       </template>
     </template>
 
@@ -254,6 +326,10 @@ async function copyUrl() {
         <span class="badge" v-if="isHost">房主</span>
         <span class="badge" v-else>{{ players.length }}/{{ game.state.settings.max_players }} 人</span>
       </div>
+      <!-- 纯线上：说明书 P.2「开始游戏」1 是每人掷骰比大小，骰子在服务端，顺序也归服务端 -->
+      <p v-if="online" class="muted" style="margin:0 0 9px">
+        开局时系统会替每个人各摇一次骰，点数最大者先行（平局重摇），无需手排。
+      </p>
       <div v-for="(p, i) in orderedPlayers" :key="p.id" class="card inner">
         <div class="row between">
           <div class="row" style="gap:8px">
@@ -265,7 +341,7 @@ async function copyUrl() {
               </div>
             </div>
           </div>
-          <div class="row" style="gap:4px" v-if="isHost">
+          <div class="row" style="gap:4px" v-if="isHost && !online">
             <button class="btn ghost small" @click="move(i, -1)">↑</button>
             <button class="btn ghost small" @click="move(i, 1)">↓</button>
           </div>

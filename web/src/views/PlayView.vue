@@ -10,6 +10,7 @@ import ResultView from '../components/ResultView.vue'
 import ConnectingFallback from '../components/ConnectingFallback.vue'
 import FasttrackIntro from '../components/FasttrackIntro.vue'
 import FasttrackCheer from '../components/FasttrackCheer.vue'
+import OnlineRoomView from './OnlineRoomView.vue'
 
 const game = useGame()
 const tab = ref<'statement' | 'action' | 'overview' | 'log'>('action')
@@ -84,7 +85,11 @@ async function confirmEnterFasttrack() {
 </script>
 
 <template>
-  <ResultView v-if="finished" />
+  <!-- 纯线上另起一套骨架：棋盘主视图 + 三档抽屉，不复用下面这套四标签页
+       （design/09 §0——两套架构靠房间模式分流，不做「一套界面两种配置」的折中） -->
+  <OnlineRoomView v-if="game.isOnline" />
+
+  <ResultView v-else-if="finished" />
 
   <div class="page" v-else-if="game.state && me">
     <!-- 常驻状态条 -->

@@ -56,13 +56,25 @@ class FastTrackDream:
     price: int
 
 
+@dataclass(frozen=True)
+class RatRaceSquare:
+    """内圈一格。显示名由 type 推出（每种类型只有一个说法），不逐格存。"""
+    id: str
+    type: str
+
+    @property
+    def name(self) -> str:
+        return RR_SQUARE_NAMES[self.type]
+
+
 @dataclass
 class CardLibrary:
     cards: dict[str, Card] = field(default_factory=dict)
     ft_businesses: dict[str, FastTrackBusiness] = field(default_factory=dict)
     ft_dreams: dict[str, FastTrackDream] = field(default_factory=dict)
     ft_charity_cost: int = 100000
-    rat_race_squares: list[str] = field(default_factory=list)
+    ft_squares: list[str] = field(default_factory=list)   # 快车道排布，下标 0 = 第 1 格
+    rat_race_squares: list["RatRaceSquare"] = field(default_factory=list)   # 内圈，下标 0 = 第 1 格
 
     def get(self, card_id: str) -> Card:
         try:
@@ -84,6 +96,107 @@ class CardLibrary:
             return self.ft_dreams[square_id]
         except KeyError:
             raise DataValidationError(f"快车道梦想格不存在: {square_id}") from None
+
+    # ---- 按索引取格（纯线上走棋，change D3：1-based，0 是起点标记不是格子） ----
+
+    @property
+    def rr_size(self) -> int:
+        return len(self.rat_race_squares)
+
+    @property
+    def ft_size(self) -> int:
+        return len(self.ft_squares)
+
+    def rr_square(self, index: int) -> RatRaceSquare:
+        if not 1 <= index <= self.rr_size:
+            raise DataValidationError(f"内圈格索引越界: {index}")
+        return self.rat_race_squares[index - 1]
+
+    def ft_square_ref(self, index: int) -> str:
+        if not 1 <= index <= self.ft_size:
+            raise DataValidationError(f"快车道格索引越界: {index}")
+        return self.ft_squares[index - 1]
+
+
+# 特殊格没有数值，落到引擎内建动作上（design/05 §5），这里只认 id
+FT_SPECIAL_SQUARES = {
+    "ft-s-charity", "ft-s-cashflow-day",
+    "ft-s-tax-audit", "ft-s-divorce", "ft-s-lawsuit",
+}
+
+# 内圈格子类型 → 中文显示名。每种类型只有一个说法，所以名字不进 JSON（design/06 §字段设计三原则）
+RR_SQUARE_NAMES = {
+    "OPPORTUNITY": "机会",
+    "PAYDAY": "银行结算日",
+    "MARKET": "市场风云",
+    "DOODAD": "额外支出",
+    "CHARITY": "慈善事业",
+    "CHILD": "孩子",
+    "UNEMPLOYMENT": "失业",
+}
+
+# 实物棋盘的构成（design/05 §1，2026-08-08 对实物核实）：改动这张表就是在改棋盘本身
+RR_SQUARE_COUNTS = {
+    "OPPORTUNITY": 12, "PAYDAY": 3, "MARKET": 3, "DOODAD": 3,
+    "CHARITY": 1, "CHILD": 1, "UNEMPLOYMENT": 1,
+}
+
+
+def _load_ft_squares(ft_raw: dict, lib: "CardLibrary") -> list[str]:
+    """校验并展平快车道排布：index 必须是 1..N 连续，企业/梦想各被引用恰好一次。"""
+    squares = sorted(ft_raw["squares"], key=lambda s: s["index"])
+    for pos, sq in enumerate(squares, start=1):
+        if sq["index"] != pos:
+            raise DataValidationError(
+                f"fast_track.json squares: index 应从 1 连续编号，第 {pos} 项是 {sq['index']}"
+            )
+
+    refs = [sq["ref"] for sq in squares]
+    for ref in refs:
+        if ref.startswith("ft-s-"):
+            if ref not in FT_SPECIAL_SQUARES:
+                raise DataValidationError(f"fast_track.json squares: 未知特殊格 {ref}")
+        elif ref not in lib.ft_businesses and ref not in lib.ft_dreams:
+            raise DataValidationError(f"fast_track.json squares: ref 指向不存在的格 {ref}")
+
+    # 一格一个位置：企业/梦想不像特殊格那样在盘上重复出现
+    for pool, label in ((lib.ft_businesses, "企业"), (lib.ft_dreams, "梦想")):
+        for sid in pool:
+            n = refs.count(sid)
+            if n != 1:
+                raise DataValidationError(
+                    f"fast_track.json squares: {label}格 {sid} 被引用 {n} 次（应为 1 次）"
+                )
+    return refs
+
+
+def _load_rr_squares(rr_raw: dict) -> list[RatRaceSquare]:
+    """校验内圈排布：格数、id 唯一、type 合法、各类型张数与实物一致。
+
+    顺序本身没法自动校验（只能靠人对实物看），所以把「构成」钉死——漏一格、
+    多一个市场风云这类错会当场炸，而不是等到有人停错格子才发现。
+    """
+    squares = [RatRaceSquare(id=s["id"], type=s["type"]) for s in rr_raw["squares"]]
+    total = sum(RR_SQUARE_COUNTS.values())
+    if len(squares) != total:
+        raise DataValidationError(f"rat_race.json squares: 应为 {total} 格，实为 {len(squares)} 格")
+
+    ids = [s.id for s in squares]
+    if len(set(ids)) != len(ids):
+        dup = sorted({i for i in ids if ids.count(i) > 1})
+        raise DataValidationError(f"rat_race.json squares: id 重复 {dup}")
+
+    for sq in squares:
+        if sq.type not in RR_SQUARE_NAMES:
+            raise DataValidationError(f"rat_race.json squares: {sq.id} 的 type 未知 {sq.type}")
+
+    types = [s.type for s in squares]
+    for t, n in RR_SQUARE_COUNTS.items():
+        if types.count(t) != n:
+            raise DataValidationError(
+                f"rat_race.json squares: {RR_SQUARE_NAMES[t]} 应有 {n} 格，实为 {types.count(t)} 格"
+            )
+    return squares
 
 
 def _load_json(path: Path) -> Any:
@@ -209,7 +322,8 @@ def load_library(data_dir: Path | None = None) -> CardLibrary:
     for d in ft_raw["dreams"]:
         lib.ft_dreams[d["id"]] = FastTrackDream(id=d["id"], name=d["name"], price=d["price"])
     lib.ft_charity_cost = ft_raw["specials"]["charityCost"]
+    lib.ft_squares = _load_ft_squares(ft_raw, lib)
 
     rr_raw = _load_json(DATA_DIR / "board" / "rat_race.json")
-    lib.rat_race_squares = rr_raw["squares"]
+    lib.rat_race_squares = _load_rr_squares(rr_raw)
     return lib

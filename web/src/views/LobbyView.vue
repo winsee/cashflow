@@ -2,10 +2,11 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError, loadNickname, saveNickname, useGame } from '../store'
-import type { RoomListItem, RoomSeats } from '../types'
+import type { GameMode, RoomListItem, RoomSeats } from '../types'
 import { confirmAction } from '../confirm'
 import SeatPicker from '../components/SeatPicker.vue'
 import BaseModal from '../components/base/BaseModal.vue'
+import ModeBadge from '../components/ModeBadge.vue'
 
 const game = useGame()
 const router = useRouter()
@@ -41,8 +42,14 @@ const maxPlayers = ref(6)
 const joinCode = ref('')
 const codePassword = ref('')
 const codeError = ref('')
+/** 建房时选定的对局模式（design/09 §1.2 分流点 1）；房间建好后谁都改不了 */
+const createMode = ref<GameMode>('OFFLINE_ASSIST')
 
-function openCreate() { roomName.value = '现金流对局'; roomPassword.value = ''; maxPlayers.value = 6; sheet.value = 'create' }
+function openCreate() {
+  roomName.value = '现金流对局'; roomPassword.value = ''; maxPlayers.value = 6
+  createMode.value = 'OFFLINE_ASSIST'
+  sheet.value = 'create'
+}
 function openJoinCode() { joinCode.value = ''; codePassword.value = ''; codeError.value = ''; sheet.value = 'joincode' }
 
 async function create() {
@@ -50,7 +57,7 @@ async function create() {
   busy.value = true
   try {
     await game.createRoom(nickname.value.trim(), roomName.value.trim() || '现金流对局',
-                          roomPassword.value.trim(), maxPlayers.value)
+                          roomPassword.value.trim(), maxPlayers.value, createMode.value)
     sheet.value = null
     router.push('/room')
   } catch (e: any) { game.lastError = e.message }
@@ -69,7 +76,7 @@ async function submitCode() {
       router.push(seats.status === 'LOBBY' || seats.status === 'SETUP' ? '/room' : '/play')
       return
     }
-    const room = { code, name: seats.name, status: seats.status,
+    const room = { code, name: seats.name, status: seats.status, mode: seats.mode,
                    hasPassword: seats.hasPassword,
                    onlineCount: seats.onlineCount } as RoomListItem
     sheet.value = null
@@ -282,6 +289,8 @@ function continueGame() {
           <div class="muted" style="margin-top:3px">
             <span class="badge" :class="{ turn: room.status === 'PLAYING' }">
               {{ STATUS_LABEL[room.status] ?? room.status }}</span>
+            <!-- 模式排在「第 N 轮 · X 人在线」之前：点进去之前就该知道玩的是哪一种 -->
+            <ModeBadge :mode="room.mode ?? 'OFFLINE_ASSIST'" />
             {{ room.playerCount }} / {{ room.maxPlayers }} 人 ·
             {{ room.onlineCount ? `${room.onlineCount} 人在线` : '无人在线' }}
             <template v-if="room.turnCount"> · 第 {{ room.turnCount }} 轮</template>
@@ -305,6 +314,22 @@ function continueGame() {
     <BaseModal v-if="sheet" :title="SHEET_TITLE[sheet]" dismissable @close="sheet = null">
       <div>
         <template v-if="sheet === 'create'">
+          <!-- 模式在建房时选定，此后谁都改不了，所以要在这里把「你需要准备什么」写清楚 -->
+          <label>怎么玩</label>
+          <div class="bigbtn-row mode-pick">
+            <div class="bigbtn alt" :class="{ selected: createMode === 'OFFLINE_ASSIST' }"
+                 @click="createMode = 'OFFLINE_ASSIST'">
+              <span class="ic">⚄</span>
+              <span class="t">线下辅助</span>
+              <span class="s">你需要：实体棋盘 + 骰子 + 卡牌。手机只管识别卡面和记账。</span>
+            </div>
+            <div class="bigbtn" :class="{ selected: createMode === 'ONLINE' }"
+                 @click="createMode = 'ONLINE'">
+              <span class="ic">▣</span>
+              <span class="t">纯线上</span>
+              <span class="s">什么都不用准备，一台手机。棋盘、骰子、发牌全在屏幕里。</span>
+            </div>
+          </div>
           <label>房间名</label>
           <input v-model="roomName" maxlength="20" placeholder="例如：周末局" />
           <label>房间密码（可选，防止别人随意加入）</label>
@@ -349,6 +374,13 @@ function continueGame() {
                  : `删除房间 ${dialog.room.name}`">
       <div>
         <template v-if="dialog.mode === 'join'">
+          <!-- 加入前先说清这是哪一种局：纯线上的不用带任何实物 -->
+          <p class="muted" style="margin-top:0">
+            <ModeBadge :mode="dialog.seats?.mode ?? dialog.room.mode ?? 'OFFLINE_ASSIST'" />
+            <template v-if="(dialog.seats?.mode ?? dialog.room.mode) === 'ONLINE'">
+              棋盘和牌都在屏幕里，不用带任何实物。</template>
+            <template v-else>需要一副实体棋盘、骰子和卡牌。</template>
+          </p>
           <label>你的昵称</label>
           <input v-model="nickname" maxlength="12" placeholder="例如：老王" />
           <template v-if="dialog.room.hasPassword">

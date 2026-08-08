@@ -95,6 +95,23 @@ def test_full_room_flow():
         assert "recognitionId" in d   # FR-28：识别统计关联 id
 
 
+def test_online_room_rejects_recognize():
+    """纯线上房间没有实体卡可拍，两个识别端点一律拒绝（change D10）。"""
+    with TestClient(app) as client:
+        r = client.post("/api/rooms", json={"nickname": "房主", "name": "纯线上局",
+                                            "mode": "ONLINE"}).json()
+        code = r["roomCode"]
+        assert {x["code"]: x["mode"] for x in client.get("/api/rooms").json()}[code] \
+            == "ONLINE"
+        img = client.post(f"/api/rooms/{code}/recognize",
+                          files={"image": ("x.jpg", b"fake", "image/jpeg")},
+                          data={"deckHint": "SMALL_DEAL"})
+        assert img.status_code == 400 and img.json()["code"] == "ONLINE_NO_RECOGNIZE"
+        txt = client.post(f"/api/rooms/{code}/recognize-text",
+                          json={"text": "三室两厅", "deckHint": "SMALL_DEAL"})
+        assert txt.status_code == 400 and txt.json()["code"] == "ONLINE_NO_RECOGNIZE"
+
+
 def test_lobby_password_takeover_delete():
     """大厅列表 / 房间密码 / 座位接管 / 删除房间（FR-1、NFR-6）。"""
     with TestClient(app) as client:

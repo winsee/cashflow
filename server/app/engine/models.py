@@ -24,6 +24,16 @@ class Phase(StrEnum):
     OUT = "OUT"
 
 
+class GameMode(StrEnum):
+    """对局模式（design/09、change add-online-board-mode D1）。
+
+    OFFLINE_ASSIST 是默认值，升级前的房间重放出来正是它——线下辅助模式一切照旧。
+    模式由建房时的 ROOM_MODE_SET 事件写入，不可更改。
+    """
+    OFFLINE_ASSIST = "OFFLINE_ASSIST"   # 线下辅助：实体棋盘/骰子/卡牌 + 手机记账
+    ONLINE = "ONLINE"                   # 纯线上：棋盘、骰子、发牌全在服务端
+
+
 class StockHolding(BaseModel):
     symbol: str
     shares: int
@@ -148,6 +158,13 @@ class PlayerState(BaseModel):
     liabilities: Liabilities = Field(default_factory=Liabilities)
     installment_receivables: list[InstallmentReceivable] = Field(default_factory=list)
 
+    # 棋盘位置（纯线上模式，change D3）：**1-based 格索引，0 = 起点/入口标记本身**。
+    # 两条轨道的第 1 格都是有效果的普通格（内圈是机会、快车道是一个梦想格），
+    # 开局若置 1 就等于全场站在机会格上却不抽卡、进快车道就白占一个梦想格。
+    # 取哪一个由已有的 phase 决定，不另存「在哪条轨」——那会把 phase 复制一份。
+    rr_position: int = 0
+    ft_position: int = 0
+
     charity_turns: int = 0       # 老鼠赛跑 0..3
     charity_just_donated: bool = False   # 捐款当轮不消耗慈善轮数
     skip_turns: int = 0          # 0..3
@@ -177,6 +194,7 @@ class ActiveCard(BaseModel):
     subtype: str
     drawer_id: str
     resolved: bool = False       # 抽卡人已做主决策（买/过/转卖/付款）
+    discarded: bool = False      # 已进弃牌堆（纯线上牌堆模型，防重复入弃）
 
 
 class Prompt(BaseModel):
@@ -187,6 +205,21 @@ class Prompt(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
+class Landing(BaseModel):
+    """当前落点：「现在轮到你处理这一格」（change D5）。
+
+    turn_square_used 只回答「本回合还能不能再停一格」，回答不了「你停在哪一格、
+    还欠一个什么决定」——前端要做到「任何时刻只强调当前该做的那一步」，就得能从
+    状态里读出这一步是什么。
+    """
+    track: str                  # RAT_RACE | FAST_TRACK
+    index: int                  # 1-based 格索引
+    type: str                   # 内圈七种 type，或快车道 FT_BUSINESS/FT_DREAM/FT_* 特殊格
+    ref_id: str | None = None   # 内圈 rr-XX；快车道 ft-b-* / ft-d-* / ft-s-*
+    resolved: bool = False      # 这一格还欠不欠玩家一个决定
+    note: str = ""              # 「本格无事发生」这类说明
+
+
 class RoomSettings(BaseModel):
     max_players: int = 6
     name: str = "现金流对局"
@@ -194,6 +227,7 @@ class RoomSettings(BaseModel):
 
 class RoomState(BaseModel):
     status: RoomStatus = RoomStatus.LOBBY
+    mode: GameMode = GameMode.OFFLINE_ASSIST   # 建房时选定，此后不可更改
     settings: RoomSettings = Field(default_factory=RoomSettings)
     players: dict[str, PlayerState] = Field(default_factory=dict)
     turn_order: list[str] = Field(default_factory=list)
@@ -201,7 +235,14 @@ class RoomState(BaseModel):
     turn_count: int = 1          # 第几轮（回到首位玩家 +1）
     turn_square_used: bool = False   # 本回合已声明停留格事件（每回合只停一格）
     turn_payday_used: bool = False   # 本回合已结算银行结算日/现金流量日
+    turn_dice_used: bool = False     # 本回合已掷过骰（纯线上模式）
+    landing: Landing | None = None   # 当前落点（纯线上模式）
     active_card: ActiveCard | None = None
+    # 纯线上牌堆（change D2）：[0] 是堆顶，整串由 DECKS_SHUFFLED / DECK_RESHUFFLED /
+    # CARD_DRAWN 推出，所以撤销一次发牌自动把牌退回原位，不需要任何「退牌」逻辑。
+    # 线下辅助模式两者恒为空 dict——那边的牌在桌上。
+    decks: dict[str, list[str]] = Field(default_factory=dict)
+    discards: dict[str, list[str]] = Field(default_factory=dict)
     prompts: list[Prompt] = Field(default_factory=list)
     ft_sold_squares: list[str] = Field(default_factory=list)   # 已被买断的快车道绿格
     dream_price_bumps: dict[str, int] = Field(default_factory=dict)  # square_id -> 加价次数

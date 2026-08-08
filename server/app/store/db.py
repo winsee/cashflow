@@ -10,7 +10,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS room(
   id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'LOBBY', settings TEXT NOT NULL DEFAULT '{}',
-  password_hash TEXT,
+  password_hash TEXT, mode TEXT NOT NULL DEFAULT 'OFFLINE_ASSIST',
   created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')));
 
 CREATE TABLE IF NOT EXISTS player(
@@ -52,11 +52,15 @@ class Database:
         self._local = threading.local()
         conn = self.conn
         conn.executescript(_SCHEMA)
-        # 旧库迁移：早期版本 room 表无 password_hash 列
-        try:
-            conn.execute("ALTER TABLE room ADD COLUMN password_hash TEXT")
-        except sqlite3.OperationalError:
-            pass
+        # 旧库迁移：早期版本 room 表无 password_hash 列；mode 列是后加的对局模式
+        # （权威仍是事件流里的 ROOM_MODE_SET，这一列只作大厅列表查询的缓存）
+        for ddl in ("ALTER TABLE room ADD COLUMN password_hash TEXT",
+                    "ALTER TABLE room ADD COLUMN mode TEXT NOT NULL "
+                    "DEFAULT 'OFFLINE_ASSIST'"):
+            try:
+                conn.execute(ddl)
+            except sqlite3.OperationalError:
+                pass
         conn.commit()
 
     @property
@@ -73,10 +77,13 @@ class Database:
     # ---- room / player ----
 
     def create_room(self, room_id: str, code: str, name: str, settings: dict,
-                    password_hash: str | None = None) -> None:
+                    password_hash: str | None = None,
+                    mode: str = "OFFLINE_ASSIST") -> None:
         self.conn.execute(
-            "INSERT INTO room(id, code, name, settings, password_hash) VALUES(?,?,?,?,?)",
-            (room_id, code, name, json.dumps(settings, ensure_ascii=False), password_hash))
+            "INSERT INTO room(id, code, name, settings, password_hash, mode) "
+            "VALUES(?,?,?,?,?,?)",
+            (room_id, code, name, json.dumps(settings, ensure_ascii=False),
+             password_hash, mode))
         self.conn.commit()
 
     def delete_room(self, room_id: str) -> None:

@@ -3,8 +3,22 @@
   "$id": "fast_track.schema.json",
   "title": "快车道格子数据",
   "type": "object",
-  "required": ["businesses", "dreams", "specials"],
+  "required": ["businesses", "dreams", "specials", "squares"],
   "properties": {
+    "squares": {
+      "description": "棋盘上的实际排布，按行进方向从入口格起编号。ref 指向 businesses/dreams 的 id，或五个特殊格之一。",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["index", "ref"],
+        "additionalProperties": false,
+        "properties": {
+          "index": { "type": "integer", "minimum": 1 },
+          "ref": { "type": "string", "pattern": "^ft-[bds]-[a-z0-9-]+$" }
+        }
+      }
+    },
     "businesses": {
       "type": "array",
       "items": {

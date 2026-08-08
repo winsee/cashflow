@@ -5,6 +5,7 @@ import { ApiError, loadNickname, saveNickname, useGame } from '../store'
 import type { RoomSeats } from '../types'
 import { confirmAction } from '../confirm'
 import SeatPicker from '../components/SeatPicker.vue'
+import ModeBadge from '../components/ModeBadge.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -97,6 +98,11 @@ async function takeover() {
     </div>
 
     <div class="card" v-else>
+      <p class="muted" style="margin-top:0" v-if="seats">
+        <ModeBadge :mode="seats.mode ?? 'OFFLINE_ASSIST'" />
+        <template v-if="seats.mode === 'ONLINE'">棋盘和牌都在屏幕里，不用带任何实物。</template>
+        <template v-else>需要一副实体棋盘、骰子和卡牌。</template>
+      </p>
       <label>你的昵称</label>
       <input v-model="nickname" maxlength="12" placeholder="输入昵称后进入" />
       <template v-if="seats?.hasPassword">

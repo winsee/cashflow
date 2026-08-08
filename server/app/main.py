@@ -18,6 +18,7 @@ from . import diag
 from .api.entry import router as entry_router
 from .data_loader import DataValidationError, load_library
 from .engine.errors import EngineError
+from .engine.models import GameMode
 from .recognize.base import Candidate, default_chain
 from .recognize.matcher import match_cards
 from .rooms import RoomManager
@@ -118,12 +119,15 @@ class CreateRoomBody(BaseModel):
     nickname: str = Field(min_length=1, max_length=20)
     maxPlayers: int = Field(default=6, ge=2, le=6)
     password: str | None = Field(default=None, max_length=32)
+    # 缺省 = 线下辅助：升级前的客户端不带这个字段，行为一个字不变
+    mode: GameMode = GameMode.OFFLINE_ASSIST
 
 
 @app.post("/api/rooms")
 async def create_room(body: CreateRoomBody):
     return await app.state.manager.create_room(
-        body.name, body.nickname, body.maxPlayers, body.password or None)
+        body.name, body.nickname, body.maxPlayers, body.password or None,
+        body.mode.value)
 
 
 @app.get("/api/rooms")
@@ -183,14 +187,36 @@ async def list_cards(deck: str | None = Query(None), q: str = Query("")):
              "title": c.title, "data": c.data, "raw": c.raw} for c in cards]
 
 
-@app.get("/api/board/fasttrack")
-async def fasttrack_board():
+def _fasttrack_board() -> dict:
     lib = app.state.lib
     return {
         "businesses": [vars(b) for b in lib.ft_businesses.values()],
         "dreams": [vars(d) for d in lib.ft_dreams.values()],
         "charityCost": lib.ft_charity_cost,
+        "squares": lib.ft_squares,   # 棋盘排布，下标 0 = 第 1 格
     }
+
+
+def _ratrace_board() -> dict:
+    # 显示名由 type 推出、不入库（design/06 字段设计三原则），这里一并下发省得前端再抄一份
+    return {"squares": [{"id": sq.id, "type": sq.type, "name": sq.name}
+                        for sq in app.state.lib.rat_race_squares]}
+
+
+@app.get("/api/board/fasttrack")
+async def fasttrack_board():
+    return _fasttrack_board()
+
+
+@app.get("/api/board/ratrace")
+async def ratrace_board():
+    return _ratrace_board()
+
+
+@app.get("/api/board")
+async def board():
+    """两条轨道一次取全（纯线上棋盘要同时画内圈与快车道）。"""
+    return {"ratRace": _ratrace_board(), "fastTrack": _fasttrack_board()}
 
 
 @app.get("/api/rooms/{code}/export")
@@ -205,6 +231,15 @@ async def room_log(code: str):
     return sess.log_rows()
 
 
+def _reject_online_recognize(sess) -> None:
+    """纯线上房间没有实体卡可拍，两个识别端点一律拒绝（change D10）。
+
+    也不写识别统计——那张表是用来评估 OCR 效果的，纯线上房间的调用不该混进去。
+    """
+    if sess.state.mode is GameMode.ONLINE:
+        raise EngineError("ONLINE_NO_RECOGNIZE", "纯线上模式没有实体卡，无需识别")
+
+
 @app.post("/api/rooms/{code}/recognize")
 async def recognize(code: str, image: UploadFile = File(...),
                     deckHint: str | None = Form(None)):
@@ -214,6 +249,7 @@ async def recognize(code: str, image: UploadFile = File(...),
     别再一律显示「未识别到，调整角度试试」（见 RecognizeOutcome）。
     """
     sess = app.state.manager.get(code.upper())
+    _reject_online_recognize(sess)
     data = await image.read()
     t0 = time.monotonic()
     out = await app.state.recognizer.recognize(data, deckHint, app.state.lib)
@@ -242,6 +278,7 @@ async def recognize_text(code: str, body: RecognizeTextBody):
     512MB 的云主机也扛得住（服务端 PaddleOCR 在那种机器上必被 OOM 杀掉）。
     """
     sess = app.state.manager.get(code.upper())
+    _reject_online_recognize(sess)
     lib = app.state.lib
     cards = lib.by_deck(body.deckHint) if body.deckHint else list(lib.cards.values())
     t0 = time.monotonic()

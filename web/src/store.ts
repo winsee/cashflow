@@ -1,6 +1,12 @@
 import { defineStore } from 'pinia'
 import { buildCardImpact, buildReceipts, type CardImpact, type Receipt } from './receipts'
-import type { CardDto, LogEntry, Player, Prompt, RoomListItem, RoomSeats, RoomStateDto } from './types'
+import {
+  buildStage, loadSkipAnim, prefersReducedMotion, saveSkipAnim, setStageBoard,
+  type StageStep,
+} from './stage'
+import type {
+  BoardDto, CardDto, GameMode, LogEntry, Player, Prompt, RoomListItem, RoomSeats, RoomStateDto,
+} from './types'
 
 /** toast 的四种口吻：成功 / 出错 / 仪式（金色高光）/ 中性信息 */
 export type FlashVariant = 'ok' | 'err' | 'gold' | 'info'
@@ -111,6 +117,18 @@ export const useGame = defineStore('game', {
     lastImpact: null as CardImpact | null,
     /** 有人（不是我）逃出老鼠赛跑了：全屏祝贺一屏，点掉为止 */
     cheer: null as Cheer | null,
+    /** 棋盘数据（两条轨道），纯线上模式进房时拉一次 */
+    board: null as BoardDto | null,
+    // ---- 演出层（stage.ts）：只影响「界面此刻显示到哪一帧」，与账目无关 ----
+    stageQueue: [] as StageStep[],
+    stageNow: null as StageStep | null,
+    stageTimer: 0 as any,
+    /** 演出期间的棋子位置覆盖（playerId → 格索引）；队列播完即清空 */
+    stagePos: {} as Record<string, number>,
+    /** 中央飘字（牌堆洗回这类通知，不是待办） */
+    stageFlash: '' as string,
+    /** 本机偏好：跳过动画。不进房间状态——这是这台设备的事 */
+    skipAnim: loadSkipAnim(),
   }),
   getters: {
     me(): Player | null {
@@ -166,6 +184,25 @@ export const useGame = defineStore('game', {
     inFasttrack(): boolean {
       return this.me?.phase === 'FAST_TRACK'
     },
+    /** 纯线上模式？棋盘、骰子、发牌全在服务端，手动选卡与扫描一律不出现 */
+    isOnline(): boolean {
+      return this.state?.mode === 'ONLINE'
+    },
+    /** 我这一格还欠一个决定吗（纯线上的第 ② 步） */
+    myLanding(): RoomStateDto['landing'] {
+      if (!this.isOnline || !this.isMyTurn) return null
+      return this.state?.landing ?? null
+    },
+    /** 演出是否正在播：播的时候棋盘按 stagePos 画，播完回到权威位置 */
+    staging(): boolean {
+      return !!this.stageNow || this.stageQueue.length > 0
+    },
+    /** 当前该显示的骰子（我的回合可点，别人的回合只读） */
+    diceShown(): { playerId: string; rolls: number[]; rolling: boolean } | null {
+      const now = this.stageNow
+      if (now?.kind === 'dice') return { playerId: now.playerId, rolls: now.rolls, rolling: true }
+      return null
+    },
   },
   actions: {
     saveSession(s: Session) {
@@ -191,10 +228,11 @@ export const useGame = defineStore('game', {
       this.ws?.close()
       this.ws = null
     },
-    async createRoom(nickname: string, name = '现金流对局', password = '', maxPlayers = 6) {
+    async createRoom(nickname: string, name = '现金流对局', password = '', maxPlayers = 6,
+                     mode: GameMode = 'OFFLINE_ASSIST') {
       const r = await fetch('/api/rooms', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname, name, maxPlayers, password: password || null }),
+        body: JSON.stringify({ nickname, name, maxPlayers, password: password || null, mode }),
       })
       if (!r.ok) throw await apiError(r, '创建失败')
       const d = await r.json()
@@ -266,7 +304,10 @@ export const useGame = defineStore('game', {
         if (msg.type === 'snapshot' || msg.type === 'state') {
           // 先用「旧快照 + 本批事件」算回执，再换上新快照：
           // 被没收的资产在新快照里已经不存在了，名字只能从旧的那份拿。
-          if (msg.type === 'state' && msg.lastEvents?.length) this.ingestEvents(msg.lastEvents)
+          if (msg.type === 'state' && msg.lastEvents?.length) {
+            this.ingestEvents(msg.lastEvents)
+            this.ingestStage(msg.lastEvents)
+          }
           this.seq = msg.seq
           this.state = msg.state
         } else if (msg.type === 'ack') {
@@ -359,6 +400,69 @@ export const useGame = defineStore('game', {
         }
       }
     },
+    // ---------- 演出层（design/09 §5） ----------
+
+    /** 把这一批事件排进演出队列。与回执同一入口、同一时机（换快照之前）。 */
+    ingestStage(events: { type: string; payload: Record<string, any> }[]) {
+      if (!this.isOnline) return
+      const steps = buildStage(events, this.state)
+      if (!steps.length) return
+      if (this.skipAnim || prefersReducedMotion()) {
+        // 三条出口同一个收口：清空队列 + 直接刷到终态（见 skipStage）
+        this.skipStage()
+        return
+      }
+      this.stageQueue.push(...steps)
+      if (!this.stageNow) this.advanceStage()
+    },
+    advanceStage() {
+      clearTimeout(this.stageTimer)
+      const next = this.stageQueue.shift()
+      if (!next) {
+        this.stageNow = null
+        this.stagePos = {}
+        this.stageFlash = ''
+        return
+      }
+      this.stageNow = next
+      if (next.kind === 'step' || next.kind === 'settle' || next.kind === 'landing') {
+        if (next.kind !== 'landing') this.stagePos[next.playerId] = next.index
+      }
+      this.stageFlash = next.kind === 'reshuffle'
+        ? `${DECK_FLASH[next.deck] ?? next.deck} · 已洗回牌堆` : ''
+      this.stageTimer = setTimeout(() => this.advanceStage(), next.ms)
+    },
+    /** 跳过：**终止到终态**，不是加速。点击任意处、reduce 偏好、设置开关走的都是这一条。 */
+    skipStage() {
+      clearTimeout(this.stageTimer)
+      this.stageQueue = []
+      this.stageNow = null
+      this.stagePos = {}
+      this.stageFlash = ''
+    },
+    setSkipAnim(v: boolean) {
+      this.skipAnim = v
+      saveSkipAnim(v)
+      if (v) this.skipStage()
+    },
+    /** 棋盘数据：两条轨道一次取全，进纯线上房间时拉一次 */
+    async fetchBoard(): Promise<BoardDto> {
+      if (this.board) return this.board
+      const r = await fetch('/api/board')
+      const d = await r.json() as BoardDto
+      this.board = d
+      setStageBoard(d)
+      return d
+    },
+    /** 第 ① 步：掷骰（点数由服务端摇，客户端不预演） */
+    rollDice(diceCount: number): Promise<boolean> {
+      return this.act('ROLL_DICE', { diceCount })
+    },
+    /** 停在机会格时先选大小生意，选完立刻从对应牌堆发牌 */
+    chooseDealSize(size: 'SMALL' | 'BIG'): Promise<boolean> {
+      return this.act('CHOOSE_DEAL_SIZE', { size })
+    },
+
     dismissReceipt(id: string) {
       this.receipts = this.receipts.filter(r => r.id !== id)
     },
@@ -434,6 +538,12 @@ export const useGame = defineStore('game', {
     },
   },
 })
+
+/** 牌堆洗回时中央那行飘字的说法（和 decks.ts 的 DECK_LABEL 同源，这里只取短的一版） */
+const DECK_FLASH: Record<string, string> = {
+  SMALL_DEAL: '机会 · 小生意', BIG_DEAL: '机会 · 大买卖',
+  MARKET: '市场风云', DOODAD: '额外支出',
+}
 
 export function loadNickname(): string {
   try { return localStorage.getItem('cashflow.nickname') ?? '' } catch { return '' }

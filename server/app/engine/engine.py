@@ -18,8 +18,8 @@ from ..data_loader import CardLibrary
 from . import formulas as F
 from .errors import EngineError
 from .models import (
-    ActiveCard, ExtraLiability, FastTrackHolding, InstallmentReceivable,
-    OwnedBusiness, Phase, PlayerState, Prompt, RealEstate, RoomState,
+    ActiveCard, ExtraLiability, FastTrackHolding, GameMode, InstallmentReceivable,
+    Landing, OwnedBusiness, Phase, PlayerState, Prompt, RealEstate, RoomState,
     RoomStatus, StockHolding,
 )
 
@@ -76,6 +76,20 @@ def _require_payday_free(state: RoomState, hint: str) -> None:
         raise EngineError("PAYDAY_DONE", f"本回合已结算过（经过多次请用次数 {hint} 一并结算）")
 
 
+def is_online(state: RoomState) -> bool:
+    """纯线上模式？两种模式在引擎里只以「前置校验」的形态分叉（change D5）。"""
+    return state.mode is GameMode.ONLINE
+
+
+def _reject_online(state: RoomState, code: str, message: str) -> None:
+    """纯线上模式下关掉「由玩家声明线下发生了什么」的入口（change D10）。
+
+    前端隐藏挡不住直接发请求，公平性只能焊在服务端。
+    """
+    if is_online(state):
+        raise EngineError(code, message)
+
+
 def _ev(etype: str, **payload) -> Event:
     return {"type": etype, "payload": payload}
 
@@ -96,6 +110,21 @@ def decide(state: RoomState, actor_id: str | None, action_type: str,
 
 # ---------- 大厅 / 开局（design/02 §4） ----------
 
+def _d_set_room_mode(state: RoomState, actor_id, p, lib) -> list[Event]:
+    """建房时写下对局模式，作为事件流的第一条（change D1）。
+
+    模式必须进事件流：_revert 从空 RoomState() 重放，只存 DB 的话第一次撤销
+    就会把纯线上房间打回线下房间。房间一旦有人（含房主）就不再受理，
+    这也就是「建好之后谁都改不了」这条规则的落点。
+    """
+    if state.players or state.status != RoomStatus.LOBBY:
+        raise EngineError("MODE_LOCKED", "对局模式在建房时选定，不可更改")
+    mode = str(p.get("mode") or GameMode.OFFLINE_ASSIST.value)
+    if mode not in tuple(GameMode):
+        raise EngineError("BAD_MODE", f"未知对局模式: {mode}")
+    return [_ev("ROOM_MODE_SET", mode=mode)]
+
+
 def _d_join(state: RoomState, actor_id, p, lib) -> list[Event]:
     if state.status not in (RoomStatus.LOBBY, RoomStatus.SETUP):
         raise EngineError("GAME_STARTED", "对局已开始，无法加入")
@@ -114,6 +143,15 @@ def _d_select_profession(state, actor_id, p, lib) -> list[Event]:
     if state.status not in (RoomStatus.LOBBY, RoomStatus.SETUP):
         raise EngineError("GAME_STARTED", "对局已开始，不能换职业")
     player = _get_player(state, actor_id)
+    if is_online(state):
+        # 说明书 P.2 步骤 4 写的是「抽」一张职业卡，不是挑（change D14）：
+        # 12 张卡工资相差 8 倍，让人自选等于开局就把平衡拆了。
+        # 时机与位置不变（还在准备页、还由玩家自己触发），只把「挑」换成服务端随机发。
+        if player.profession_id:
+            raise EngineError("PROFESSION_DRAWN", "职业卡已经抽过了，不能重抽")
+        card = _draw_profession(state, player, lib)
+        return [_ev("PROFESSION_SELECTED", player_id=player.id,
+                    profession_id=card.id, title=card.title, data=card.data)]
     card = lib.get(p["professionId"])
     if card.deck != "PROFESSION":
         raise EngineError("BAD_CARD", "所选卡不是职业卡")
@@ -122,6 +160,21 @@ def _d_select_profession(state, actor_id, p, lib) -> list[Event]:
             raise EngineError("PROFESSION_TAKEN", f"该职业已被 {other.nickname} 选择")
     return [_ev("PROFESSION_SELECTED", player_id=player.id,
                 profession_id=card.id, title=card.title, data=card.data)]
+
+
+def _draw_profession(state: RoomState, player: PlayerState, lib: CardLibrary):
+    """从尚未被占用的职业里随机抽一张（change D14）。
+
+    随机源用 decide 阶段的 RNG（同 _dice_gamble_event）：摇一次、结果写进事件，
+    重放不再摇。职业卡不走牌堆模型——一人一张、不弃牌、不洗回，建一副堆只是
+    把简单事情复杂化。按 id 排序只为让种子固定时的抽取可复现。
+    """
+    taken = {pl.profession_id for pl in state.players.values() if pl.profession_id}
+    pool = sorted((c for c in lib.by_deck("PROFESSION") if c.id not in taken),
+                  key=lambda c: c.id)
+    if not pool:
+        raise EngineError("NO_PROFESSION_LEFT", "职业卡已发完")
+    return _dice_rng.choice(pool)
 
 
 def _d_select_dream(state, actor_id, p, lib) -> list[Event]:
@@ -136,6 +189,7 @@ def _d_select_dream(state, actor_id, p, lib) -> list[Event]:
 
 
 def _d_set_turn_order(state, actor_id, p, lib) -> list[Event]:
+    _reject_online(state, "ONLINE_AUTO_ORDER", "纯线上模式的回合顺序由服务端开局掷骰排定")
     host = _get_player(state, actor_id)
     if not host.is_host:
         raise EngineError("NOT_HOST", "只有房主能排定回合顺序")
@@ -153,7 +207,8 @@ def _d_start_game(state, actor_id, p, lib) -> list[Event]:
         raise EngineError("GAME_STARTED", "对局已开始")
     if len(state.players) < 2:
         raise EngineError("NOT_ENOUGH_PLAYERS", "至少 2 名玩家")
-    if not state.turn_order:
+    online = is_online(state)
+    if not online and not state.turn_order:
         raise EngineError("NO_ORDER", "请先线下掷骰并排定回合顺序")
     missing = [pl.nickname for pl in state.players.values() if not pl.profession_id]
     if missing:
@@ -161,11 +216,50 @@ def _d_start_game(state, actor_id, p, lib) -> list[Event]:
     no_dream = [pl.nickname for pl in state.players.values() if not pl.dream_id]
     if no_dream:
         raise EngineError("NO_DREAM", f"尚未选择梦想：{'、'.join(no_dream)}")
+    events: list[Event] = []
+    if online:
+        # 说明书 P.2「开始游戏」1：每人掷骰、点数最大者先行。纯线上的骰子在服务端，
+        # 所以顺序也归服务端排（change D15）——房主手排本身是一次「声明线下发生了什么」。
+        order, rolls = _roll_turn_order(state)
+        if not order:
+            raise EngineError("NO_ORDER", "无法排定回合顺序")
+        events.append(_ev("TURN_ORDER_SET", order=order, rolls=rolls))
+        events.append(_ev("DECKS_SHUFFLED",
+                          orders={d: _shuffled(ids)
+                                  for d, ids in _build_decks(lib).items()}))
     # 发钱：现金 = 月现金流 + 储蓄；随后储蓄清零（P.2）
     grants = {}
     for pid, pl in state.players.items():
         grants[pid] = F.monthly_cashflow(pl) + pl.savings
-    return [_ev("GAME_STARTED", grants=grants)]
+    events.append(_ev("GAME_STARTED", grants=grants))
+    return events
+
+
+def _roll_turn_order(state: RoomState) -> tuple[list[str], list[dict[str, int]]]:
+    """替全员各摇一次骰，点数降序排；平局者之间重摇直到分出先后（change D15）。
+
+    返回 (顺序, 每一轮的点数)。点数随 TURN_ORDER_SET 一并入事件流，纯作审计与呈现，
+    `_a_turn_order_set` 只读 order，一行不用改。
+    """
+    rounds: list[dict[str, int]] = []
+
+    def resolve(group: list[str], depth: int) -> list[str]:
+        if len(group) == 1:
+            return list(group)
+        if depth >= 20:
+            # 连摇 20 轮还全平只存在于理论上；兜底按座位定，免得递归下不去
+            return sorted(group, key=lambda pid: state.players[pid].seat)
+        roll = {pid: _dice_rng.randint(1, 6) for pid in group}
+        rounds.append(roll)
+        buckets: dict[int, list[str]] = {}
+        for pid, v in roll.items():
+            buckets.setdefault(v, []).append(pid)
+        out: list[str] = []
+        for v in sorted(buckets, reverse=True):
+            out.extend(resolve(buckets[v], depth + 1))
+        return out
+
+    return resolve(list(state.players), 0), rounds
 
 
 # ---------- 回合（design/02 §5） ----------
@@ -177,10 +271,20 @@ def _d_end_turn(state, actor_id, p, lib) -> list[Event]:
     if ac and not ac.resolved and ac.subtype in (
             "EXPENSE_EVENT", "CASH", "CREDIT_OPTION", "INSTALLMENT", "STOCK_EVENT"):
         raise EngineError("CARD_UNRESOLVED", "本回合的强制卡牌尚未结算，不能结束回合")
+    lg = state.landing
+    if is_online(state) and lg is not None and not lg.resolved \
+            and lg.type in _MUST_RESOLVE_LANDINGS:
+        # 闸门只对「必须做」的格子落下（change D5）：捐不捐、买不买本来就是玩家的选择，
+        # 不做也是一种做法，不该逼人先点一次「不捐」才准结束回合。
+        raise EngineError(
+            "LANDING_UNRESOLVED",
+            "停在机会格必须抽一张牌" if lg.type == "OPPORTUNITY"
+            else "失业这一格必须支付一次总支出（现金不够可先向银行贷款）")
     return [_ev("TURN_ENDED", player_id=player.id)]
 
 
 def _d_payday(state, actor_id, p, lib) -> list[Event]:
+    _reject_online(state, "ONLINE_AUTO_PAYDAY", "纯线上模式的银行结算日在走格时自动结算")
     player = _require_current(state, actor_id)
     _require_no_bankruptcy(player)
     if player.phase != Phase.RAT_RACE:
@@ -189,6 +293,16 @@ def _d_payday(state, actor_id, p, lib) -> list[Event]:
     times = int(p.get("times", 1))
     if times < 1 or times > 3:
         raise EngineError("BAD_TIMES", "结算次数须为 1–3")
+    return payday_events(player, times)
+
+
+def payday_events(player: PlayerState, times: int = 1) -> list[Event]:
+    """一次（或连续几次）银行结算日的账（design/02 §5）。
+
+    动作层的单回合锁 `_require_payday_free` 留在 `_d_payday` 里——纯线上模式下
+    一次移动可能经过两个结算格，那条锁不适用，但算钱这一份两种模式共用（change D4），
+    说明书示例数值回归因此自动覆盖两种模式。
+    """
     cf = F.monthly_cashflow(player)
     # P.5：月现金流为负且手头现金不足以支付到期款项 —— 这是破产「判定」，不是二选一，
     # 也不给「先去贷款」的出口，否则玩家可以靠无限贷款把负现金流永远拖下去。
@@ -208,12 +322,212 @@ def _d_payday(state, actor_id, p, lib) -> list[Event]:
     return evs
 
 
+# ---------- 掷骰与移动（纯线上模式，change D4/D5） ----------
+
+_SETTLEMENT_TYPES = frozenset({"PAYDAY", "FT_PAYDAY"})
+
+# 停在这些格上还欠玩家一个决定；其余格子落点即结算完毕
+_CHOICE_LANDINGS = frozenset({
+    "OPPORTUNITY", "CHARITY", "FT_BUSINESS", "FT_DREAM", "FT_CHARITY"})
+
+# 未处理时不许结束回合的格子（change D5 那张表）：说明书规定停在机会格就要抽一张，
+# 不是可选项；失业是必付的，付不出得先向银行贷款。慈善与快车道绿粉格本就可做可不做。
+_MUST_RESOLVE_LANDINGS = frozenset({"OPPORTUNITY", "UNEMPLOYMENT"})
+
+_FT_SPECIAL_TYPES = {
+    "ft-s-charity": "FT_CHARITY",
+    "ft-s-cashflow-day": "FT_PAYDAY",
+    "ft-s-tax-audit": "FT_TAX_AUDIT",
+    "ft-s-divorce": "FT_DIVORCE",
+    "ft-s-lawsuit": "FT_LAWSUIT",
+}
+
+
+def _ft_square_type(ref: str) -> str:
+    """快车道格子的类型由 ref 前缀给出（change D6：能推出的不存）。"""
+    if ref.startswith("ft-b-"):
+        return "FT_BUSINESS"
+    if ref.startswith("ft-d-"):
+        return "FT_DREAM"
+    try:
+        return _FT_SPECIAL_TYPES[ref]
+    except KeyError:
+        raise EngineError("BAD_SQUARE", f"未知快车道格: {ref}") from None
+
+
+def _square_at(player: PlayerState, index: int, lib: CardLibrary) -> tuple[str, str, str]:
+    """(track, type, ref_id)——取哪条轨由 phase 决定，不另存一份（change D3）。"""
+    if player.phase is Phase.FAST_TRACK:
+        ref = lib.ft_square_ref(index)
+        return "FAST_TRACK", _ft_square_type(ref), ref
+    sq = lib.rr_square(index)
+    return "RAT_RACE", sq.type, sq.id
+
+
+def _track_of(player: PlayerState) -> str:
+    return "FAST_TRACK" if player.phase is Phase.FAST_TRACK else "RAT_RACE"
+
+
+def _position_of(player: PlayerState) -> int:
+    return player.ft_position if player.phase is Phase.FAST_TRACK else player.rr_position
+
+
+def dice_limits(player: PlayerState) -> tuple[int, int]:
+    """(默认粒数, 本赛道允许的最大粒数)。
+
+    两条赛道的慈善不是同一种权利：老鼠赛跑捐款后 3 轮内可掷 1–2 粒（P.4），
+    快车道捐款后**永久**可掷 1–3 粒（P.6）。所以校验必须读 phase，
+    不能图省事写成一个 `1 <= n <= 3`。
+    """
+    if player.phase is Phase.FAST_TRACK:
+        return 2, (3 if player.fasttrack.charity_forever else 2)
+    return 1, (2 if player.charity_turns > 0 else 1)
+
+
+def _settlement_events(state: RoomState, player_id: str, track: str) -> list[Event]:
+    """经过（或停在）一个结算格的账。两条赛道各走各的既有事件。"""
+    player = state.player(player_id)
+    if track == "FAST_TRACK":
+        return [_ev("FT_PAYDAY", player_id=player_id,
+                    amount=player.fasttrack.current_income, times=1)]
+    return payday_events(player, 1)
+
+
+def _landing_events(state: RoomState, player_id: str, ltype: str, ref: str,
+                    lib: CardLibrary) -> list[Event]:
+    """落点自动派发（change D5）：复用既有动作的事件产出，不另写一套效果。
+
+    选择格（机会/慈善/绿格/粉格）返回空——那里等的是玩家的决定。
+    """
+    player = state.player(player_id)
+    if ltype in _SETTLEMENT_TYPES:
+        return [_ev("LANDING_RESOLVED", note="")]        # 结算已在走格时完成
+    if ltype in ("MARKET", "DOODAD"):
+        return _draw_from_deck(state, player, ltype, lib)
+    if ltype == "CHILD":
+        return _d_add_child(state, player_id, {}, lib)
+    if ltype == "UNEMPLOYMENT":
+        try:
+            return _d_unemployment(state, player_id, {}, lib)
+        except EngineError as exc:
+            if exc.code != "NEED_CASH":
+                raise
+            # 付不出：落点保持未决，玩家先向银行贷款再自己付。掷骰已成事实，
+            # 不能因为现金不够就把整次移动回滚掉。
+            return []
+    if ltype in ("FT_TAX_AUDIT", "FT_DIVORCE", "FT_LAWSUIT"):
+        return _HANDLERS[ltype](state, player_id, {}, lib)
+    if ltype == "FT_BUSINESS" and ref in state.ft_sold_squares:
+        return [_ev("LANDING_RESOLVED", note="该企业已被其他玩家买断，本格无事发生")]
+    return []
+
+
+def _d_roll_dice(state: RoomState, actor_id, p, lib) -> list[Event]:
+    """一次掷骰产出一整串事件（change D4）：
+
+        DICE_ROLLED → （逐格前进，每经过一个结算格）PAYDAY / FT_PAYDAY
+                    → PLAYER_MOVED → （落点是自动格时）落点自身的事件
+
+    事件粒度这么切，撤销一次掷骰就是撤掉这一整串（rooms.py 的 `_dice_batch`）。
+    """
+    if not is_online(state):
+        raise EngineError("OFFLINE_DICE", "线下辅助模式请掷桌上的实体骰子")
+    player = _require_current(state, actor_id)
+    _require_no_bankruptcy(player)
+    if player.phase not in (Phase.RAT_RACE, Phase.FAST_TRACK):
+        raise EngineError("WRONG_PHASE", "当前阶段不能掷骰")
+    if player.skip_turns > 0:
+        raise EngineError("SKIPPING", "停赛中，本回合不能掷骰")
+    if state.turn_dice_used:
+        raise EngineError("DICE_USED", "本回合已经掷过骰了")
+    default_n, max_n = dice_limits(player)
+    raw = p.get("diceCount")
+    count = default_n if raw is None else int(raw)   # 缺省才用默认值；0 是非法值不是缺省
+    if count < 1 or count > max_n:
+        raise EngineError("BAD_DICE_COUNT", f"本回合可掷 1–{max_n} 粒骰")
+    # 服务端摇、点数写进事件流：客户端自带的点数一律忽略（同 _dice_gamble_event）
+    rolls = [_dice_rng.randint(1, 6) for _ in range(count)]
+    total = sum(rolls)
+
+    events: list[Event] = []
+    working = state
+
+    def emit(evs: list[Event]) -> None:
+        nonlocal working
+        for ev in evs:
+            events.append(ev)
+            working = apply(working, ev)
+
+    emit([_ev("DICE_ROLLED", player_id=player.id, rolls=rolls,
+              dice_count=count, total=total)])
+
+    track = _track_of(player)
+    size = lib.ft_size if track == "FAST_TRACK" else lib.rr_size
+    start = _position_of(player)
+    pos, path, bankrupt = start, [], False
+    for _ in range(total):
+        pos = pos % size + 1          # 0（起点/入口标记）走 1 步即第 1 格
+        path.append(pos)
+        _, stype, _ref = _square_at(working.player(player.id), pos, lib)
+        if stype in _SETTLEMENT_TYPES:
+            emit(_settlement_events(working, player.id, track))
+            if working.player(player.id).in_bankruptcy:
+                # 付不出到期款项：移动就地终止，棋子停在这个结算格。
+                # 人已经进清算了，再走一格触发一张卡毫无意义。
+                bankrupt = True
+                break
+
+    to = path[-1] if path else start
+    _, ltype, ref = _square_at(working.player(player.id), to, lib) if path \
+        else (track, "", "")
+    emit([{"type": "PLAYER_MOVED",
+           "payload": {"player_id": player.id, "track": track, "from": start,
+                       "to": to, "path": path,
+                       "landing": {"track": track, "index": to,
+                                   "type": ltype, "ref_id": ref}}}])
+    if bankrupt:
+        emit([_ev("LANDING_RESOLVED", note="付不出到期款项，进入破产清算")])
+    elif path:
+        emit(_landing_events(working, player.id, ltype, ref, lib))
+    return events
+
+
+def _require_landing(state: RoomState, *types: str, ref_id: str | None = None) -> None:
+    """纯线上模式下：你确实停在这一格，且这一格还欠你一个决定（change D5）。
+
+    线下模式跳过——那边玩家本来就是自己声明停在哪一格的。
+    """
+    if not is_online(state):
+        return
+    lg = state.landing
+    if lg is None or lg.resolved or lg.type not in types:
+        raise EngineError("WRONG_SQUARE", "你没有停在这一格，或这一格已经处理过了")
+    if ref_id is not None and lg.ref_id != ref_id:
+        raise EngineError("WRONG_SQUARE", "你停的不是这一格")
+
+
+def _d_choose_deal_size(state: RoomState, actor_id, p, lib) -> list[Event]:
+    """停在机会格：先选小生意还是大买卖，再从对应牌堆发牌（change D5）。"""
+    player = _require_current(state, actor_id)
+    _require_no_bankruptcy(player)
+    _require_landing(state, "OPPORTUNITY")
+    if state.active_card and not state.active_card.resolved:
+        raise EngineError("CARD_ACTIVE", "上一张卡尚未处理完")
+    deck = {"SMALL": "SMALL_DEAL", "BIG": "BIG_DEAL"}.get(str(p.get("size", "")).upper())
+    if deck is None:
+        raise EngineError("BAD_DEAL_SIZE", "只能选「小生意」或「大买卖」")
+    return _draw_from_deck(state, player, deck, lib)
+
+
 # ---------- 抽卡与卡牌效果（design/02 §6） ----------
 
 _OPPORTUNITY_DECKS = ("SMALL_DEAL", "BIG_DEAL")
 
 
 def _d_draw_card(state, actor_id, p, lib) -> list[Event]:
+    if is_online(state) and p.get("cardId"):
+        # 牌只能从服务端牌堆按顺序发（change D2/D10）：客户端指定卡 id 就是作弊入口
+        raise EngineError("ONLINE_DECK_ONLY", "纯线上模式的牌由服务端发放，不能指定卡牌")
     player = _require_current(state, actor_id)
     _require_no_bankruptcy(player)
     if player.phase != Phase.RAT_RACE:
@@ -227,6 +541,50 @@ def _d_draw_card(state, actor_id, p, lib) -> list[Event]:
     events = [_ev("CARD_DRAWN", player_id=player.id, card_id=card.id,
                   deck=card.deck, subtype=card.subtype, title=card.title)]
 
+    if card.deck == "MARKET":
+        events += _market_events(state, player, card)
+    return events
+
+
+# 纯线上模式的四副牌（职业卡不在此列：一人一张、不弃牌、不洗回，见 D14）
+DECK_NAMES = ("SMALL_DEAL", "BIG_DEAL", "MARKET", "DOODAD")
+
+
+def _build_decks(lib: CardLibrary) -> dict[str, list[str]]:
+    """按卡库实际张数建四副堆（change D2）。
+
+    重复卡各自作为独立一张入堆——实体牌堆里本来就有 9 组共 20 张完全相同的卡，
+    张数直接决定抽牌概率，按 key 去重就把牌堆改了。
+    """
+    return {deck: [c.id for c in lib.by_deck(deck)] for deck in DECK_NAMES}
+
+
+def _shuffled(card_ids: list[str]) -> list[str]:
+    """洗牌在 decide 阶段摇出，整串写进事件 payload：事件里写结果不写过程。"""
+    out = list(card_ids)
+    _dice_rng.shuffle(out)
+    return out
+
+
+def _draw_from_deck(state: RoomState, player: PlayerState, deck: str,
+                    lib: CardLibrary) -> list[Event]:
+    """从牌堆顶发一张（change D2）。牌堆取空先洗回弃牌堆。
+
+    落点派发与 CHOOSE_DEAL_SIZE 共用这一份；线下模式的 _d_draw_card 走原路径不变。
+    """
+    if deck not in state.decks:
+        raise EngineError("NO_DECK", f"牌堆不存在: {deck}")
+    events: list[Event] = []
+    pile = state.decks[deck]
+    if not pile:
+        discard = state.discards.get(deck) or []
+        if not discard:
+            raise EngineError("DECK_EMPTY", f"{deck} 的牌堆与弃牌堆同时为空")
+        pile = _shuffled(discard)
+        events.append(_ev("DECK_RESHUFFLED", deck=deck, order=pile))
+    card = lib.get(pile[0])
+    events.append(_ev("CARD_DRAWN", player_id=player.id, card_id=card.id,
+                      deck=card.deck, subtype=card.subtype, title=card.title))
     if card.deck == "MARKET":
         events += _market_events(state, player, card)
     return events
@@ -783,6 +1141,7 @@ def _d_add_child(state, actor_id, p, lib) -> list[Event]:
     player = _require_current(state, actor_id)
     _require_no_bankruptcy(player)
     _require_square_free(state)
+    _require_landing(state, "CHILD")
     if player.child_count >= 3:
         return [_ev("CHILD_NOOP", player_id=player.id)]   # 满 3 无效果（P.4）
     return [_ev("CHILD_ADDED", player_id=player.id)]
@@ -792,6 +1151,7 @@ def _d_charity(state, actor_id, p, lib) -> list[Event]:
     player = _require_current(state, actor_id)
     _require_no_bankruptcy(player)
     _require_square_free(state)
+    _require_landing(state, "CHARITY")
     amount = (F.total_income(player) + 5) // 10   # 总收入×10%，四舍五入到美元
     _require_cash(player, amount)
     return [_ev("CHARITY_DONATED", player_id=player.id, amount=amount)]
@@ -801,6 +1161,7 @@ def _d_unemployment(state, actor_id, p, lib) -> list[Event]:
     player = _require_current(state, actor_id)
     _require_no_bankruptcy(player)
     _require_square_free(state)
+    _require_landing(state, "UNEMPLOYMENT")
     amount = F.total_expenses(player)
     _require_cash(player, amount)
     return [_ev("UNEMPLOYMENT_HIT", player_id=player.id, amount=amount)]
@@ -911,10 +1272,14 @@ def _d_enter_fasttrack(state, actor_id, p, lib) -> list[Event]:
     # 现金流量日一并关闭；回合开始就进场的（上一轮被别人的卡顶过线）则一切照常。
     return [_ev("ENTERED_FASTTRACK", player_id=player.id, passive_income=passive,
                 initial_income=initial, cash_returned=player.cash,
-                turn_closed=state.turn_square_used, turn_count=state.turn_count)]
+                turn_closed=state.turn_square_used, turn_count=state.turn_count,
+                # 棋子落到「在此进入」箭头上：它是入口标记不是格子，下一次掷骰
+                # 才踏上第 1 格（那是一个梦想格，凭空占住就错了，change D3）
+                ft_position=0)]
 
 
 def _d_ft_payday(state, actor_id, p, lib) -> list[Event]:
+    _reject_online(state, "ONLINE_AUTO_PAYDAY", "纯线上模式的现金流量日在走格时自动结算")
     player = _require_ft(state, actor_id)
     _require_payday_free(state, "1–4")
     times = int(p.get("times", 1))
@@ -927,12 +1292,18 @@ def _d_ft_payday(state, actor_id, p, lib) -> list[Event]:
 def _d_ft_buy_business(state, actor_id, p, lib) -> list[Event]:
     player = _require_ft(state, actor_id)
     _require_square_free(state)
+    _require_landing(state, "FT_BUSINESS", ref_id=p["squareId"])
     sq = lib.get_ft_business(p["squareId"])
     if sq.id in state.ft_sold_squares:
         raise EngineError("SQUARE_SOLD", "该企业已被其他玩家买断")
     _require_cash(player, sq.down_payment, loan_hint=False)
     if sq.dice_rule:
-        roll = int(p.get("diceRoll", 0))
+        if is_online(state):
+            # 纯线上没有实体骰子可掷：服务端摇，点数写进事件流（同 D15/D4 的做法）。
+            # 客户端传来的 diceRoll 一律忽略——那是「声明线下发生了什么」的入口。
+            roll = _dice_rng.randint(1, 6)
+        else:
+            roll = int(p.get("diceRoll", 0))
         if roll < 1 or roll > 6:
             raise EngineError("NEED_DICE", "该格需要线下掷 1 粒骰子并录入点数")
         success = roll >= sq.dice_rule["threshold"]
@@ -954,6 +1325,7 @@ def _dream_price(state: RoomState, dream) -> int:
 def _d_ft_buy_dream(state, actor_id, p, lib) -> list[Event]:
     player = _require_ft(state, actor_id)
     _require_square_free(state)
+    _require_landing(state, "FT_DREAM", ref_id=p["squareId"])
     dream = lib.get_ft_dream(p["squareId"])
     if player.dream_id != dream.id:
         raise EngineError("NOT_YOUR_DREAM", "只能购买自己选定的梦想（他人梦想可双倍加价）")
@@ -966,6 +1338,7 @@ def _d_ft_buy_dream(state, actor_id, p, lib) -> list[Event]:
 def _d_ft_double_dream(state, actor_id, p, lib) -> list[Event]:
     player = _require_ft(state, actor_id)
     _require_square_free(state)
+    _require_landing(state, "FT_DREAM", ref_id=p["squareId"])
     dream = lib.get_ft_dream(p["squareId"])
     if player.dream_id == dream.id:
         raise EngineError("OWN_DREAM", "这是你自己的梦想，直接购买即可")
@@ -980,6 +1353,7 @@ def _d_ft_double_dream(state, actor_id, p, lib) -> list[Event]:
 def _d_ft_claim_dream(state, actor_id, p, lib) -> list[Event]:
     player = _require_ft(state, actor_id)
     _require_square_free(state)
+    _require_landing(state, "FT_DREAM", ref_id=p["squareId"])
     dream = lib.get_ft_dream(p["squareId"])
     if any(pl.dream_id == dream.id for pl in state.players.values()):
         raise EngineError("DREAM_CHOSEN", "该梦想已经有主，只能加价或（如果是你自己的）直接买下")
@@ -992,6 +1366,7 @@ def _d_ft_claim_dream(state, actor_id, p, lib) -> list[Event]:
 def _d_ft_charity(state, actor_id, p, lib) -> list[Event]:
     player = _require_ft(state, actor_id)
     _require_square_free(state)
+    _require_landing(state, "FT_CHARITY")
     _require_cash(player, lib.ft_charity_cost, loan_hint=False)
     return [_ev("FT_CHARITY_DONATED", player_id=player.id, amount=lib.ft_charity_cost)]
 
@@ -1000,6 +1375,7 @@ def _d_ft_cash_hit(kind: str, factor_desc: str):
     def handler(state, actor_id, p, lib) -> list[Event]:
         player = _require_ft(state, actor_id)
         _require_square_free(state)
+        _require_landing(state, f"FT_{kind}")
         if kind == "DIVORCE":
             amount = player.cash
         else:
@@ -1083,12 +1459,15 @@ def _d_host_end_turn(state, actor_id, p, lib) -> list[Event]:
 
 
 _HANDLERS = {
+    "SET_ROOM_MODE": _d_set_room_mode,
     "JOIN": _d_join,
     "SELECT_PROFESSION": _d_select_profession,
     "SELECT_DREAM": _d_select_dream,
     "SET_TURN_ORDER": _d_set_turn_order,
     "START_GAME": _d_start_game,
     "END_TURN": _d_end_turn,
+    "ROLL_DICE": _d_roll_dice,
+    "CHOOSE_DEAL_SIZE": _d_choose_deal_size,
     "PAYDAY": _d_payday,
     "DRAW_CARD": _d_draw_card,
     "CARD_DECISION": _d_card_decision,
@@ -1135,6 +1514,43 @@ def apply(state: RoomState, event: Event) -> RoomState:
         raise EngineError("UNKNOWN_EVENT", f"未知事件: {event['type']}")
     handler(s, event.get("payload", {}))
     return s
+
+
+def _use_square(s: RoomState) -> None:
+    """本回合的停留格已消耗；纯线上模式下顺带把落点标记为已处理。
+
+    落点的「处理完了没有」只有一个真相源：谁消耗了停留格，谁就把它关上。
+    线下模式 landing 恒为 None，这里退化成原来那一行赋值。
+    """
+    s.turn_square_used = True
+    if s.landing is not None:
+        s.landing.resolved = True
+
+
+def _a_room_mode_set(s: RoomState, p) -> None:
+    s.mode = GameMode(p["mode"])
+
+
+def _a_dice_rolled(s: RoomState, p) -> None:
+    s.turn_dice_used = True
+
+
+def _a_player_moved(s: RoomState, p) -> None:
+    pl = s.players[p["player_id"]]
+    if p["track"] == "FAST_TRACK":
+        pl.ft_position = p["to"]
+    else:
+        pl.rr_position = p["to"]
+    lg = p["landing"]
+    s.landing = Landing(track=lg["track"], index=lg["index"], type=lg["type"],
+                        ref_id=lg.get("ref_id") or None)
+
+
+def _a_landing_resolved(s: RoomState, p) -> None:
+    """落点没有后续事件可标记「处理完了」时补一条（结算格 / 已买断的绿格 / 就地破产）。"""
+    _use_square(s)
+    if s.landing is not None:
+        s.landing.note = p.get("note", "")
 
 
 def _a_player_joined(s: RoomState, p) -> None:
@@ -1202,12 +1618,17 @@ def _a_turn_ended(s: RoomState, p) -> None:
     if pl.charity_turns > 0 and not getattr(pl, "charity_just_donated", False):
         pl.charity_turns -= 1
     pl.charity_just_donated = False
-    # 机会卡失效（⚠️ADAPT：抽卡人结束回合时失效），其市场/转卖窗口一并关闭
+    # 机会卡失效（⚠️ADAPT：抽卡人结束回合时失效），其市场/转卖窗口一并关闭。
+    # 没做决定就结束回合的（股票窗口、房主代结束）也算这张牌用完了，一并进弃牌堆，
+    # 否则那张牌会从牌堆里凭空消失、永远洗不回来。
+    _discard_active(s)
     s.active_card = None
     s.prompts = [pr for pr in s.prompts if pr.kind == "TRANSFER_CONFIRM"]
-    # 回合内"停留格/结算日"标志复位，下一玩家重新计
+    # 回合内"停留格/结算日/掷骰"标志复位，下一玩家重新计
     s.turn_square_used = False
     s.turn_payday_used = False
+    s.turn_dice_used = False
+    s.landing = None
     _advance_turn(s)
 
 
@@ -1265,27 +1686,52 @@ def _advance_installments(pl: PlayerState, months: int) -> None:
         pl.cash += r.total_price                     # $100,000 到账
 
 
+def _a_decks_shuffled(s: RoomState, p) -> None:
+    s.decks = {deck: list(ids) for deck, ids in p["orders"].items()}
+    s.discards = {deck: [] for deck in p["orders"]}
+
+
+def _a_deck_reshuffled(s: RoomState, p) -> None:
+    s.decks[p["deck"]] = list(p["order"])
+    s.discards[p["deck"]] = []
+
+
 def _a_card_drawn(s: RoomState, p) -> None:
     resolved = p["deck"] == "MARKET"   # 市场卡的效果在伴随事件中完成
     s.active_card = ActiveCard(card_id=p["card_id"], deck=p["deck"],
                                subtype=p["subtype"], drawer_id=p["player_id"],
                                resolved=resolved)
-    s.turn_square_used = True
+    _use_square(s)
+    pile = s.decks.get(p["deck"])
+    if pile and p["card_id"] in pile:
+        # 发牌时取的是堆顶；这里按 id 移除而不是 pop(0)，是为了让「撤销中间一次发牌
+        # 后整流重放」照样成立——后面几次发牌各自记着抽到了哪张，牌堆只需少掉那几张。
+        pile.remove(p["card_id"])
+
+
+def _discard_active(s: RoomState) -> None:
+    """当前卡进弃牌堆。线下模式 decks 恒空，这里整个是空操作。"""
+    ac = s.active_card
+    if ac is None or ac.discarded or ac.deck not in s.decks:
+        return
+    s.discards.setdefault(ac.deck, []).append(ac.card_id)
+    ac.discarded = True
 
 
 def _a_card_resolved(s: RoomState, p) -> None:
     if s.active_card and s.active_card.card_id == p["card_id"]:
         s.active_card.resolved = True
+        _discard_active(s)
 
 
 def _a_card_passed(s: RoomState, p) -> None:
-    if s.active_card:
-        s.active_card.resolved = True
+    _mark_resolved(s)
 
 
 def _mark_resolved(s: RoomState) -> None:
     if s.active_card:
         s.active_card.resolved = True
+        _discard_active(s)
 
 
 def _a_asset_bought(s: RoomState, p) -> None:
@@ -1300,7 +1746,7 @@ def _a_asset_bought(s: RoomState, p) -> None:
         rooms=p.get("rooms"), units=p.get("units"), quantity=p.get("quantity"),
         business_kind=p.get("business_kind"), income_category=p.get("income_category")))
     if s.active_card and s.active_card.card_id == p["card_id"]:
-        s.active_card.resolved = True
+        _mark_resolved(s)
 
 
 def _a_resell_offered(s: RoomState, p) -> None:
@@ -1484,11 +1930,11 @@ def _a_debt_paid_off(s: RoomState, p) -> None:
 
 def _a_child_added(s: RoomState, p) -> None:
     s.players[p["player_id"]].child_count += 1
-    s.turn_square_used = True
+    _use_square(s)
 
 
 def _a_child_noop(s: RoomState, p) -> None:
-    s.turn_square_used = True    # 满3孩无效果，但停留格已消耗
+    _use_square(s)    # 满3孩无效果，但停留格已消耗
 
 
 def _a_charity_donated(s: RoomState, p) -> None:
@@ -1496,14 +1942,14 @@ def _a_charity_donated(s: RoomState, p) -> None:
     pl.cash -= p["amount"]
     pl.charity_turns = 3
     pl.charity_just_donated = True
-    s.turn_square_used = True
+    _use_square(s)
 
 
 def _a_unemployment_hit(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["amount"]
     pl.skip_turns = 2
-    s.turn_square_used = True
+    _use_square(s)
     pl.charity_turns = 0    # 失业清除慈善状态（P.4）
     pl.charity_just_donated = False
 
@@ -1581,6 +2027,8 @@ def _a_entered_fasttrack(s: RoomState, p) -> None:
     pl.fasttrack.initial_income = p["initial_income"]
     pl.fasttrack.current_income = p["initial_income"]
     pl.fasttrack.entered_turn = p.get("turn_count")
+    pl.ft_position = p.get("ft_position", 0)
+    s.landing = None                             # 换了轨道，老鼠赛跑那一格不再有效
     if p.get("turn_closed"):
         # 本回合已在老鼠赛跑走过一格：停留格标志本就是 True（保持不动，它正是那把锁），
         # 这里把现金流量日也一并关掉 —— 启动资金刚发过，本回合不再移动，
@@ -1603,7 +2051,7 @@ def _check_income_victory(s: RoomState, pl: PlayerState) -> None:
 def _a_ft_business_bought(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["down_payment"]
-    s.turn_square_used = True
+    _use_square(s)
     if p["success"]:
         s.ft_sold_squares.append(p["square_id"])   # 独占；掷骰格成功前保持开放
         if p.get("lump_sum"):
@@ -1618,7 +2066,7 @@ def _a_ft_business_bought(s: RoomState, p) -> None:
 def _a_ft_dream_bought(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["price"]
-    s.turn_square_used = True
+    _use_square(s)
     s.status = RoomStatus.FINISHED
     s.winner_id = pl.id
 
@@ -1627,20 +2075,20 @@ def _a_ft_dream_doubled(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["price_paid"]
     s.dream_price_bumps[p["square_id"]] = s.dream_price_bumps.get(p["square_id"], 0) + 1
-    s.turn_square_used = True
+    _use_square(s)
 
 
 def _a_ft_dream_claimed(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["price"]
-    s.turn_square_used = True
+    _use_square(s)
 
 
 def _a_ft_charity_donated(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["amount"]
     pl.fasttrack.charity_forever = True
-    s.turn_square_used = True
+    _use_square(s)
 
 
 def _a_ft_cash_hit(s: RoomState, p) -> None:
@@ -1649,7 +2097,7 @@ def _a_ft_cash_hit(s: RoomState, p) -> None:
         pl.cash = 0
     else:
         pl.cash -= p["amount"]
-    s.turn_square_used = True
+    _use_square(s)
 
 
 def _a_host_adjusted(s: RoomState, p) -> None:
@@ -1681,10 +2129,13 @@ def _mark_player_out(s: RoomState, player_id: str) -> None:
     # 资产/现金保留原样：误点可由房主在日志中撤销恢复
     s.prompts = [pr for pr in s.prompts if pr.target_player_id != pl.id]
     if s.active_card and s.active_card.drawer_id == pl.id:
+        _discard_active(s)
         s.active_card = None
     if was_current:
         s.turn_square_used = False
         s.turn_payday_used = False
+        s.turn_dice_used = False
+        s.landing = None
         _advance_turn(s)
     alive = [q for q in s.players.values() if q.phase != Phase.OUT]
     if len(alive) == 1 and s.status == RoomStatus.PLAYING:
@@ -1728,7 +2179,11 @@ def _a_rematch(s: RoomState, p) -> None:
     s.turn_count = 1
     s.turn_square_used = False
     s.turn_payday_used = False
+    s.turn_dice_used = False
+    s.landing = None
     s.active_card = None
+    s.decks = {}                 # 新一局在 START_GAME 时重新洗
+    s.discards = {}
     s.prompts = []
     s.ft_sold_squares = []
     s.dream_price_bumps = {}
@@ -1736,12 +2191,18 @@ def _a_rematch(s: RoomState, p) -> None:
 
 
 _APPLIERS = {
+    "ROOM_MODE_SET": _a_room_mode_set,
     "PLAYER_JOINED": _a_player_joined,
     "PROFESSION_SELECTED": _a_profession_selected,
     "DREAM_SELECTED": _a_dream_selected,
     "TURN_ORDER_SET": _a_turn_order_set,
+    "DECKS_SHUFFLED": _a_decks_shuffled,
+    "DECK_RESHUFFLED": _a_deck_reshuffled,
     "GAME_STARTED": _a_game_started,
     "TURN_ENDED": _a_turn_ended,
+    "DICE_ROLLED": _a_dice_rolled,
+    "PLAYER_MOVED": _a_player_moved,
+    "LANDING_RESOLVED": _a_landing_resolved,
     "PAYDAY": _a_payday,
     "PAYDAY_UNPAYABLE": _a_payday_unpayable,
     "CARD_DRAWN": _a_card_drawn,

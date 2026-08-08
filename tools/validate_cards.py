@@ -191,6 +191,86 @@ def check_liquidity() -> None:
             warn(f"资产「{at}」没有任何市场求购卡，买入后无法变现——确认是否规则原意")
 
 
+# 快车道特殊格：没有数值，只在盘上占位，可重复出现
+FT_SPECIAL_SQUARES = {
+    "ft-s-charity", "ft-s-cashflow-day",
+    "ft-s-tax-audit", "ft-s-divorce", "ft-s-lawsuit",
+}
+
+
+def check_fast_track_board() -> None:
+    """快车道排布与企业/梦想池对账：一格一个位置，不漏不重。"""
+    p = ROOT / "server" / "data" / "board" / "fast_track.json"
+    if not p.is_file():
+        err("缺文件 board/fast_track.json")
+        return
+    ft = json.loads(p.read_text(encoding="utf-8"))
+
+    squares = sorted(ft.get("squares", []), key=lambda s: s["index"])
+    if not squares:
+        err("fast_track.json: 缺 squares（棋盘排布）")
+        return
+    for pos, sq in enumerate(squares, start=1):
+        if sq["index"] != pos:
+            err(f"fast_track.json squares: index 应从 1 连续编号，第 {pos} 项是 {sq['index']}")
+
+    refs = [sq["ref"] for sq in squares]
+    pool = {b["id"] for b in ft["businesses"]} | {d["id"] for d in ft["dreams"]}
+    for ref in refs:
+        if ref.startswith("ft-s-"):
+            if ref not in FT_SPECIAL_SQUARES:
+                err(f"fast_track.json squares: 未知特殊格 {ref}")
+        elif ref not in pool:
+            err(f"fast_track.json squares: ref 指向不存在的格 {ref}")
+
+    for sid in sorted(pool):
+        n = refs.count(sid)
+        if n != 1:
+            err(f"fast_track.json squares: {sid} 被引用 {n} 次（应为 1 次）")
+
+    print(f"快车道 {len(squares)} 格"
+          f"（企业 {len([r for r in refs if r.startswith('ft-b-')])}"
+          f" · 梦想 {len([r for r in refs if r.startswith('ft-d-')])}"
+          f" · 特殊 {len([r for r in refs if r.startswith('ft-s-')])}）")
+
+
+# 内圈的构成（design/05 §1，2026-08-08 对实物核实）：顺序只能靠人眼核，构成必须由脚本盯住
+RR_SQUARE_COUNTS = {
+    "OPPORTUNITY": 12, "PAYDAY": 3, "MARKET": 3, "DOODAD": 3,
+    "CHARITY": 1, "CHILD": 1, "UNEMPLOYMENT": 1,
+}
+
+
+def check_rat_race_board() -> None:
+    """内圈 24 格：格数、id 唯一、type 合法、各类型张数与实物一致。"""
+    p = ROOT / "server" / "data" / "board" / "rat_race.json"
+    if not p.is_file():
+        err("缺文件 board/rat_race.json")
+        return
+    squares = json.loads(p.read_text(encoding="utf-8")).get("squares", [])
+    if not squares:
+        err("rat_race.json: 缺 squares")
+        return
+
+    total = sum(RR_SQUARE_COUNTS.values())
+    if len(squares) != total:
+        err(f"rat_race.json squares: 应为 {total} 格，实为 {len(squares)} 格")
+
+    ids = [s["id"] for s in squares]
+    for one in sorted({i for i in ids if ids.count(i) > 1}):
+        err(f"rat_race.json squares: id 重复 {one}")
+
+    types = [s["type"] for s in squares]
+    for t in sorted(set(types) - set(RR_SQUARE_COUNTS)):
+        err(f"rat_race.json squares: 未知 type {t}")
+    for t, n in RR_SQUARE_COUNTS.items():
+        if types.count(t) != n:
+            err(f"rat_race.json squares: {t} 应有 {n} 格，实为 {types.count(t)} 格")
+
+    print(f"内圈 {len(squares)} 格（"
+          + " · ".join(f"{t} {types.count(t)}" for t in RR_SQUARE_COUNTS) + "）")
+
+
 def main() -> int:
     all_ids: dict[str, str] = {}
     all_keys: dict[str, list[str]] = {}
@@ -265,6 +345,8 @@ def main() -> int:
                 err(f"{fname} {c['id']}: duplicateOf 指向不存在的 {dup}")
 
     check_liquidity()
+    check_fast_track_board()
+    check_rat_race_board()
 
     print(f"共 {total} 张卡")
     dup_keys = {k: v for k, v in all_keys.items() if len(v) > 1}

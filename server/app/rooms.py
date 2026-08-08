@@ -19,12 +19,34 @@ from .data_loader import CardLibrary
 from .engine import engine as E
 from .engine import formulas as F
 from .engine.errors import EngineError
-from .engine.models import Phase, RoomState, RoomStatus
+from .engine.models import GameMode, Phase, RoomState, RoomStatus
 from .store.db import Database
 
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _sanitize_payload(etype: str, payload: dict) -> dict:
+    """按事件类型剔除牌序（change D2）。
+
+    牌序绝不出房间边界——否则打开 DevTools 就知道下一张是什么。事件 payload 有三条
+    对客户端敞开的通道：`serialize()`（那边本就只下发张数）、WS 广播的 `lastEvents`、
+    日志接口的 `payload`。后两条是 `DECKS_SHUFFLED` 的真实泄露路径，都从这里过一道。
+    SQLite 里的事件流保持完整牌序，**脱敏只发生在出口，不在存储**。
+    """
+    if etype == "DECKS_SHUFFLED":
+        return {"counts": {deck: len(ids)
+                           for deck, ids in (payload.get("orders") or {}).items()}}
+    if etype == "DECK_RESHUFFLED":
+        return {**{k: v for k, v in payload.items() if k != "order"},
+                "count": len(payload.get("order") or [])}
+    return payload
+
+
+def _sanitize_events(events: list[dict]) -> list[dict]:
+    return [{**ev, "payload": _sanitize_payload(ev["type"], ev.get("payload") or {})}
+            for ev in events]
 
 
 class RoomSession:
@@ -84,8 +106,12 @@ class RoomSession:
             self._after_change()
             if action_id:
                 self.db.dedupe_put(self.room_id, action_id, json.dumps(events, ensure_ascii=False))
-            if self.state.status in (RoomStatus.LOBBY, RoomStatus.SETUP) and not self.state.players:
+            if self.state.status in (RoomStatus.LOBBY, RoomStatus.SETUP) \
+                    and not self.state.players \
+                    and any(ev["type"] == "PLAYER_LEFT" for ev in events):
                 # 大厅/准备阶段的最后一人（此时必为房主）离开：视为解散房间，与 RoomManager.delete_room 一致。
+                # 必须同时看 PLAYER_LEFT：建房时先写 ROOM_MODE_SET、此刻房主还没 JOIN，
+                # 光看 players 为空会把刚建的房间当场删掉。
                 # 排除发起者自己的连接：main.py 还要在这条连接上回发 ack，
                 # 若在此处一并关闭，客户端收不到 ack，只能靠前端 5s 兜底超时才跳转大厅。
                 # 客户端收到 ack 后会自行 clearSession() 关闭连接，服务端无需代劳。
@@ -154,6 +180,24 @@ class RoomSession:
                     other_response_seqs.add(r["seq"])
         return cascade, other_response_seqs
 
+    def _dice_batch(self, rows: list[dict], target_seq: int) -> set[int]:
+        """一次掷骰产出的整串事件（change D4）。
+
+        `_market_cascade` 是按 card_id 关联的市场卡专用逻辑，掷骰批没有类似的关联键，
+        区间只能自己圈：从这条 `DICE_ROLLED` 起，到**下一条 `TURN_ENDED` 或下一次
+        `DICE_ROLLED`**（取先到者）之前的连续 seq。房间级锁保证批内不会被别的玩家
+        插入行动，但别人对市场卡的答复会几秒后才来——那部分由 `_market_cascade` 并进来
+        （两层 cascade 嵌套）。
+        """
+        batch = {target_seq}
+        for r in rows:
+            if r["seq"] <= target_seq or r["revoked_by"] is not None:
+                continue
+            if r["type"] in ("TURN_ENDED", "DICE_ROLLED"):
+                break
+            batch.add(r["seq"])
+        return batch
+
     def _revert(self, actor_id: str, payload: dict, as_host: bool) -> list[dict]:
         actor = self.state.players.get(actor_id)
         if actor is None:
@@ -167,6 +211,11 @@ class RoomSession:
         if target is None:
             raise EngineError("NO_EVENT", "目标事件不存在或已被撤销")
         if not as_host:
+            # 纯线上模式没有「本人更正」（change D10）：那条路径是为「认错了实体卡当场重选」
+            # 而存在的，而纯线上的牌由服务端发、退回堆顶再抽必然是同一张。
+            if E.is_online(self.state):
+                raise EngineError("ONLINE_NO_CORRECT",
+                                  "纯线上模式不支持本人更正，请房主在日志中撤销")
             # 本人更正（FR-29）：只能撤自己的卡牌入账事件
             if target["actor_player_id"] != actor_id:
                 raise EngineError("NOT_YOURS", "只能更正自己的操作，或请房主撤销")
@@ -182,7 +231,22 @@ class RoomSession:
                            default=0)
             if target_seq < last_end:
                 raise EngineError("TURN_CLOSED", "该回合已结束，请房主在日志中撤销")
-        target_seqs, other_response_seqs = self._market_cascade(rows, target, target_seq)
+        if target["type"] == "DICE_ROLLED":
+            # 撤销掷骰 = 位置、经过的结算、发出的牌整批回退（change D4/D13）。
+            # 批内若有市场卡，再把它自己的 cascade 并进来。
+            target_seqs = self._dice_batch(rows, target_seq)
+            other_response_seqs: set[int] = set()
+            by_seq = {r["seq"]: r for r in rows}
+            for seq in sorted(target_seqs):
+                row = by_seq[seq]
+                if row["type"] != "CARD_DRAWN":
+                    continue
+                sub, others = self._market_cascade(rows, row, seq)
+                target_seqs |= sub
+                other_response_seqs |= others
+        else:
+            target_seqs, other_response_seqs = self._market_cascade(
+                rows, target, target_seq)
         if not as_host and other_response_seqs:
             # 别人对这张卡的求购要约已经做出了实质决定（卖/不卖/接受分期），
             # 不能靠抽卡人一句「选错卡」就悄悄把别人的选择也撤掉。
@@ -234,6 +298,8 @@ class RoomSession:
                 "cash": p.cash, "childCount": p.child_count,
                 "charityTurns": p.charity_turns, "skipTurns": p.skip_turns,
                 "dreamId": p.dream_id, "inBankruptcy": p.in_bankruptcy,
+                # 1-based 格索引，0 = 起点/入口标记本身（不是格子）
+                "rrPosition": p.rr_position, "ftPosition": p.ft_position,
                 "salary": p.salary, "taxes": p.taxes,
                 "mortgagePayment": p.mortgage_payment,
                 "schoolLoanPayment": p.school_loan_payment,
@@ -254,6 +320,7 @@ class RoomSession:
         return {
             "roomCode": self.code,
             "status": s.status.value,
+            "mode": s.mode.value,
             "settings": s.settings.model_dump(),
             "players": players,
             "turnOrder": s.turn_order,
@@ -261,11 +328,17 @@ class RoomSession:
             "turnCount": s.turn_count,
             "turnSquareUsed": s.turn_square_used,
             "turnPaydayUsed": s.turn_payday_used,
+            "turnDiceUsed": s.turn_dice_used,
+            "landing": s.landing.model_dump() if s.landing else None,
             "currentPlayerId": s.current_player_id,
             "activeCard": ({**s.active_card.model_dump(),
                             "settlePreview": E.settlement_preview(s, self.lib),
                             "stockOffer": E.stock_offer_preview(s, self.lib)}
                            if s.active_card else None),
+            # 只下发张数，绝不下发牌序（change D2）
+            "decks": {deck: {"remaining": len(ids),
+                             "discarded": len(s.discards.get(deck, []))}
+                      for deck, ids in s.decks.items()},
             "prompts": [p.model_dump() for p in s.prompts],
             "ftSoldSquares": s.ft_sold_squares,
             "dreamPriceBumps": s.dream_price_bumps,
@@ -274,7 +347,7 @@ class RoomSession:
 
     async def broadcast_state(self, last_events: list[dict] | None = None) -> None:
         msg = {"type": "state", "seq": self.seq, "state": self.serialize(),
-               "lastEvents": last_events or []}
+               "lastEvents": _sanitize_events(last_events or [])}
         data = json.dumps(msg, ensure_ascii=False)
         for conns in list(self.sockets.values()):
             for ws in list(conns):
@@ -356,7 +429,7 @@ class RoomSession:
                 "actor": nick.get(r["actor_player_id"],
                                   payload.get("nickname", r["actor_player_id"])),
                 "type": r["type"],
-                "payload": payload,
+                "payload": _sanitize_payload(r["type"], payload),
                 "at": r["created_at"],
                 "revoked": r["revoked_by"] is not None,
                 "revokedBy": (None if revoker is None else
@@ -420,11 +493,13 @@ class RoomManager:
 
     async def create_room(self, name: str, host_nickname: str,
                           max_players: int = 6,
-                          password: str | None = None) -> dict:
+                          password: str | None = None,
+                          mode: str = GameMode.OFFLINE_ASSIST.value) -> dict:
         code = self._gen_code()
         room_id = uuid.uuid4().hex
         pw_hash = _hash_token(password) if password else None
-        self.db.create_room(room_id, code, name, {"max_players": max_players}, pw_hash)
+        self.db.create_room(room_id, code, name, {"max_players": max_players},
+                            pw_hash, mode)
         row = self.db.find_room_by_code(code)
         sess = RoomSession(room_id, code, self.db, self.lib,
                            password_hash=pw_hash,
@@ -433,6 +508,8 @@ class RoomManager:
         sess.state.settings.max_players = max_players
         sess.state.settings.name = name
         self.rooms[code] = sess
+        # 模式必须是事件流的第一条：撤销 = 从空 RoomState 重放，只存 DB 会被撤没（D1）
+        await sess.handle_action(None, None, "SET_ROOM_MODE", {"mode": mode})
         host_id, token = await self._join(sess, host_nickname, is_host=True)
         return {"roomCode": code, "playerId": host_id, "playerToken": token}
 
@@ -454,6 +531,7 @@ class RoomManager:
                 "code": sess.code,
                 "name": s.settings.name,
                 "status": s.status.value,
+                "mode": s.mode.value,
                 "playerCount": len(s.players),
                 "maxPlayers": s.settings.max_players,
                 "hasPassword": sess.password_hash is not None,
@@ -475,6 +553,7 @@ class RoomManager:
             "code": sess.code,
             "name": s.settings.name,
             "status": s.status.value,
+            "mode": s.mode.value,
             "hasPassword": sess.password_hash is not None,
             "maxPlayers": s.settings.max_players,
             "onlineCount": len(online),

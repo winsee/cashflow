@@ -1,4 +1,7 @@
 // 与服务端 serialize() 对应的类型
+
+/** 对局模式：建房时选定，此后不可更改（design/09 §1） */
+export type GameMode = 'OFFLINE_ASSIST' | 'ONLINE'
 export interface Derived {
   interestIncome: number
   dividendIncome: number
@@ -45,6 +48,9 @@ export interface Player {
   skipTurns: number
   dreamId: string | null
   inBankruptcy: boolean
+  /** 棋盘位置（纯线上）：1-based 格索引，0 = 起点/入口标记本身，不是格子 */
+  rrPosition: number
+  ftPosition: number
   salary: number
   taxes: number
   mortgagePayment: number
@@ -72,9 +78,21 @@ export interface Prompt {
   payload: Record<string, any>
 }
 
+/** 落点：「现在轮到你处理这一格」（纯线上，design/09 §4.3） */
+export interface Landing {
+  track: 'RAT_RACE' | 'FAST_TRACK'
+  index: number
+  /** 内圈七种 type，或快车道 FT_BUSINESS / FT_DREAM / FT_CHARITY / FT_PAYDAY / FT_TAX_AUDIT / FT_DIVORCE / FT_LAWSUIT */
+  type: string
+  ref_id: string | null
+  resolved: boolean
+  note: string
+}
+
 export interface RoomStateDto {
   roomCode: string
   status: RoomStatus
+  mode: GameMode
   settings: { max_players: number; name: string }
   players: Player[]
   turnOrder: string[]
@@ -82,6 +100,11 @@ export interface RoomStateDto {
   turnCount: number
   turnSquareUsed: boolean
   turnPaydayUsed: boolean
+  /** 本回合已掷过骰（纯线上） */
+  turnDiceUsed: boolean
+  landing: Landing | null
+  /** 各副牌的余量：只有张数，绝无牌序（服务端出口脱敏） */
+  decks: Record<string, { remaining: number; discarded: number }>
   currentPlayerId: string | null
   activeCard: {
     card_id: string; deck: string; subtype: string; drawer_id: string; resolved: boolean
@@ -131,6 +154,25 @@ export interface FtDream {
   price: number
 }
 
+/** 内圈一格（/api/board/ratrace）：显示名由 type 推出，服务端一并下发省得前端再抄一份 */
+export interface RrSquare {
+  id: string
+  type: string
+  name: string
+}
+
+/** 两条轨道一次取全（/api/board） */
+export interface BoardDto {
+  ratRace: { squares: RrSquare[] }
+  fastTrack: {
+    businesses: FtBusiness[]
+    dreams: FtDream[]
+    charityCost: number
+    /** 48 格排布，下标 0 = 第 1 格；元素是 ft-b-* / ft-d-* / ft-s-* */
+    squares: string[]
+  }
+}
+
 export interface LogEntry {
   seq: number
   /** 该事件发生在第几轮（服务端重放给出）；0 = 开局前 */
@@ -152,6 +194,7 @@ export interface RoomListItem {
   code: string
   name: string
   status: RoomStatus
+  mode: GameMode
   playerCount: number
   maxPlayers: number
   hasPassword: boolean
@@ -177,6 +220,7 @@ export interface RoomSeats {
   code: string
   name: string
   status: RoomStatus
+  mode: GameMode
   hasPassword: boolean
   maxPlayers: number
   onlineCount: number

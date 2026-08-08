@@ -29,6 +29,9 @@ function revertable(e: LogEntry): boolean {
 /** 语义是「抽错卡当场撤销重选」（设计稿 §04）：回合一结束就只能请房主撤销，
  *  否则谁都能回头翻旧账。服务端 _revert 有同一道校验，这里只是不给按钮。 */
 function correctable(e: LogEntry): boolean {
+  // 纯线上模式没有这条路径：牌由服务端发、不可能认错，退回堆顶再抽必然是同一张，
+  // 只会让人陷入「撤了又抽到一样的」的困惑循环。服务端也已焊死（ONLINE_NO_CORRECT）。
+  if (game.isOnline) return false
   return !isHost.value && !e.revoked && CORRECTABLE.has(e.type)
       && e.actorId === game.session?.playerId && game.isMyTurn
 }
