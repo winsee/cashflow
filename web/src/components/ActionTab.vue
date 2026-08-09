@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watchEffect } from 'vue'
+import { computed, nextTick, ref, watchEffect } from 'vue'
 import { confirmAction } from '../confirm'
 import { COLOR_PAYDAY, DECK_COLOR, DECK_LABEL, DECK_SHORT } from '../decks'
 import { fmt, useGame } from '../store'
@@ -10,6 +10,9 @@ import ReceiptStack from './ReceiptStack.vue'
 import StockTradeBox from './StockTradeBox.vue'
 import BaseModal from './base/BaseModal.vue'
 import GameCard from './cards/GameCard.vue'
+import BankPanel from './tools/BankPanel.vue'
+import BankruptcyPanel from './tools/BankruptcyPanel.vue'
+import TransferPanel from './tools/TransferPanel.vue'
 
 const game = useGame()
 const me = computed(() => game.me)
@@ -83,15 +86,9 @@ const impact = computed(() => game.cardImpact)
 /** 一共通知了几位（含已答复的）；断线重连丢了事件就退回当前待决定人数 */
 const notifiedCount = computed(() => impact.value?.notified.length || marketPending.value.length)
 
-// 银行操作
-const loanAmount = ref(1000)
-const repayAmount = ref(1000)
 const resellTo = ref('')
 const resellPrice = ref(0)
 const showResell = ref(false)
-const transferTo = ref('')
-const transferAmount = ref(0)
-const transferReason = ref('')
 // 常驻工具默认折叠：它们随时可用，但不是待办，不该和「你现在该做什么」抢注意力
 const toolsOpen = ref(false)
 
@@ -117,8 +114,8 @@ const bankruptable = computed(() =>
   me.value && me.value.derived.monthlyCashflow < 0 &&
   me.value.cash + me.value.derived.monthlyCashflow < 0)
 
-// 强制卡现金不足时，「去银行贷款」滚到银行卡片
-const bankCard = ref<HTMLElement | null>(null)
+// 强制卡现金不足时，「去银行贷款」展开常驻工具并滚到银行卡片（金额预填在 BankPanel 里）
+const bankPanel = ref<InstanceType<typeof BankPanel> | null>(null)
 
 // 聚焦决策卡：买入后的现金 / 月现金流预览（纯前端派生提示，服务端仍是权威结算）
 const buyPreview = computed(() => {
@@ -251,40 +248,11 @@ async function payday() {
   else game.flash(`已结算银行结算日 ×${t}，现金${cf >= 0 ? ' +' : ' '}${fmt(cf * t)}`)
 }
 
-async function takeLoan() {
-  const amt = loanAmount.value
-  const interest = Math.floor(amt / 10)
-  const cfAfter = me.value!.derived.monthlyCashflow - interest
-  const ok = await confirmAction({
-    title: `向银行贷款 ${fmt(amt)}？`,
-    lines: [`每月利息 +${fmt(interest)}（月息 10%）`, `贷后月现金流 ${fmt(cfAfter)}`],
-    warning: cfAfter < 0
-      ? '贷后月现金流为负：下个银行结算日现金不足以支付即破产，届时不能再贷款'
-      : undefined,
-  })
-  if (ok && await game.act('TAKE_LOAN', { amount: amt })) game.flash(`已贷款 ${fmt(amt)}`)
-}
-
-async function repayLoan() {
-  const amt = Math.min(loanAmount.value, me.value!.liabilities.bank_loan)
-  const ok = await confirmAction({
-    title: `偿还银行贷款 ${fmt(amt)}？`,
-    lines: [`每月利息 −${fmt(Math.floor(amt / 10))}`],
-  })
-  if (ok && await game.act('REPAY_LOAN', { amount: amt })) game.flash(`已还款 ${fmt(amt)}`)
-}
-
-// 一次性还清银行贷款：贷款额恒为千元倍数，floor 只是兜底
-async function repayAllLoan() {
-  loanAmount.value = Math.floor(me.value!.liabilities.bank_loan / 1000) * 1000
-  await repayLoan()
-}
-
-// 强制卡「去银行贷款」：展开常驻工具、预填缺口金额并滚到银行卡片
-function gotoBank(need: number) {
-  loanAmount.value = Math.max(1000, Math.ceil(need / 1000) * 1000)
+// 强制卡「去银行贷款」：展开常驻工具，再让 BankPanel 自己预填缺口并滚到自己身上
+async function gotoBank(need: number) {
   toolsOpen.value = true
-  requestAnimationFrame(() => bankCard.value?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+  await nextTick()
+  bankPanel.value?.prefill(need)
 }
 
 async function charity() {
@@ -315,24 +283,6 @@ async function unemployment() {
     danger: true,
   })
   if (ok && await game.act('UNEMPLOYMENT')) game.flash(`已支付 ${fmt(amount)}，停赛 2 轮`)
-}
-
-async function bankruptcySell(name: string, assetId: string, proceeds?: number) {
-  const ok = await confirmAction({
-    title: `把「${name}」卖给银行？`,
-    lines: [proceeds !== undefined ? `按规则可得 ${fmt(proceeds)}（首期付款 50%）` : '股票按买入成本 50% 回收'],
-    danger: true,
-  })
-  if (ok && await game.act('BANKRUPTCY_SELL_ASSET', { assetId })) game.flash(`已变卖 ${name}`)
-}
-
-async function bankruptcyRepay() {
-  const amt = Math.min(repayAmount.value, me.value!.liabilities.bank_loan)
-  const ok = await confirmAction({
-    title: `偿还银行贷款 ${fmt(amt)}？`,
-    lines: [`每月利息 −${fmt(Math.floor(amt / 10))}`],
-  })
-  if (ok && await game.act('REPAY_LOAN', { amount: amt })) game.flash(`已还款 ${fmt(amt)}`)
 }
 
 async function startBankruptcy() {
@@ -378,9 +328,6 @@ const tableStepText = computed(() => {
   if (!st.value.turnSquareUsed) return '正在选停留格'
   return '正在结束回合'
 })
-
-/** 破产清算：还差多少才能转正，是玩家真正要算的那个数 */
-const bkGap = computed(() => Math.max(0, -(me.value?.derived.monthlyCashflow ?? 0)))
 </script>
 
 <template>
@@ -395,45 +342,7 @@ const bkGap = computed(() => Math.max(0, -(me.value?.derived.monthlyCashflow ?? 
     </div>
 
     <!-- 破产清算（最高优先） -->
-    <div v-if="me.inBankruptcy" class="card urgent">
-      <div class="todo-label urgent">本回合待办 · 破产清算</div>
-      <h2 style="margin:4px 0 5px">现金不够付这个月的账</h2>
-      <p class="muted" style="margin:0 0 10px">
-        按说明书：以首期付款的一半把资产卖给银行，直到月现金流转正。（说明书第 5 页）</p>
-      <div class="preview">
-        <div class="prow"><span>当前月现金流</span>
-          <span class="money neg">{{ fmt(me.derived.monthlyCashflow) }}</span></div>
-        <div class="prow"><span>转正还差</span><span class="money">+{{ fmt(bkGap) }}</span></div>
-      </div>
-      <div v-for="a in [...me.realEstates, ...me.businesses]" :key="a.id" class="card inner">
-        <div class="row between">
-          <div>
-            <b style="font-size:13px">{{ a.name }}</b>
-            <div class="muted">卖出得 {{ fmt(Math.floor(a.down_payment / 2)) }} · 月现金流 −{{ fmt(a.cashflow) }}</div>
-          </div>
-          <button class="btn small warn" @click="bankruptcySell(a.name, a.id, Math.floor(a.down_payment / 2))">卖给银行</button>
-        </div>
-      </div>
-      <div v-for="sym in [...new Set(me.stocks.map(s => s.symbol))]" :key="sym" class="card inner">
-        <div class="row between">
-          <div><b style="font-size:13px">股票 {{ sym }}</b><div class="muted">按买入成本半价卖出</div></div>
-          <button class="btn small warn" @click="bankruptcySell('股票 ' + sym, 'stock:' + sym)">卖出</button>
-        </div>
-      </div>
-      <div class="row between" style="margin-top:10px">
-        <span class="muted">当前银行贷款</span>
-        <span class="money">{{ fmt(me.liabilities.bank_loan) }}</span>
-      </div>
-      <div class="row" style="margin-top:6px">
-        <input type="number" v-model.number="repayAmount" step="1000" min="1000" />
-        <button class="btn small" :disabled="!me.liabilities.bank_loan" @click="bankruptcyRepay">还银行贷款</button>
-      </div>
-      <p class="muted">清偿其他负债请到「报表」页的负债表操作</p>
-      <button class="btn block warn" @click="game.act('BANKRUPTCY_RESOLVE')">完成清算</button>
-      <p class="muted" style="margin:8px 0 0">
-        清算后仍为负，购车贷款、信用卡与额外负债将注销一半；若还是负值就出局。
-      </p>
-    </div>
+    <BankruptcyPanel v-if="me.inBankruptcy" />
 
     <!-- 快车道面板 -->
     <FasttrackPanel v-else-if="me.phase === 'FAST_TRACK'" />
@@ -739,44 +648,10 @@ const bkGap = computed(() => Math.max(0, -(me.value?.derived.monthlyCashflow ?? 
 
     <template v-if="toolsOpen && !me.inBankruptcy">
       <!-- 银行：贷款 / 还款（随时可用，不限自己回合） -->
-      <div v-if="me.phase === 'RAT_RACE'" ref="bankCard" class="card">
-        <h3>🏦 银行</h3>
-        <p v-if="me.liabilities.bank_loan" class="row between" style="margin:6px 0">
-          <span class="muted">当前银行贷款</span>
-          <span><b class="money">{{ fmt(me.liabilities.bank_loan) }}</b>
-            <span class="muted"> · 月供 {{ fmt(me.derived.bankLoanExpense) }}</span></span>
-        </p>
-        <p v-else class="muted" style="margin:6px 0">当前无银行贷款</p>
-        <div class="row wrap">
-          <input type="number" v-model.number="loanAmount" step="1000" min="1000" />
-          <button class="btn small" @click="takeLoan">贷款</button>
-          <button class="btn small ghost" :disabled="!me.liabilities.bank_loan" @click="repayLoan">还款</button>
-          <button v-if="me.liabilities.bank_loan" class="btn small ghost" @click="repayAllLoan">
-            还清 {{ fmt(me.liabilities.bank_loan) }}
-          </button>
-        </div>
-        <p class="muted">千元整数倍，月息 10%（每借 $1,000 月付 $100）</p>
-        <p class="muted">清偿房贷/学贷/车贷等其他负债请到「报表」页的负债表</p>
-      </div>
+      <BankPanel v-if="me.phase === 'RAT_RACE'" ref="bankPanel" />
 
       <!-- 玩家间转账 -->
-      <div v-if="me.phase !== 'OUT'" class="card">
-        <h3>🤝 玩家间转账</h3>
-        <label>转给</label>
-        <select v-model="transferTo">
-          <option value="" disabled>选择玩家</option>
-          <option v-for="p in others" :key="p.id" :value="p.id">{{ p.nickname }}</option>
-        </select>
-        <label>金额</label>
-        <input type="number" v-model.number="transferAmount" min="1" />
-        <label>备注（如：机会卡转让费）</label>
-        <input v-model="transferReason" />
-        <button class="btn block" style="margin-top:10px" :disabled="!transferTo || transferAmount <= 0"
-                @click="game.act('TRANSFER_REQUEST', { toPlayerId: transferTo, amount: transferAmount, reason: transferReason }).then(ok => ok && (transferTo = '', transferAmount = 0, transferReason = ''))">
-          发起转账（待对方确认）
-        </button>
-        <p class="muted">对方确认后才会扣款。</p>
-      </div>
+      <TransferPanel />
     </template>
 
     <!-- 结束回合 主 CTA -->

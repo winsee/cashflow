@@ -6,17 +6,20 @@
  *  它们是「随时可查」而不是「本回合待办」，本就不该和棋盘平级。
  *  既有 `ActionTab` 等只服务线下辅助模式，一行不改。
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { bankRequest } from '../bankrequest'
 import { confirmAction } from '../confirm'
 import { fmt, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
-import type { CardDto } from '../types'
+import type { CardDto, Player } from '../types'
 import BoardView from '../components/board/BoardView.vue'
+import Die3d from '../components/board/Die3d.vue'
 import type { BoardSquare } from '../components/board/geom'
 import FtSquareCard from '../components/cards/FtSquareCard.vue'
 import DealCurtain from '../components/board/DealCurtain.vue'
 import OnlineCardPanel from '../components/board/OnlineCardPanel.vue'
 import OnlineLandingPanel from '../components/board/OnlineLandingPanel.vue'
 import PromptModal from '../components/PromptModal.vue'
+import ReceiptStack from '../components/ReceiptStack.vue'
 import ResultView from '../components/ResultView.vue'
 import ConnectingFallback from '../components/ConnectingFallback.vue'
 import FasttrackIntro from '../components/FasttrackIntro.vue'
@@ -24,6 +27,9 @@ import FasttrackCheer from '../components/FasttrackCheer.vue'
 import StatementTab from '../components/StatementTab.vue'
 import OverviewTab from '../components/OverviewTab.vue'
 import LogTab from '../components/LogTab.vue'
+import BankPanel from '../components/tools/BankPanel.vue'
+import BankruptcyPanel from '../components/tools/BankruptcyPanel.vue'
+import TransferPanel from '../components/tools/TransferPanel.vue'
 
 const game = useGame()
 const finished = computed(() => game.state?.status === 'FINISHED')
@@ -58,6 +64,28 @@ const seats = computed(() => {
     }
   })
 })
+
+/** 观战牌桌（design/09 §6）：每位玩家走到回合的哪一步、账面什么样。
+ *  全从已下发的字段派生，不加一次请求；口径与线下 `ActionTab.tableStepText` 同一套。 */
+function stepTextOf(p: Player): string {
+  const s = game.state!
+  if (p.phase === 'OUT') return '已出局'
+  if (p.inBankruptcy) return '正在破产清算'
+  if (p.id !== s.currentPlayerId)
+    return p.skipTurns ? `停赛中 · 还需跳过 ${p.skipTurns} 轮` : '等待中'
+  if (!s.turnDiceUsed) return '正在掷骰'
+  if (s.landing && !s.landing.resolved) return '正在处理落点'
+  if (s.activeCard && !s.activeCard.resolved) return '正在决定这张卡'
+  return '准备结束回合'
+}
+
+const tableRows = computed(() => (game.state?.players ?? []).map(p => ({
+  id: p.id, nickname: p.nickname,
+  now: p.id === game.state!.currentPlayerId,
+  ft: p.phase === 'FAST_TRACK',
+  cash: p.cash, flow: p.derived.monthlyCashflow, ftIncome: p.fasttrack.current_income,
+  step: stepTextOf(p),
+})))
 
 // ---------- 棋盘 ----------
 
@@ -151,11 +179,10 @@ watch(diceMax, v => { if (diceCount.value > v) diceCount.value = diceDefault.val
 const rolling = computed(() => game.stageNow?.kind === 'dice')
 const shownRolls = computed(() => {
   if (game.stageNow?.kind === 'dice') return game.stageNow.rolls
-  return lastRolls.value
+  return game.lastRolls
 })
-const lastRolls = ref<number[]>([])
-watch(() => game.stageNow, (s) => { if (s?.kind === 'dice') lastRolls.value = s.rolls })
-watch(() => game.state?.turnCount, () => { lastRolls.value = [] })
+// 换人就把上一位的点数收走（换轮次不行：一轮里每个人都掷过一次）
+watch(() => game.state?.currentPlayerId, () => { game.lastRolls = [] })
 
 const canRoll = computed(() =>
   game.isMyTurn && game.connected && !!me.value
@@ -177,8 +204,26 @@ const step = computed<1 | 2 | 3>(() => {
   return 3
 })
 
+/** 演出还在播：**界面此刻显示到哪一帧由 stage 说了算，不由权威状态说了算**。
+ *
+ *  服务端一批事件里，移动和它的后果是一起到的，`this.state` 在 `ingestStage()` 之后
+ *  立刻就换成了「这一切都已经发生完」的样子。不按住的话，牌还没翻过来卡片就躺在抽屉里了，
+ *  帘幕落下时它还在那儿——演出成了状态的追认，而不是状态的呈现。
+ *  发牌是队列的最后一拍，所以这道门一开，卡片正好在收牌之后落进抽屉（design/09 §5.1 第 9 拍）。
+ */
+const held = computed(() => game.staging)
+const heldTip = computed(() => {
+  switch (game.stageNow?.kind) {
+    case 'dice': return '骰子还在转…'
+    case 'deal': return '正在发牌…'
+    case 'reshuffle': return '正在洗牌…'
+    default: return '正在移动…'
+  }
+})
+
 const hubTip = computed(() => {
   if (!game.connected) return '重新连上之前，不能掷骰'
+  if (held.value) return heldTip.value
   if (!game.isMyTurn) return `${game.currentPlayer?.nickname ?? '对手'} 正在行动`
   if (me.value?.skipTurns) return `停赛中 · 还需跳过 ${me.value.skipTurns} 轮`
   if (step.value === 1) return '点骰子开始这一回合'
@@ -207,16 +252,25 @@ async function endTurn() {
 // ---------- 三档抽屉 ----------
 
 type Detent = 'peek' | 'half' | 'full'
+type LedgerPage = 'statement' | 'overview' | 'log' | 'more'
 const DETENT_H: Record<Detent, string> = { peek: '128px', half: '46dvh', full: '88dvh' }
 const RANK: Record<Detent, number> = { peek: 0, half: 1, full: 2 }
 const detent = ref<Detent>('peek')
-const ledger = ref<null | 'statement' | 'overview' | 'log'>(null)
+const ledger = ref<null | LedgerPage>(null)
 
 /** 档位由内容决定，不由用户记忆决定 */
 const wantDetent = computed<Detent>(() => {
   if (ledger.value) return 'full'
   if (me.value?.inBankruptcy) return 'full'
+  // 演出没播完就不动档位：牌还没翻过来，抽屉不该先弹起来抢戏。
+  // 返回当前档而不是 'peek'——玩家自己拉起来看牌桌的抽屉，不该被一次掷骰按回去。
+  if (held.value) return detent.value
   if (game.state?.activeCard || (landing.value && !landing.value.resolved)) return 'half'
+  // peek 档只有 128px，扣掉把手、状态条与钉底的按钮条，正文剩不下几十像素。
+  // 所以这两样东西一出现就得提档，否则等于没给：
+  // ① 没确认的回执；② 落点结果卡（这一格没问过我就处理完了，得有个地方说清楚）
+  if (game.receipts.length) return 'half'
+  if (game.isMyTurn && landing.value?.resolved && !game.state?.activeCard) return 'half'
   return 'peek'
 })
 /** 用户可以拖动覆盖，但下一次系统事件会重新提档，且**提档只升不降**——
@@ -244,7 +298,7 @@ function onGrabUp(e: PointerEvent) {
   detent.value = order[Math.min(order.length - 1, Math.max(0, i + (dy < 0 ? 1 : -1)))]
 }
 
-function openLedger(page: 'statement' | 'overview' | 'log' = 'statement') {
+function openLedger(page: LedgerPage = 'statement') {
   ledger.value = page
   detent.value = 'full'
 }
@@ -252,6 +306,32 @@ function closeLedger() {
   ledger.value = null
   detent.value = wantDetent.value
 }
+
+// 进入破产清算时把账本收掉：清算期间抽屉里只该有清算面板，分段控件让位
+watch(() => me.value?.inBankruptcy, (v) => { if (v) ledger.value = null })
+
+/** 破产入口的判据与线下同一条（月现金流为负且现金加它小于零） */
+const bankruptable = computed(() =>
+  !!me.value && !me.value.inBankruptcy && me.value.derived.monthlyCashflow < 0
+  && me.value.cash + me.value.derived.monthlyCashflow < 0)
+
+async function startBankruptcy() {
+  const ok = await confirmAction({
+    title: '进入破产流程？',
+    lines: ['将按首期付款 50% 向银行变卖资产，直至月现金流转正'],
+    danger: true,
+  })
+  if (ok) await game.act('BANKRUPTCY_START')
+}
+
+// 现金不足的三处提示点「去贷款」→ 打开 账本 → 更多 → 银行，并把缺口预填进去
+const bankPanel = ref<InstanceType<typeof BankPanel> | null>(null)
+watch(bankRequest, async (req) => {
+  if (!req) return
+  openLedger('more')
+  await nextTick()
+  bankPanel.value?.prefill(req.need)
+})
 
 // ---------- 逃出老鼠赛跑（沿用线下模式那一套判据与 sessionStorage 记忆） ----------
 
@@ -291,6 +371,7 @@ const dealStep = computed(() => game.stageNow?.kind === 'deal' ? game.stageNow :
 /** 这张卡此刻要不要给我一排决策按钮（钉在抽屉底） */
 const cardCta = computed(() => {
   const ac = game.state?.activeCard
+  if (held.value) return null            // 牌还没翻过来，按钮不能先摆出来
   if (!ac || ac.resolved || !activeCardInfo.value) return null
   return ac.drawer_id === game.session?.playerId ? ac : null
 })
@@ -362,7 +443,7 @@ const blockedBy = computed(() => {
     <!-- ===== 棋盘 =====
          演出进行中点棋盘任意处即**终止**当前序列并刷到终态（不是加速）：
          玩到第 20 轮的人不该被自己看过 20 遍的动画拖住 -->
-    <div class="board-stage" :class="{ 'card-open': !!game.state.activeCard || !!dealStep }"
+    <div class="board-stage" :class="{ 'card-open': !held && !!game.state.activeCard }"
          :style="{ '--bw': boardWidth }"
          @click="game.staging && game.skipStage()">
       <div class="board-tools">
@@ -385,10 +466,9 @@ const blockedBy = computed(() => {
           </div>
           <div v-else class="board-dice"
                :class="`n${Math.max(1, shownRolls.length || diceCount)}`">
-            <button v-for="i in Math.max(1, shownRolls.length || diceCount)" :key="i"
-                    class="die" :class="{ rolling }" :disabled="!canRoll" @click="roll">
-              {{ rolling ? '?' : (shownRolls[i - 1] ?? '🎲') }}
-            </button>
+            <Die3d v-for="i in Math.max(1, shownRolls.length || diceCount)" :key="i"
+                   :index="i - 1" :value="rolling ? null : (shownRolls[i - 1] ?? null)"
+                   :rolling="rolling" :rollable="canRoll" @roll="roll" />
           </div>
           <!-- 慈善生效时粒数选择器**替换**状态提示行（不叠高度、不弹层） -->
           <div v-if="canRoll && diceMax > 1" class="dice-pick"
@@ -408,32 +488,38 @@ const blockedBy = computed(() => {
       <div class="sheet-grab grabbable" @pointerdown="onGrab" @pointerup="onGrabUp"></div>
 
       <div class="drawer-peek">
-        <template v-if="ledger">
+        <!-- 破产清算优先于一切：这时候抽屉里只有清算面板，分段控件让位 -->
+        <template v-if="me.inBankruptcy">
+          <b class="who">破产清算</b>
+          <span class="muted">卖资产直到月现金流转正</span>
+        </template>
+        <!-- 账本打开时状态条上只有标题与出口：四页归四页，分段控件在内容区顶部。
+             七个按钮挤一条的老排法在 375 屏宽下必然折成两行 -->
+        <template v-else-if="ledger">
           <b class="who">账本</b>
-          <div class="row" style="gap:4px">
-            <button class="btn ghost small" :class="{ on: ledger === 'statement' }"
-                    @click="ledger = 'statement'">报表</button>
-            <button class="btn ghost small" @click="ledger = 'overview'">总览</button>
-            <button class="btn ghost small" @click="ledger = 'log'">日志</button>
-          </div>
           <span class="grow"></span>
-          <!-- 「跳过动画」是这台设备的偏好，存 localStorage，不进房间状态 -->
-          <button class="btn ghost small" :class="{ on: game.skipAnim }"
-                  @click="game.setSkipAnim(!game.skipAnim)">
-            {{ game.skipAnim ? '☑' : '☐' }} 跳过动画
-          </button>
-          <button class="btn ghost small" @click="closeLedger">收起</button>
+          <button class="btn ghost small" @click="closeLedger">收起 ✕</button>
         </template>
         <template v-else-if="!game.isMyTurn">
           <span class="who">{{ game.currentPlayer?.nickname ?? '对手' }}</span>
           <span class="muted">
-            <template v-if="!game.state.turnDiceUsed">还没掷骰</template>
+            <template v-if="held">{{ heldTip }}</template>
+            <template v-else-if="!game.state.turnDiceUsed">还没掷骰</template>
             <template v-else-if="landing && !landing.resolved">正在决定</template>
             <template v-else>准备结束回合</template>
           </span>
           <span class="grow"></span>
+          <!-- 头像列就是展开牌桌的入口：围观也是玩，别人的账面不该只能靠猜 -->
+          <button class="seat-strip" title="看牌桌"
+                  @click="detent = detent === 'peek' ? 'half' : 'peek'">
+            <span v-for="s in seats" :key="s.id" class="seat-dot"
+                  :class="{ now: s.now, done: s.done, out: s.out }">{{ s.initial }}</span>
+          </button>
           <button v-if="me.isHost" class="btn ghost small"
                   @click="game.act('HOST_END_TURN')">⋯ 代结束</button>
+        </template>
+        <template v-else-if="held">
+          <span class="who">{{ heldTip }}</span>
         </template>
         <template v-else>
           <span class="who">第 {{ step }} 步 / 3</span>
@@ -447,9 +533,45 @@ const blockedBy = computed(() => {
       </div>
 
       <div class="drawer-body">
-        <template v-if="ledger === 'statement'"><StatementTab /></template>
-        <template v-else-if="ledger === 'overview'"><OverviewTab /></template>
-        <template v-else-if="ledger === 'log'"><LogTab /></template>
+        <!-- 破产清算：抽屉自动升到 full 档，里面只有这块面板——
+             卖资产、还贷、完成清算，每一步都得走得完，否则一破产就锁死 -->
+        <template v-if="me.inBankruptcy">
+          <BankruptcyPanel :show-resolve="false" />
+        </template>
+        <!-- 分段控件钉在内容区顶部：四段等宽、任何屏宽都排得下一行 -->
+        <template v-else-if="ledger">
+          <div class="ledger-seg">
+            <button :class="{ on: ledger === 'statement' }" @click="ledger = 'statement'">报表</button>
+            <button :class="{ on: ledger === 'overview' }" @click="ledger = 'overview'">总览</button>
+            <button :class="{ on: ledger === 'log' }" @click="ledger = 'log'">日志</button>
+            <button :class="{ on: ledger === 'more' }" @click="ledger = 'more'">更多</button>
+          </div>
+          <StatementTab v-if="ledger === 'statement'" />
+          <OverviewTab v-else-if="ledger === 'overview'" />
+          <LogTab v-else-if="ledger === 'log'" />
+          <!-- 「更多」：随时可用但不是待办的三块（design/09 §2.4）。
+               它们与报表/总览/日志同属「随时可查、随时可用」，本就该在同一层。 -->
+          <template v-else-if="ledger === 'more'">
+            <BankPanel v-if="me.phase === 'RAT_RACE'" ref="bankPanel" />
+            <p v-else class="muted">快车道没有银行贷款（说明书第 6 页），记录卡已翻面。</p>
+            <TransferPanel />
+            <button v-if="bankruptable" class="btn block warn" @click="startBankruptcy">
+              🆘 进入破产流程
+            </button>
+            <!-- 本机的显示偏好：它是这台设备的事，不是账本的一页，所以收在这儿而不是占一格分段 -->
+            <div class="card">
+              <h3>🎬 显示设置</h3>
+              <label class="row between" style="cursor:pointer">
+                <span>跳过动画</span>
+                <input type="checkbox" :checked="game.skipAnim"
+                       @change="game.setSkipAnim(!game.skipAnim)" />
+              </label>
+              <p class="muted" style="margin:6px 0 0">
+                只影响这台设备：掷骰、走格、发牌不再播放过场，点数与卡面直接给出结果。
+              </p>
+            </div>
+          </template>
+        </template>
         <template v-else>
           <div v-if="!game.connected" class="card quiet" style="padding:14px;text-align:center">
             <span class="muted">重新连上之前，操作暂不可用</span>
@@ -460,52 +582,91 @@ const blockedBy = computed(() => {
           <div v-else-if="me.phase === 'OUT'" class="card inner muted">
             你已出局 · 可以继续观战
           </div>
-          <OnlineLandingPanel v-if="game.isMyTurn" />
-          <OnlineCardPanel v-if="activeCardInfo" :card="activeCardInfo" />
-          <p v-if="landing?.resolved && landing.note" class="muted">{{ landing.note }}</p>
+          <!-- 「刚刚发生在你身上」：银行结算日、别人的市场卡波及到我……
+               这些事没经我的手就改了我的账，必须被看见。纯线上此前根本没有这个出口。 -->
+          <ReceiptStack />
+          <!-- 演出没播完就先按住：棋子还在走的时候写「你停在机会格」，
+               和牌没翻过来卡片就躺在抽屉里，是同一个毛病 -->
+          <OnlineLandingPanel v-if="game.isMyTurn && !held" />
+          <OnlineCardPanel v-if="activeCardInfo && !held" :card="activeCardInfo" />
+
+          <!-- 别人的回合：牌桌。他是谁、走到回合哪一步、账面什么样，一屏看得见。
+               演出期间照旧显示（这时卡面还没落进抽屉，正文不该是空的） -->
+          <template v-if="!game.isMyTurn && (held || !activeCardInfo) && game.connected">
+            <div class="section-title">牌桌</div>
+            <div v-for="r in tableRows" :key="r.id" class="card inner">
+              <div class="row between">
+                <div class="row" style="gap:8px">
+                  <span class="avatar-lg">{{ r.nickname.slice(0, 1) }}</span>
+                  <div>
+                    <b style="font-size:13px">{{ r.nickname
+                      }}<span v-if="r.id === me.id">（你）</span></b>
+                    <div class="muted" style="font-size:11px">{{ r.step }}</div>
+                  </div>
+                </div>
+                <span v-if="r.now" class="badge turn">行动中</span>
+              </div>
+              <div class="row between muted" style="margin-top:8px">
+                <span>现金 <b class="money">{{ fmt(r.cash) }}</b></span>
+                <span v-if="r.ft">现金流量日收入 <b class="money">{{ fmt(r.ftIncome) }}</b></span>
+                <span v-else>月现金流
+                  <b class="money" :class="r.flow >= 0 ? 'pos' : 'neg'">
+                    {{ r.flow >= 0 ? '+' : '' }}{{ fmt(r.flow) }}</b></span>
+              </div>
+            </div>
+          </template>
         </template>
       </div>
 
       <!-- 决策按钮钉底：一张牌堆卡加上前后对比就超过 half 档的高度，
-           内容必须能滚，但「买入 / 放弃」不能跟着滚走 -->
+           内容必须能滚，但「买入 / 放弃」不能跟着滚走。
+           **最后一行永远留给「结束回合」**：卡片决策排它上面一行，不取代它——
+           试玩里「买不起的 CD + 只有『我不买』」就是这样把出口关掉的。 -->
       <div v-if="!ledger" class="drawer-cta">
-        <template v-if="game.isMyTurn && me.inBankruptcy">
-          <button class="btn grow warn" @click="game.act('BANKRUPTCY_RESOLVE')">完成清算</button>
+        <template v-if="me.inBankruptcy">
+          <div class="cta-row">
+            <button class="btn grow warn" @click="game.act('BANKRUPTCY_RESOLVE')">完成清算</button>
+          </div>
         </template>
-        <template v-else-if="cardCta">
-          <template v-if="['REALESTATE', 'BUSINESS', 'COLLECTIBLE', 'DICE_GAMBLE'].includes(cardCta.subtype)">
-            <button class="btn grow" @click="decide('buy')">
-              {{ cardCta.subtype === 'DICE_GAMBLE' ? '接受' : '买入' }}
-              {{ fmt(activeCardInfo?.data.downPayment) }}
+        <template v-else>
+          <!-- 上行：这一格/这张卡此刻的决策（可有可无） -->
+          <div v-if="cardCta" class="cta-row">
+            <template v-if="['REALESTATE', 'BUSINESS', 'COLLECTIBLE', 'DICE_GAMBLE'].includes(cardCta.subtype)">
+              <button class="btn grow" @click="decide('buy')">
+                {{ cardCta.subtype === 'DICE_GAMBLE' ? '接受' : '买入' }}
+                {{ fmt(activeCardInfo?.data.downPayment) }}
+              </button>
+              <button class="btn ghost grow" @click="decide('pass')">放弃</button>
+            </template>
+            <button v-else-if="cardCta.subtype === 'STOCK_OFFER'" class="btn ghost grow"
+                    @click="decide('pass')">我不买</button>
+            <button v-else-if="cardCta.subtype === 'STOCK_EVENT'" class="btn grow"
+                    @click="decide('apply')">执行拆股 / 并股</button>
+            <template v-else-if="cardCta.subtype === 'CREDIT_OPTION'">
+              <button class="btn grow" @click="decide('pay')">现金支付</button>
+              <button class="btn ghost grow" @click="decide('credit')">信用卡支付</button>
+            </template>
+            <button v-else-if="['EXPENSE_EVENT', 'CASH', 'INSTALLMENT'].includes(cardCta.subtype)"
+                    class="btn grow warn" @click="decide('pay')">
+              {{ cardCta.settlePreview?.waived ? '确认（无需支付）'
+                 : `支付 ${fmt(cardCta.settlePreview?.due ?? 0)}` }}
             </button>
-            <button class="btn ghost grow" @click="decide('pass')">放弃</button>
-          </template>
-          <button v-else-if="cardCta.subtype === 'STOCK_OFFER'" class="btn ghost grow"
-                  @click="decide('pass')">我不买</button>
-          <button v-else-if="cardCta.subtype === 'STOCK_EVENT'" class="btn grow"
-                  @click="decide('apply')">执行拆股 / 并股</button>
-          <template v-else-if="cardCta.subtype === 'CREDIT_OPTION'">
-            <button class="btn grow" @click="decide('pay')">现金支付</button>
-            <button class="btn ghost grow" @click="decide('credit')">信用卡支付</button>
-          </template>
-          <button v-else-if="['EXPENSE_EVENT', 'CASH', 'INSTALLMENT'].includes(cardCta.subtype)"
-                  class="btn grow warn" @click="decide('pay')">
-            {{ cardCta.settlePreview?.waived ? '确认（无需支付）'
-               : `支付 ${fmt(cardCta.settlePreview?.due ?? 0)}` }}
-          </button>
-        </template>
-        <template v-else-if="game.isMyTurn && me.skipTurns">
-          <button class="btn ghost grow" @click="game.act('END_TURN')">跳过本回合</button>
-        </template>
-        <template v-else-if="game.isMyTurn && step === 1 && canRoll">
-          <button class="btn grow" @click="roll">🎲 掷 {{ diceCount }} 粒骰</button>
-        </template>
-        <!-- 掷完之后主 CTA 一直是「结束回合」：慈善格、快车道绿粉格本就可做可不做，
-             不该逼人先点一次「不捐」；必须做的格子（机会/失业）才置灰并写明在等什么 -->
-        <template v-else-if="game.isMyTurn && step !== 1">
-          <button class="btn grow" :disabled="!!blockedBy" @click="endTurn">
-            {{ blockedBy || '✅ 结束回合' }}
-          </button>
+          </div>
+          <div v-else-if="game.isMyTurn && step === 1 && canRoll" class="cta-row">
+            <button class="btn grow" @click="roll">🎲 掷 {{ diceCount }} 粒骰</button>
+          </div>
+
+          <!-- 下行：结束回合。判据与服务端 `_d_end_turn` 逐项对齐——
+               UI 的闸门不许比服务端严，服务端准结束的情形界面就必须准。 -->
+          <div v-if="game.isMyTurn" class="cta-row">
+            <button v-if="me.skipTurns" class="btn ghost grow" @click="game.act('END_TURN')">
+              跳过本回合
+            </button>
+            <button v-else class="btn grow" :class="{ ghost: !!cardCta || (step === 1 && canRoll) }"
+                    :disabled="!!blockedBy" @click="endTurn">
+              {{ blockedBy || '✅ 结束回合' }}
+            </button>
+          </div>
         </template>
       </div>
     </div>
@@ -535,7 +696,8 @@ const blockedBy = computed(() => {
       </div>
     </div>
 
-    <PromptModal />
+    <!-- 弹层同样等演出播完：别人抽的市场卡要我答复，也得先让我看见那张牌翻过来 -->
+    <PromptModal v-if="!held" />
     <FasttrackCheer v-if="game.cheer" :cheer="game.cheer" @close="game.cheer = null" />
     <FasttrackIntro v-if="showIntro" @close="dismissIntro" @confirm="confirmEnterFasttrack" />
   </div>

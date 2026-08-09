@@ -6,6 +6,7 @@
  *  要么是「自动 → 回执」。
  */
 import { computed } from 'vue'
+import { askBankLoan } from '../../bankrequest'
 import { confirmAction } from '../../confirm'
 import { fmt, useGame } from '../../store'
 import FtSquareCard from '../cards/FtSquareCard.vue'
@@ -39,10 +40,79 @@ const bizSold = computed(() =>
 const charityCost = computed(() =>
   Math.round((me.value?.derived.totalIncome ?? 0) / 10))
 
+/** 失业要付一次总支出，付不出可以先贷款（老鼠赛跑阶段银行一直在） */
+const unemploymentShort = computed(() =>
+  Math.max(0, (me.value?.derived.totalExpenses ?? 0) - (me.value?.cash ?? 0)))
+
+/** 快车道上现金不够就是买不了：这一段**没有**银行贷款（说明书第 6 页），
+ *  不能给一个指向不存在入口的按钮 —— 如实说清楚比给假出口好。 */
+const ftShort = computed(() => {
+  const cash = me.value?.cash ?? 0
+  if (landing.value?.type === 'FT_BUSINESS' && biz.value)
+    return Math.max(0, biz.value.down_payment - cash)
+  if (landing.value?.type === 'FT_DREAM') return Math.max(0, dreamPrice.value - cash)
+  return 0
+})
+
 async function pay(action: string, payload: Record<string, any>, title: string, lines: string[]) {
   if (!await confirmAction({ title, lines, okText: '确认' })) return
   await game.act(action, payload)
 }
+
+/** 落点已处理、且**从头到尾没问过我**的那些格子（design/09 §4.3）。
+ *
+ *  试玩反馈：停在银行结算日，屏幕上什么都没有，回合就突然可以结束了 —— 玩家不知道刚发生了什么。
+ *  这张卡是「交代」，不是「待办」：不弹层、不提档、没有按钮，回合一换自然消失。
+ *  金额一律取**已经算好的权威状态**，不在客户端重算（钱早在走格那一拍就入账了）。
+ */
+/** 金额在模板里用不了 `Math.abs`（不在表达式白名单），在这儿就带上正负号成文 */
+function signed(n: number): string {
+  return (n >= 0 ? '+' : '−') + fmt(n < 0 ? -n : n)
+}
+
+const FT_HIT_TEXT: Record<string, { icon: string; title: string; why: string }> = {
+  FT_TAX_AUDIT: { icon: '🧾', title: '税务审计', why: '现金减半上缴' },
+  FT_LAWSUIT: { icon: '⚖️', title: '官司', why: '现金减半赔付' },
+  FT_DIVORCE: { icon: '💔', title: '离婚', why: '失去全部现金' },
+}
+
+/** 与回执的分工按**频次**切：
+ *
+ *  - 每回合都可能发生的（银行结算日 / 现金流量日）只走这张结果卡：它随回合自然消失，
+ *    不要求任何确认，所以**金额写在这儿**——没有回执替它说钱。
+ *  - 一局只撞上几次的重击（孩子 / 失业 / 快车道三个惩罚格）另有回执负责报数，
+ *    这儿就不再把同一个数字说第二遍。
+ */
+const done = computed<{ icon: string; title: string; why: string; amount?: number } | null>(() => {
+  const lg = landing.value
+  const m = me.value
+  if (!lg || !lg.resolved || !m) return null
+  switch (lg.type) {
+    case 'PAYDAY':
+      return { icon: '🏦', title: '停在银行结算日', why: '本月收入已自动入账',
+               amount: m.derived.monthlyCashflow }
+    case 'FT_PAYDAY':
+      return { icon: '💰', title: '停在现金流量日', why: '非工资收入已自动入账',
+               amount: m.fasttrack.current_income }
+    // 「添了一个」还是「满 3 个无效果」由**回执**去说（它读的是事件流，分得清）；
+    // 结果卡读的是快照，只讲此刻的状态——两种情况下这句话都是对的。
+    case 'CHILD':
+      return { icon: '👶', title: '停在孩子格',
+               why: `现在共 ${m.childCount} 个孩子，每月孩子支出 ${fmt(m.derived.childExpense)}` }
+    case 'UNEMPLOYMENT':
+      return { icon: '💼', title: '停在失业格', why: '已支付一次总支出，并停赛 2 轮' }
+    case 'FT_TAX_AUDIT':
+    case 'FT_DIVORCE':
+    case 'FT_LAWSUIT': {
+      const t = FT_HIT_TEXT[lg.type]
+      return { icon: t.icon, title: `停在${t.title}格`, why: t.why }
+    }
+    default:
+      // 服务端已经把话写好了（已被买断的绿格、就地破产）就照搬，没写就不作声——
+      // 机会/市场/额外支出这些落点的交代由卡面本身承担，这里再补一句是重复。
+      return lg.note ? { icon: '📍', title: lg.note, why: '' } : null
+  }
+})
 </script>
 
 <template>
@@ -73,6 +143,13 @@ async function pay(action: string, payload: Record<string, any>, title: string, 
       <p class="muted" style="margin:0">
         需支付一次总支出 {{ fmt(me?.derived.totalExpenses) }}，并停赛 2 轮。现金不够可先向银行贷款。
       </p>
+      <div v-if="unemploymentShort > 0" class="card inner danger" style="background:var(--red-soft)">
+        <div class="row between">
+          <span style="font-size:12.5px;font-weight:700;color:var(--red)">
+            现金还差 {{ fmt(unemploymentShort) }}</span>
+          <button class="btn small gold" @click="askBankLoan(unemploymentShort)">去贷款</button>
+        </div>
+      </div>
       <button class="btn block warn" @click="pay('UNEMPLOYMENT', {}, '支付失业损失？',
         [`将支付 ${fmt(me?.derived.totalExpenses)}`, '随后停赛 2 轮'])">
         支付 {{ fmt(me?.derived.totalExpenses) }}
@@ -86,6 +163,9 @@ async function pay(action: string, payload: Record<string, any>, title: string, 
                     :nums="[{ label: '首付', value: fmt(biz.down_payment) },
                             { label: '月现金流', value: '+' + fmt(biz.cashflow) }]"
                     :tip="biz.dice_rule ? `掷 1 粒骰，${biz.dice_rule.threshold} 点及以上才成功（骰子由服务端摇）` : ''" />
+      <p v-if="!bizSold && ftShort > 0" class="muted" style="color:var(--red);margin:0">
+        现金还差 {{ fmt(ftShort) }}。快车道没有银行贷款，现金不够就买不了，可以直接结束回合。
+      </p>
       <button v-if="!bizSold" class="btn block"
               @click="pay('FT_BUY_BUSINESS', { squareId: biz.id }, '买下这项企业投资？',
                 [`将支付 ${fmt(biz.down_payment)}`])">
@@ -99,6 +179,9 @@ async function pay(action: string, payload: Record<string, any>, title: string, 
                     :name="dream.name" :mine="isMyDream"
                     :nums="[{ label: '价格', value: fmt(dreamPrice) }]"
                     :tip="dreamOwner && !isMyDream ? `${dreamOwner.nickname} 选定的梦想，你只能加价` : ''" />
+      <p v-if="ftShort > 0" class="muted" style="color:var(--red);margin:0">
+        现金还差 {{ fmt(ftShort) }}。快车道没有银行贷款，现金不够就买不了，可以直接结束回合。
+      </p>
       <button v-if="isMyDream" class="btn block gold"
               @click="pay('FT_BUY_DREAM', { squareId: dream.id }, '买下你的梦想？',
                 [`将支付 ${fmt(dreamPrice)}`, '买下即获胜'])">
@@ -127,5 +210,16 @@ async function pay(action: string, payload: Record<string, any>, title: string, 
         捐 {{ fmt(board?.fastTrack.charityCost) }}
       </button>
     </template>
+  </div>
+
+  <!-- 这一格没问过我就处理完了：给一句交代，不是待办，所以没有按钮、也不提档 -->
+  <div v-else-if="done" class="card inner landing-done">
+    <span class="ic">{{ done.icon }}</span>
+    <div class="tx">
+      <div class="t1">{{ done.title }}</div>
+      <div v-if="done.why" class="t2">{{ done.why }}</div>
+    </div>
+    <span v-if="done.amount" class="amt money"
+          :class="done.amount >= 0 ? 'pos' : 'neg'">{{ signed(done.amount) }}</span>
   </div>
 </template>

@@ -80,3 +80,13 @@ export const MARKER_ANGLE = 0
 export function outerLabelRadius(ring: Ring, lineHeight = 14): number {
   return Math.min(ring.R1 + 13, V / 2 - lineHeight)
 }
+
+/** 还没上路的棋子（位置 0）的落点：**环外**那圈，就是「开始」二字原本的位置。
+ *
+ *  位置 0 不是格子、没有效果，掷出 1 才走到第 1 格——把棋子画在环的中径上等于宣称
+ *  「大家都站在第 1 格」，顺带压住 12 点方向那一格的标签（design/09 §3.3.1）。
+ *  环外只有一层的空间，所以有人在起点时那两个字让位；四枚棋子挤在起跑线上
+ *  本身就说明了这里是起点，第一次掷骰后文字自动回来。 */
+export function markerLanePoint(ring: Ring): [number, number] {
+  return polar(outerLabelRadius(ring), MARKER_ANGLE)
+}

@@ -3,6 +3,7 @@
  *  抽卡人的待办卡与其他玩家的交易窗口共用这一块，两处口径完全一致。
  *  能买能卖由 store.myStockWindow 判定（服务端下发的 buyerScope 与我的持仓）。 */
 import { computed, ref, watch } from 'vue'
+import { askBankLoan } from '../bankrequest'
 import { confirmAction } from '../confirm'
 import { fmt, useGame } from '../store'
 
@@ -17,6 +18,8 @@ watch(() => w.value?.key, () => { qty.value = 1 })
 const overSell = computed(() => !!w.value && w.value.canSell && qty.value > w.value.held)
 const amount = computed(() => (w.value ? w.value.price * Math.max(0, qty.value) : 0))
 const shortOfCash = computed(() => !!game.me && amount.value > game.me.cash)
+/** 还差多少现金（只在能买且真的不够时有意义） */
+const shortfall = computed(() => Math.max(0, amount.value - (game.me?.cash ?? 0)))
 
 /** 卖出预估盈亏：按引擎的扣减顺序（lots 原始顺序）逐笔比对成本价，仅供参考 */
 const sellPnl = computed(() => {
@@ -97,10 +100,22 @@ async function buy() {
         <b class="money" :class="sellPnl >= 0 ? 'pos' : 'neg'">
           {{ sellPnl >= 0 ? '+' : '−' }}{{ fmt(Math.abs(sellPnl)) }}</b>
       </template>
-      <template v-if="w.canBuy && shortOfCash">
+      <!-- 线下：银行就在同一页的常驻工具里，一句话指路够了 -->
+      <template v-if="w.canBuy && shortOfCash && !game.isOnline">
         · <span style="color:var(--red)">买入现金不足，请先在「更多 · 银行」贷款</span>
       </template>
     </p>
+
+    <!-- 纯线上：银行在**另一条路**上（账本 → 更多），只写一句「请先去贷款」等于指向一个
+         不存在的入口（试玩里 $4,000/股 的 CD 就是这样把人卡死的）。给一条能点的路。 -->
+    <div v-if="game.isOnline && w.canBuy && shortOfCash" class="card inner danger"
+         style="background:var(--red-soft)">
+      <div class="row between">
+        <span style="font-size:12.5px;font-weight:700;color:var(--red)">
+          现金还差 {{ fmt(shortfall) }}</span>
+        <button class="btn small gold" @click="askBankLoan(shortfall)">去贷款</button>
+      </div>
+    </div>
   </template>
 </template>
 

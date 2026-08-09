@@ -570,11 +570,16 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .receipt.info { border-left-color: var(--cyan); }
 .receipt.neutral { border-left-color: var(--line-2); }
 .receipt.goldline { border-left-color: var(--gold); }
-.receipt .ic { font-size: 16px; line-height: 1.3; flex: none; }
-.receipt .tx { flex: 1; min-width: 0; }
-.receipt .t1 { font-size: var(--fs-sm); font-weight: 700; }
-.receipt .t2 { font-size: 11.5px; color: var(--muted); }
-.receipt .amt { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 14px; flex: none; }
+/* 落点结果卡（纯线上，design/09 §4.3）：这一格没问过我就处理完了，给一句交代。
+   和回执同一副骨架，但**没有左侧色条**——回执是「要你看见」，它只是「已经如此」。 */
+.landing-done { display: flex; gap: 9px; align-items: flex-start; }
+.receipt .ic, .landing-done .ic { font-size: 16px; line-height: 1.3; flex: none; }
+.receipt .tx, .landing-done .tx { flex: 1; min-width: 0; }
+.receipt .t1, .landing-done .t1 { font-size: var(--fs-sm); font-weight: 700; }
+.receipt .t2, .landing-done .t2 { font-size: 11.5px; color: var(--muted); }
+.receipt .amt, .landing-done .amt {
+  font-variant-numeric: tabular-nums; font-weight: 800; font-size: 14px; flex: none;
+}
 .receipt .amt .per { font-size: 10px; font-weight: 600; }
 
 /* 多资产勾选（求购卡说的是资产「类别」，名下可能有好几套） */
@@ -842,6 +847,8 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 /* 档位切换缩的是棋盘**自身的宽度变量**，不是 transform: scale——
    stage 有 overflow:hidden，缩 stage 会连裁切框一起缩，等于白缩一场。 */
 .board-stage .wheel { width: var(--bw, 332px); max-width: 100%; }
+/* 盘面标题在圆盘之外、棋盘之上：圆内没有它的位置（见 BoardView 模板注释） */
+.board-wrap { display: flex; flex-direction: column; align-items: center; min-height: 0; }
 
 /* 悬浮工具挂在 stage 内部的右上角：挂在页面根上要用魔数避开 HUD，HUD 一加高就被挡住 */
 .board-tools {
@@ -871,11 +878,11 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 /* 卡牌翻开时棋盘压暗一档：同一时刻只有一个东西是亮的 */
 .board-stage.card-open .wheel { filter: brightness(.94) saturate(.92); }
 .disc { display: block; width: 100%; height: 100%; }
-/* 名牌放**板底**：12 点方向留给起点/入口那枚三角与「开始」二字，
-   放板顶会跟它和起跑线上的棋子挤成一团 */
+/* 名牌是装饰，不许挡任何一格：排在圆盘**之外**的上方，抽屉一展开（compact）就整块隐藏，
+   把高度让给抽屉。板内版（v0.1 的 bottom:5%）压住了底部三格，已废弃。 */
 .wheel-name {
-  position: absolute; bottom: 5%; left: 0; right: 0; text-align: center;
-  pointer-events: none; line-height: 1.25;
+  text-align: center; pointer-events: none; line-height: 1.25;
+  margin-bottom: 4px; flex: none;
 }
 .wheel-name .logo {
   display: block; font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
@@ -911,22 +918,77 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 }
 .hub-tip { font-size: 12px; color: var(--muted); line-height: 1.35; }
 
-/* 骰盘 1–3 粒：粒数越多每粒越小，轮心可用直径是固定的 */
+/* 骰盘 1–3 粒：粒数越多每粒越小，轮心可用直径是固定的。
+   尺寸只有一个入口 `--d`，透视、圆角、点子大小全按它的比例算——
+   32px（小）到 58px（轮心）两个极端都不用改别处。 */
 .board-dice { display: flex; gap: 6px; justify-content: center; }
+.board-dice .die, .board-dice .die3d { --d: 58px; }
+.board-dice.n2 .die, .board-dice.n2 .die3d { --d: 46px; }
+.board-dice.n3 .die, .board-dice.n3 .die3d { --d: 40px; }
+
+/* 「还没掷」的平面骰：立方体总有一面朝前，没有点数可显示时不该摆一颗看似有结果的骰子。
+   这是平面骰与立方体共存的唯一理由（design/09 §3.4.2），别把它们「统一」掉。 */
 .die {
-  --d: 58px; width: var(--d); height: var(--d); border-radius: 12px;
+  --d: 58px; width: var(--d); height: var(--d); border-radius: calc(var(--d) * .2);
   background: linear-gradient(160deg, #fff, var(--panel2));
   border: 1px solid var(--line-2); box-shadow: var(--shadow-sm);
   display: grid; place-items: center; font-size: calc(var(--d) * .5); font-weight: 800;
-  cursor: pointer;
+  color: var(--muted);
 }
-.board-dice.n2 .die { --d: 46px; }
-.board-dice.n3 .die { --d: 40px; }
-.die.rolling { animation: die-roll .5s linear infinite; }
-.die[disabled] { opacity: .5; cursor: not-allowed; }
-@keyframes die-roll {
-  0% { transform: rotateX(0) rotateY(0); }
-  100% { transform: rotateX(360deg) rotateY(180deg); }
+
+/* 立方体骰 */
+.die3d {
+  --d: 58px; width: var(--d); height: var(--d);
+  perspective: calc(var(--d) * 4);
+  background: none; border: 0; padding: 0; box-shadow: none;
+  display: grid; place-items: center; cursor: pointer;
+}
+.die3d[disabled] { cursor: default; }
+.cube {
+  position: relative; width: var(--d); height: var(--d);
+  transform-style: preserve-3d;
+  transition: transform .42s cubic-bezier(.2, .9, .25, 1.05);
+}
+.face {
+  position: absolute; inset: 0; border-radius: calc(var(--d) * .2);
+  background: linear-gradient(160deg, #fff, var(--panel2));
+  border: 1px solid var(--line-2);
+  display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  padding: calc(var(--d) * .15);
+}
+.face i {
+  align-self: center; justify-self: center; border-radius: 50%;
+  width: calc(var(--d) * .17); height: calc(var(--d) * .17); background: var(--text);
+}
+/* 六面：对面之和为 7（1↔6、2↔5、3↔4）。点数 → 旋转的逆表在 dice.ts 的 DIE_FACE */
+.f1 { transform: translateZ(calc(var(--d) / 2)); }
+.f6 { transform: rotateY(180deg) translateZ(calc(var(--d) / 2)); }
+.f2 { transform: rotateY(90deg) translateZ(calc(var(--d) / 2)); }
+.f5 { transform: rotateY(-90deg) translateZ(calc(var(--d) / 2)); }
+.f3 { transform: rotateX(90deg) translateZ(calc(var(--d) / 2)); }
+.f4 { transform: rotateX(-90deg) translateZ(calc(var(--d) / 2)); }
+/* 可掷：主色实心，看着就能按 */
+.die3d.rollable .face {
+  background: linear-gradient(160deg, var(--brand), var(--brand-dark)); border-color: transparent;
+}
+.die3d.rollable .face i { background: #fff; }
+/* 摇动：多轴翻滚 + 整颗轻浮起，**infinite**——服务端没回来就一直滚，
+   不做「摇 0.5 秒然后揭晓」的定长动画，否则网络一慢就得在最后一刻把点数换掉 */
+.die3d.rolling .cube { animation: dieTumble .78s linear infinite; transition: none; }
+.die3d.rolling { animation: dieToss .52s ease-in-out infinite; }
+.die3d.landed { animation: dieLand .46s var(--ease); }
+@keyframes dieTumble {
+  from { transform: rotateX(0) rotateY(0) rotateZ(0); }
+  to { transform: rotateX(720deg) rotateY(1080deg) rotateZ(360deg); }
+}
+@keyframes dieToss {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(calc(var(--d) * -.14)) scale(1.04); }
+}
+@keyframes dieLand {
+  0% { transform: translateY(calc(var(--d) * -.10)); }
+  60% { transform: translateY(calc(var(--d) * .05)); }
+  100% { transform: translateY(0); }
 }
 .dice-pick { display: flex; gap: 5px; justify-content: center; }
 .dice-pick button {
@@ -960,18 +1022,40 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 }
 /* 决策按钮钉底：一张牌堆卡加上前后对比就超过 half 档的高度，内容必须能滚，
    但「买入 / 放弃」不能跟着滚走。按钮条上方压一道渐变，内容从它下面划过去。 */
+/* 两行：上行是这一格/这张卡的决策，下行永远留给「结束回合」。
+   不横排三个按钮——375 屏宽下每个只剩 ~110px，「买入 $2,000」这种带金额的文案放不下。 */
 .drawer-cta {
   position: sticky; bottom: 0; flex: none;
   padding: var(--sp-2) var(--sp-3) calc(var(--sp-2) + env(safe-area-inset-bottom));
   background: var(--panel);
-  display: flex; gap: var(--sp-2);
+  display: flex; flex-direction: column; gap: var(--sp-2);
 }
+.cta-row { display: flex; gap: var(--sp-2); }
 .drawer-cta::before {
   content: ''; position: absolute; left: 0; right: 0; top: -14px; height: 14px;
   background: linear-gradient(180deg, transparent, var(--panel)); pointer-events: none;
 }
+/* 账本的分段控件：钉在内容区顶部，四段等宽。
+   老排法是把四个 tab 连同「跳过动画」「收起」一起塞进 peek 那一条，375 屏宽必然折成两行；
+   分页控件属于它翻的那叠内容，本来就该长在内容区顶上，而不是长在状态条上。 */
+.ledger-seg {
+  position: sticky; top: 0; z-index: 1; flex: none;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
+  padding: 3px; margin-bottom: 2px;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 999px;
+}
+.ledger-seg button {
+  padding: 7px 0; border-radius: 999px; font-size: var(--fs-sm); font-weight: 700;
+  color: var(--muted); text-align: center;
+}
+.ledger-seg button.on {
+  background: var(--panel); color: var(--brand); box-shadow: var(--shadow-sm);
+}
+
+/* 换行是给长昵称留的余地（「XXXXX 正在行动」+ 头像列 + 代结束）；
+   账本的四个 tab 已经搬进内容区，不再靠这条兜底。 */
 .drawer-peek {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px; row-gap: 6px;
   padding: 0 var(--sp-3) 2px; font-size: 13px;
 }
 .drawer-peek .who { font-weight: 800; }
@@ -986,22 +1070,54 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   animation: deal-flip .95s var(--ease) forwards;
 }
 .deal-face, .deal-back { backface-visibility: hidden; }
-.deal-back {
-  position: absolute; inset: 0; transform: rotateY(180deg);
+/* 牌背的材质：米白卡纸 + 牌堆色双线边框 + 宋体牌堆名。
+   发牌帘幕与准备页的职业卡牌背共用同一张背——翻过来才对得上正面。 */
+.card-back {
   border-radius: var(--r); background: var(--panel);
   border: 3px double currentColor; display: grid; place-items: center;
   font-family: var(--font-card); font-size: 20px; font-weight: 700;
 }
+.deal-back { position: absolute; inset: 0; transform: rotateY(180deg); }
 @keyframes deal-flip {
   0% { transform: rotateY(180deg) scale(.55); }
   45% { transform: rotateY(180deg) scale(1); }
   100% { transform: rotateY(0) scale(1); }
 }
 
-/* ---------- 建房页的模式二选一 ---------- */
+/* ---------- 准备页：职业卡的牌背（纯线上，design/09 §1.4.1） ---------- */
+/* 与 .deal-card 同宽，比例照职业卡；一次点击不是一次选择，所以它只是一张背面 */
+.prof-back {
+  width: 76%; max-width: 300px; margin: var(--sp-3) auto 0;
+  aspect-ratio: 3 / 4; cursor: pointer; box-shadow: var(--shadow);
+}
+.prof-back:active { transform: translateY(1px); }
+/* 等服务端期间只做**无信息**的轻晃：绝不本地预演，与骰子同一条铁律（§4.2） */
+.prof-back.waiting { animation: prof-wait 1.1s ease-in-out infinite; cursor: progress; }
+@keyframes prof-wait {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-5px) rotate(-1.2deg); }
+}
+
+/* ---------- 建房第 ① 步的模式二选一 ---------- */
+/* 竖排：手机上横排每张只有约 170px 宽，准备物清单会被压成四行 */
 .mode-pick { flex-direction: column; }
-.mode-pick .bigbtn { align-items: flex-start; text-align: left; }
-.mode-pick .bigbtn.selected { outline: 2px solid var(--brand); outline-offset: 1px; }
+.mode-pick .bigbtn { align-items: flex-start; text-align: left; position: relative; }
+/* 选中态给三种信号：描边 + 一圈浅底光晕 + ✓ 角标。
+   只靠描边不够——两张卡一深一浅，同一种描边在深卡上几乎看不出来。 */
+.mode-pick .bigbtn.selected {
+  outline: 2px solid var(--brand); outline-offset: 1px;
+  box-shadow: var(--shadow), 0 0 0 5px var(--brand-soft);
+}
+.mode-pick .bigbtn .tick {
+  position: absolute; top: 8px; right: 10px;
+  width: 20px; height: 20px; border-radius: 999px;
+  display: grid; place-items: center; font-size: 12px; font-weight: 800;
+  /* 深底卡（纯线上）上用浅底勾，浅底卡（线下辅助）上用主色勾 */
+  background: var(--panel); color: var(--brand);
+}
+.mode-pick .bigbtn.alt .tick { background: var(--brand); color: var(--panel); }
+.mode-pick .prep { margin: 6px 0 0; padding-left: 16px; font-size: 12px; opacity: .82; }
+.mode-pick .prep li { margin-top: 2px; }
 
 /* ---------- HUD 里的行动顺序座次条 ---------- */
 .seat-strip { display: flex; gap: 4px; align-items: center; }

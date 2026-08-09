@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { confirmAction } from '../confirm'
+import { DECK_COLOR, DECK_LABEL } from '../decks'
 import { fmt, useGame } from '../store'
 import type { CardDto, FtDream } from '../types'
 import ConnectingFallback from '../components/ConnectingFallback.vue'
@@ -11,8 +12,7 @@ import BaseButton from '../components/base/BaseButton.vue'
 import PageHeader from '../components/base/PageHeader.vue'
 import ProfessionCard from '../components/cards/ProfessionCard.vue'
 import ModeBadge from '../components/ModeBadge.vue'
-import BoardView from '../components/board/BoardView.vue'
-import type { BoardSquare } from '../components/board/geom'
+import DealCurtain from '../components/board/DealCurtain.vue'
 import { copyText } from '../share'
 
 const game = useGame()
@@ -25,7 +25,6 @@ onMounted(async () => {
   professions.value = await game.fetchCards('PROFESSION')
   const board = await game.fetchFasttrackBoard()
   dreams.value = board.dreams
-  if (game.isOnline) await game.fetchBoard()
 })
 
 /** 纯线上：职业由服务端随机发（说明书 P.2 步骤 4 写的是「抽」），回合顺序开局自动排。
@@ -36,42 +35,27 @@ function showModeLock() {
   game.flash('对局模式在建房时选定，开局后不可更改', 'info')
 }
 
+/** 纯线上的职业卡：点牌背 → 服务端随机发 → 翻开整张卡（design/09 §1.4.1）。
+ *  `drawing` 期间牌背只做无信息的轻晃；`revealing` 是那 0.95s 的全屏揭牌。
+ *  **重连不补播**：`revealing` 只由这次点击置位，刷新回来直接是翻开态。 */
+const drawing = ref(false)
+const revealing = ref(false)
+const myProfession = computed(() =>
+  professions.value.find(p => p.id === game.me?.professionId) ?? null)
+
 async function drawProfession() {
-  if (await game.act('SELECT_PROFESSION')) step.value = 2
+  if (drawing.value) return
+  drawing.value = true
+  const ok = await game.act('SELECT_PROFESSION')
+  drawing.value = false
+  if (!ok) return
+  revealing.value = true
+  setTimeout(() => { revealing.value = false }, 1500)
 }
 
-/** 梦想在快车道棋盘上点粉格选，选中即在该格插一枚自己颜色的圆点（就是实体那块奶酪） */
-function hue(seat: number): number { return (seat * 67 + 120) % 360 }
-
-const FT_TYPE: Record<string, string> = {
-  'ft-s-charity': 'FT_CHARITY', 'ft-s-cashflow-day': 'FT_PAYDAY',
-  'ft-s-tax-audit': 'FT_TAX_AUDIT', 'ft-s-divorce': 'FT_DIVORCE',
-  'ft-s-lawsuit': 'FT_LAWSUIT',
-}
-function ftType(ref: string): string {
-  if (ref.startsWith('ft-b-')) return 'FT_BUSINESS'
-  if (ref.startsWith('ft-d-')) return 'FT_DREAM'
-  return FT_TYPE[ref] ?? 'FT_LAWSUIT'
-}
-
-const ftSquares = computed<BoardSquare[]>(() => {
-  const refs = game.board?.fastTrack.squares ?? []
-  const claimed = new Map<string, string>()
-  for (const p of players.value) if (p.dreamId) claimed.set(p.dreamId, `hsl(${hue(p.seat)} 55% 62%)`)
-  return refs.map((ref, i) => ({
-    index: i + 1, type: ftType(ref), ref, label: '', dot: claimed.get(ref),
-  }))
-})
-
-async function pickDreamOnBoard(sq: BoardSquare) {
-  if (sq.type !== 'FT_DREAM') return
-  const taken = takenDreams.value.get(sq.ref)
-  if (taken) { game.flash(`这个梦想已被 ${taken} 选走了`, 'err'); return }
-  if (await game.act('SELECT_DREAM', { dreamId: sq.ref })) {
-    editing.value = false
-    game.flash('准备好了，等其他人')
-  }
-}
+/** 「谁认领了哪个梦想」写在下面的出牌顺序里，一人一行。
+ *  v0.2 那只只读快车道轮盘已撤销：快车道格面按 §3.5 不写字，48 个一模一样的格子里插两个
+ *  小圆点，得逐格点开才知道谁是谁——信息密度低于一行字，却占掉整屏（design/09 §1.4.2 v0.3）。 */
 
 const joinUrl = computed(() =>
   `${location.origin}/#/join/${game.session?.roomCode ?? ''}`)
@@ -81,7 +65,10 @@ const isHost = computed(() => game.me?.isHost ?? false)
 
 // 两步引导：找到手上那张职业卡 → 挑一个梦想。都选完才进到排序/开局。
 const step = ref<1 | 2>(1)
-watch(() => game.me?.professionId, (p) => { if (p && step.value === 1) step.value = 2 })
+// 纯线上不自动跳步：翻开的那张卡要停在屏上让人看完，由「下一步 · 挑梦想」推进
+watch(() => game.me?.professionId, (p) => {
+  if (p && step.value === 1 && !online.value) step.value = 2
+})
 
 const doneSetup = computed(() => !!game.me?.professionId && !!game.me?.dreamId)
 const editing = ref(false)
@@ -253,7 +240,24 @@ async function copyUrl() {
         <template v-if="online">
           <h2 style="margin-bottom:2px">抽一张职业卡</h2>
           <p class="muted" style="margin:0">说明书里职业是抽的，不是挑的。抽到哪张就是哪张，不能重抽。</p>
-          <button class="btn block" @click="drawProfession">🎴 抽职业卡</button>
+          <!-- 抽过了：摆出整张卡，页面上不留任何看着能换一张的控件
+               （没有「重抽」、没有第二张牌背），否则玩家会以为随机是可以刷的 -->
+          <template v-if="game.me?.professionId">
+            <p class="muted" style="text-align:center;margin:10px 0 0">这就是你这一局的身份</p>
+            <ProfessionCard v-if="myProfession" :card="myProfession" />
+            <button class="btn block" @click="step = 2">下一步 · 挑梦想</button>
+          </template>
+          <!-- 还没抽：一张牌背。不做「进页自动发」——进页那一瞬 WS 可能还没连上，
+               会先闪一屏空白再蹦出一张卡；让玩家自己揭这一下，也把"这张是我抽的"落到实处 -->
+          <template v-else>
+            <div class="prof-back card-back" :class="{ waiting: drawing }"
+                 :style="{ color: DECK_COLOR.PROFESSION }" @click="drawProfession">
+              {{ DECK_LABEL.PROFESSION }}
+            </div>
+            <p class="muted" style="text-align:center">
+              {{ drawing ? '正在发牌…' : '点一下，抽你的职业' }}
+            </p>
+          </template>
         </template>
         <template v-else>
         <h2 style="margin-bottom:2px">找到你手上那张职业卡</h2>
@@ -281,16 +285,8 @@ async function copyUrl() {
         </div>
         <h2 style="margin-bottom:2px">挑一个梦想</h2>
         <p class="muted" style="margin:0">在快车道上买下它就赢了。别人踩到可以加价，选贵的更保险。</p>
-        <!-- 纯线上：直接在快车道棋盘上点粉格选，选中即在该格插一枚自己颜色的圆点，
-             就是实体游戏里放上去的那块奶酪，全员可见谁选了哪个 -->
-        <template v-if="online">
-          <p class="muted" style="margin:0">点棋盘上的粉色格子挑一个。</p>
-          <BoardView v-if="ftSquares.length" track="FAST_TRACK" :squares="ftSquares"
-                     :players="players" :positions="{}" :me-id="game.session?.playerId ?? ''"
-                     pickable compact style="max-width:332px" @tap="pickDreamOnBoard" />
-          <p v-else class="muted">正在加载快车道棋盘…</p>
-        </template>
-        <template v-else>
+        <!-- 两种模式**同一段模板**：快车道格面按 §3.5 不写字，在棋盘上选等于面对 23 个
+             一模一样的粉格；价格、被加价一次的代价、「已被选走」的图章全在卡片上 -->
         <SwipePicker v-if="dreams.length" v-model="curDream" :items="dreamItems" :half-width="122">
           <template #default="{ item }">
             <div class="fcard dream dreampick" :class="{ taken: !!takenDreams.get(item.id) }">
@@ -315,7 +311,6 @@ async function copyUrl() {
         <button class="btn block" :disabled="!curDream || takenDreams.has(curDream)" @click="pickDream">
           {{ takenDreams.has(curDream) ? '这个已被选走' : '我准备好了' }}
         </button>
-        </template>
       </template>
     </template>
 
@@ -336,8 +331,11 @@ async function copyUrl() {
             <span class="num" style="width:18px;color:var(--muted)">{{ i + 1 }}</span>
             <div>
               <b style="font-size:13px">{{ p.nickname }}<span v-if="p.id === game.me?.id">（你）</span></b>
+              <!-- 梦想归属就公示在这儿：一人一行、写出名字。
+                   「已选梦想」四个字等于没说，而这里正是玩家会看的地方 -->
               <div class="muted">
-                {{ p.professionTitle || '还没选职业' }}<template v-if="p.dreamId"> · 已选梦想</template>
+                {{ p.professionTitle || '还没选职业'
+                }}<template v-if="p.dreamId"> · {{ dreamById(p.dreamId)?.name ?? '已选梦想' }}</template>
               </div>
             </div>
           </div>
@@ -364,6 +362,11 @@ async function copyUrl() {
 
     <InviteDialog v-if="showInvite" :code="game.state.roomCode" :url="joinUrl"
                   :nickname="game.me?.nickname" @close="showInvite = false" />
+
+    <!-- 揭牌：牌背飞向屏心 → Y 轴翻转 → 露出整张职业卡。与发牌共用同一段动画 -->
+    <DealCurtain v-if="revealing" deck="PROFESSION" title="职业卡" @skip="revealing = false">
+      <ProfessionCard v-if="myProfession" :card="myProfession" />
+    </DealCurtain>
   </div>
   <ConnectingFallback v-else />
 </template>

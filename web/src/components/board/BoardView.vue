@@ -9,7 +9,9 @@
  *  一行都不用为它另写。
  */
 import { computed } from 'vue'
-import { MARKER_ANGLE, RINGS, V, outerLabelRadius, polar, sectorPath, slotPoint } from './geom'
+import {
+  MARKER_ANGLE, RINGS, V, markerLanePoint, outerLabelRadius, polar, sectorPath, slotPoint,
+} from './geom'
 import type { BoardSquare } from './geom'
 import type { Player } from '../../types'
 
@@ -29,9 +31,7 @@ const props = defineProps<{
   settleAmount?: number
   /** 落点脉冲 */
   pulseIndex?: number
-  /** 选梦想模式：只有粉格可点，选中的插一枚我的色点 */
-  pickable?: boolean
-  /** 抽屉展开时把板顶名牌收起来，把高度让给抽屉 */
+  /** 抽屉展开时把盘面标题收起来，把高度让给抽屉 */
   compact?: boolean
   offline?: boolean
 }>()
@@ -128,15 +128,15 @@ function hue(seat: number): number {
 
 const markerPoint = computed(() => polar(ring.value.R1 + 9, MARKER_ANGLE))
 const markerLabel = computed(() => polar(outerLabelRadius(ring.value), MARKER_ANGLE))
-/** 还没上路的棋子停在起点线上（环的中径、最后一格与第 1 格的接缝处），
- *  不是挂在环外——挂在环外会跟「开始」二字和板顶名牌挤成一团。 */
-const markerLane = computed(() => polar(ring.value.RMID, MARKER_ANGLE))
+/** 还没上路的棋子挂在**环外**的起点标记旁（见 geom.markerLanePoint 的理由）。
+ *  名牌已经移出圆盘，环外那一层空出来了，不再跟任何东西挤。 */
+const markerLane = computed(() => markerLanePoint(ring.value))
 
 const settlePoint = computed(() =>
   props.settleIndex ? slotPoint(props.settleIndex, n.value, ring.value) : null)
 
+/** 棋盘只负责画棋盘：点哪一格由调用方解释（详情弹层 / 什么都不做），这里不做筛选 */
 function tap(sq: BoardSquare) {
-  if (props.pickable && sq.type !== 'FT_DREAM') return
   emit('tap', sq)
 }
 
@@ -145,16 +145,19 @@ const markerText = computed(() => props.track === 'FAST_TRACK' ? '在此进入' 
 </script>
 
 <template>
-  <div class="wheel plate" :class="{ 'offline-dim': offline }">
+  <!-- 盘面标题排在**圆盘之外**：圆内顶部净空只有 V/2 − R1 = 26px，还要留给起点三角，
+       塞进去只会换个地方打架（v0.1 挪到板底的下场就是压住了底部三格）。
+       圆盘内部只画棋盘本身：格子、棋子、起点标记、轮心。 -->
+  <div class="board-wrap">
     <div v-if="!compact" class="wheel-name">
       <span class="logo">CA$HFLOW</span>
       <span class="sub">{{ track === 'FAST_TRACK' ? '快车道' : '老鼠赛跑' }}</span>
     </div>
+    <div class="wheel plate" :class="{ 'offline-dim': offline }">
     <svg class="disc" :viewBox="`0 0 ${V} ${V}`" role="img"
          :aria-label="`${track === 'FAST_TRACK' ? '快车道' : '老鼠赛跑'}棋盘`">
       <!-- 格子：底色一层 + 外缘实心弧 + 压印边 -->
-      <g v-for="sq in squares" :key="sq.index" class="board-sq"
-         :class="{ tappable: !pickable || sq.type === 'FT_DREAM' }"
+      <g v-for="sq in squares" :key="sq.index" class="board-sq tappable"
          @click="tap(sq)">
         <path :d="path(sq)" :fill="color(sq)" :fill-opacity="fillOpacity(sq)"
               stroke="var(--line)" stroke-width="0.6" />
@@ -189,7 +192,9 @@ const markerText = computed(() => props.track === 'FAST_TRACK' ? '在此进入' 
         <polygon
           :points="`${markerPoint[0] - 6},${markerPoint[1] - 7} ${markerPoint[0] + 6},${markerPoint[1] - 7} ${markerPoint[0]},${markerPoint[1] + 3}`"
           :fill="track === 'FAST_TRACK' ? 'var(--gold)' : 'var(--brand)'" />
-        <text :x="markerLabel[0]" :y="markerLabel[1]" class="marker-label"
+        <!-- 有人还站在起点时文字让位给棋子：环外只有一层的空间，
+             而挤在起跑线上的几枚棋子本身就说明了这里是起点 -->
+        <text v-if="!atMarker.length" :x="markerLabel[0]" :y="markerLabel[1]" class="marker-label"
               text-anchor="middle">{{ markerText }}</text>
       </g>
 
@@ -220,6 +225,7 @@ const markerText = computed(() => props.track === 'FAST_TRACK' ? '在此进入' 
     <!-- 轮心：只放骰盘 + 一行状态提示（轮次归 HUD，进度归 HUD 进度带） -->
     <div class="wheel-hub" :style="{ '--hub': (ring.R0 * 2 / V * 100 - 4) + '%' }">
       <div class="hub"><slot name="hub" /></div>
+    </div>
     </div>
   </div>
 </template>

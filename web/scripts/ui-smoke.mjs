@@ -131,6 +131,8 @@ async function main() {
     const page = await ctx.newPage()
     await page.setViewport({ width: 400, height: 860, deviceScaleFactor: 2 })
     page.on('pageerror', e => failures.push(`控制台异常: ${e.message}`))
+    // 渲染进程崩溃时 puppeteer 只会在下一次 evaluate 抛「detached Frame」，看不出原因
+    page.on('error', e => failures.push(`页面崩溃: ${e.message}`))
     page.on('console', m => {
       if (m.type() !== 'error') return
       if (offlineOnPurpose && EXPECTED_OFFLINE.test(m.text())) return
@@ -228,7 +230,11 @@ async function main() {
   // 必须真点按钮走 pickProfession/pickDream，直接用 send() 绕开 UI 是测不出这个修复的
   // （editing=false 是点按钮那条代码路径自己收的尾，服务端动作本身不知道 editing 是什么）
   await clickText(pa, '.btn', '选这张')
-  await sleep(400)
+  // 等第 2 步真的渲染出来再点：固定 sleep 卡在服务端往返上，点空了就一路错到底
+  const waitBtn = (page, text) => page.waitForFunction(
+    t => [...document.querySelectorAll('.btn')].some(b => b.textContent.includes(t)),
+    { timeout: 6000 }, text).catch(() => {})
+  await waitBtn(pa, '我准备好了')
   await clickText(pa, '.btn', '我准备好了')
   await sleep(400)
   await shot(pa, '02b-重选完成', '.steps .s.ok')
@@ -263,6 +269,15 @@ async function main() {
     has: ['你停在哪种格子', '本回合没经过'],
     noButtons: ['结算银行结算日'],
   })
+
+  // 银行 / 转账被抽成共用组件（纯线上的「账本 · 更多」用的是同一份）——
+  // 线下这一屏是那条「线下一个字都不变」硬约束里最容易被碰坏的地方，单独钉一屏
+  await clickText(pa, 'button', '银行 · 贷款与还款')
+  await shot(pa, '03g-线下-常驻工具-银行与转账', '.card input[step="1000"]')
+  await expectText(pa, '03g-线下-常驻工具-银行与转账', {
+    has: ['🏦 银行', '当前无银行贷款', '月息 10%', '🤝 玩家间转账', '对方确认后才会扣款'],
+  })
+  await clickText(pa, 'button', '收起')
 
   // 围观也是玩：不是自己回合时，牌桌上写清那个人是谁、走到哪一步、账面什么样
   await shot(pb, '03f-非我回合的牌桌', '.avatar-lg')
@@ -466,14 +481,21 @@ async function main() {
   await shot(pa, '16-大厅-继续对局', '.card.gold')
   await expectText(pa, '16-大厅-继续对局', { has: ['继续对局', '回到牌桌', '人在线'] })
   await clickText(pa, '.bigbtn', '创建房间')
-  await shot(pa, '17-大厅-创建房间弹层', '.modal input')
 
   // ===== 纯线上模式（design/09 §10 的屏幕清单） =====
-  // 18 建房选模式：两张卡二选一，各写清「你需要准备什么」
-  await shot(pa, '18-建房-模式二选一', '.mode-pick .bigbtn')
-  await expectText(pa, '18-建房-模式二选一', {
-    has: ['线下辅助', '纯线上', '一台手机'],
+  // 18 建房第 ① 步：只问「怎么玩」，两张竖排大卡各写清准备物，屏上不该有任何表单项
+  await shot(pa, '18-建房第1步-模式二选一', '.mode-pick .bigbtn')
+  await expectText(pa, '18-建房第1步-模式二选一', {
+    has: ['线下辅助', '纯线上', '一台手机', '什么实物都不用准备'],
+    hasNot: ['房间名', '人数上限'],
   })
+  const step1Inputs = await pa.evaluate(() => document.querySelectorAll('.modal input, .modal select').length)
+  if (step1Inputs) failures.push(`18-建房第1步-模式二选一: 第 ① 步不该有 ${step1Inputs} 个输入控件`)
+
+  // 17 第 ② 步才是房间名/密码/人数，顶部回显模式并可退回
+  await clickText(pa, '.modal .btn', '下一步')
+  await shot(pa, '17-建房第2步-房间设置', '.modal input')
+  await expectText(pa, '17-建房第2步-房间设置', { has: ['房间名', '人数上限', '线下辅助'] })
   await clickText(pa, '.modal .btn', '取消')
 
   const oa = await api('/api/rooms', {
@@ -490,37 +512,49 @@ async function main() {
   const qa = await openAs({ ...oa, nickname: '阿线' })
   const qb = await openAs({ ...ob, nickname: '小上' })
 
-  // 20 准备页：模式锁 + 抽职业卡（不是挑）
+  // 20 准备页：职业卡是一张**牌背**，点一下才发（说明书写的是「抽」，不是挑）
   await qa.goto(`${BASE}/#/room`, { waitUntil: 'networkidle2' })
-  await shot(qa, '20-纯线上准备页-模式锁与抽职业卡', '.badge.turn')
-  await expectText(qa, '20-纯线上准备页-模式锁与抽职业卡', {
-    has: ['抽一张职业卡', '不能重抽'],
+  await shot(qa, '20-纯线上准备页-职业卡牌背', '.prof-back')
+  await expectText(qa, '20-纯线上准备页-职业卡牌背', {
+    has: ['抽一张职业卡', '不能重抽', '点一下，抽你的职业'],
     hasNot: ['找到你手上那张职业卡'],
   })
 
-  await clickText(qa, '.btn', '抽职业卡')
-  await sleep(600)
-  // 21 抽过之后不留任何看着能换一张的控件
-  await expectText(qa, '20a-抽过职业卡-无重抽入口', { noButtons: ['🎴 抽职业卡'] })
+  await qa.evaluate(() => document.querySelector('.prof-back')?.click())
+  await sleep(2200)          // 揭牌帘幕 0.95s + 定格，等它自己收
+  // 20a 翻开后是整张职业卡，且页面上不留任何看着能换一张的控件
+  await shot(qa, '20a-纯线上准备页-职业卡翻开', '.pcard')
+  await expectText(qa, '20a-纯线上准备页-职业卡翻开', {
+    has: ['这就是你这一局的身份'],
+    hasNot: ['点一下，抽你的职业'],
+    noButtons: ['🎴 抽职业卡', '重抽', '换一张'],
+  })
+  await waitBtn(qa, '下一步')
+  await clickText(qa, '.btn', '下一步')
+  await sleep(400)
 
-  // 22 在快车道棋盘上点粉格选梦想。小上先选，阿线的棋盘上应当看得见那枚圆点
-  //（就是实体那块奶酪，全员可见谁选了哪个）
+  // 21 梦想：与线下**同一套**滑动实体卡片（价格 / 被加价一次 / 策略提示），棋盘不参与挑选。
+  // 小上先占掉最后一个梦想，阿线用默认聚焦的第一张，不会撞车
+  const ftBoard = await (await fetch(`${BASE}/api/board/fasttrack`)).json()
   await send(qb, 'SELECT_PROFESSION')
   await sleep(300)
-  await send(qb, 'SELECT_DREAM', { dreamId: 'ft-d-jet' })
+  await send(qb, 'SELECT_DREAM', { dreamId: ftBoard.dreams[ftBoard.dreams.length - 1].id })
   await sleep(500)
-  await shot(qa, '21-纯线上准备页-棋盘选梦想', '.wheel .disc circle')
-  const dots = await qa.evaluate(() =>
-    document.querySelectorAll('.board-sq circle').length)
-  if (dots < 1) failures.push('21-纯线上准备页-棋盘选梦想: 别人选走的梦想没插上圆点')
-
-  await qa.evaluate(() => {
-    // 只有粉格（梦想格）可点：取第一个可点的格子
-    const g = [...document.querySelectorAll('.board-sq.tappable')][0]
-    g?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  await shot(qa, '21-纯线上准备页-梦想滑动卡片', '.swipe .fcard.dreampick')
+  await expectText(qa, '21-纯线上准备页-梦想滑动卡片', {
+    has: ['被加价一次', '我准备好了'],
+    hasNot: ['点棋盘上的粉色格子'],
   })
-  await sleep(700)
-  await shot(qa, '21a-梦想已选-收成摘要', '.steps .s.ok')
+
+  await waitBtn(qa, '我准备好了')
+  await clickText(qa, '.btn', '我准备好了')
+  await sleep(800)
+  // 21a 收成摘要。梦想归属公示在下面的出牌顺序里、一人一行写出名字——
+  // v0.2 那只只读轮盘已撤销（48 个不写字的格子里插两个圆点，读不出谁是谁）
+  await shot(qa, '21a-梦想已选-摘要与出牌顺序', '.steps .s.ok')
+  const wheels = await qa.evaluate(() => document.querySelectorAll('.wheel').length)
+  if (wheels) failures.push(`21a-梦想已选-摘要与出牌顺序: 准备页不该再出现快车道轮盘（${wheels} 只）`)
+  await expectText(qa, '21a-梦想已选-摘要与出牌顺序', { hasNot: ['· 已选梦想'] })
   // 出牌顺序：纯线上不给手排，写明开局自动排
   await qa.reload({ waitUntil: 'networkidle2' })
   await expectText(qa, '21b-纯线上-顺序由服务端排', {
@@ -544,16 +578,34 @@ async function main() {
   const cur = await qa.evaluate(() => document.querySelector('.hud-turn b')?.textContent ?? '')
   const [pMe, pOther] = cur.includes('轮到你') ? [qa, qb] : [qb, qa]
 
-  await shot(pMe, '22-纯线上-棋盘待掷骰', '.wheel .die')
+  await shot(pMe, '22-纯线上-棋盘待掷骰', '.wheel .die3d')
   await expectText(pMe, '22-纯线上-棋盘待掷骰', {
     has: ['第 1 步 / 3', '掷骰'],
     hasNot: ['你停在哪种格子', '手动选卡'],
   })
+  // 名牌是装饰，不许压住任何一格：它必须排在圆盘之外
+  const nameInDisc = await pMe.evaluate(() => {
+    const n = document.querySelector('.wheel-name'), w = document.querySelector('.wheel')
+    if (!n || !w) return false
+    const a = n.getBoundingClientRect(), b = w.getBoundingClientRect()
+    return a.bottom > b.top + 1
+  })
+  if (nameInDisc) failures.push('22-纯线上-棋盘待掷骰: 盘面标题压进了圆盘')
   const tabbars = await pMe.evaluate(() => document.querySelectorAll('.tabbar').length)
   if (tabbars) failures.push('22-纯线上-棋盘待掷骰: 纯线上不该有常驻标签栏')
 
-  // 24 观战：别人的回合是只读骰盘 + 一行「他走到哪一步」
+  // 24 观战：别人的回合是只读骰盘（平面 `?`，不摆点数）+ 一行「他走到哪一步」
   await shot(pOther, '23-纯线上-观战', '.drawer-peek')
+  const otherDice = await pOther.evaluate(() => ({
+    flat: document.querySelectorAll('.board-dice .die').length,
+    cube: document.querySelectorAll('.board-dice .die3d').length,
+  }))
+  if (!otherDice.flat || otherDice.cube)
+    failures.push(`23-纯线上-观战: 别人还没掷时骰盘不该摆点数（平面 ${otherDice.flat} / 立方 ${otherDice.cube}）`)
+  // 点头像列展开牌桌：每位玩家的昵称、回合步骤、现金与月现金流
+  await pOther.evaluate(() => document.querySelector('.drawer-peek .seat-strip')?.click())
+  await shot(pOther, '23a-纯线上-观战牌桌', '.drawer-body .avatar-lg')
+  await expectText(pOther, '23a-纯线上-观战牌桌', { has: ['牌桌', '行动中', '月现金流'] })
 
   // 25 掷骰 → 走格 → 落点。点数由服务端摇，落到哪一格无法预设，所以反复掷到
   // 停在机会格为止（24 格里 12 个是机会，几轮之内必中），中途的落点顺手处理掉。
@@ -566,13 +618,22 @@ async function main() {
     return false
   }
   let onDeal = false
+  let landedShot = false
   for (let i = 0; i < 12 && !onDeal; i++) {
     await clickText(pMe, '.drawer-cta .btn', '掷')
     if (i === 0) {
       await sleep(900)
-      await shot(pMe, '24-纯线上-掷骰与走格', '.wheel .die')
+      await shot(pMe, '24-纯线上-掷骰与走格', '.wheel .die3d')
+      // 演出期间抽屉正文按住：不写「第 N 步 / 3」（那一步还没走到），也不摆卡面
+      await expectText(pMe, '24-纯线上-掷骰与走格', { hasNot: ['第 3 步 / 3'] })
     }
     await sleep(3200)
+    // 落在不需要任何决定的格子上（结算日/孩子/失业/快车道惩罚格）时给一句交代——
+    // 试玩反馈②：什么都没有，回合突然就能结束了，不知道刚发生了什么
+    if (!landedShot && await pMe.$('.landing-done')) {
+      landedShot = true
+      await shot(pMe, '24a-纯线上-自动格的交代', '.landing-done')
+    }
     const t = await screen(pMe)
     if (t.includes('抽哪一叠')) { onDeal = true; break }
     // 不是机会格：强制卡付掉、慈善不捐，然后结束回合换人
@@ -598,6 +659,14 @@ async function main() {
     await clickText(pMe, '.drawer-body .btn', '小生意')
     await sleep(1000)
     await shot(pMe, '26-纯线上-全屏发牌翻牌', '.deal-curtain')
+    // 演出没播完，抽屉里不许先摆出卡面与决策按钮：权威状态早就是终态了，
+    // 不按住的话卡片会抢在帘幕前面出现，帘幕收起后它还在那儿（试玩反馈④）
+    const early = await pMe.evaluate(() => ({
+      card: document.querySelectorAll('.drawer-body .gcard').length,
+      curtain: document.querySelectorAll('.deal-curtain').length,
+    }))
+    if (early.curtain && early.card)
+      failures.push('26-纯线上-全屏发牌翻牌: 牌还没翻过来，抽屉里已经摆着卡面了')
     await sleep(2200)
     await shot(pMe, '26a-纯线上-卡面决策（抽屉 half）', '.drawer-cta .btn')
     await expectText(pMe, '26a-纯线上-卡面决策（抽屉 half）', { has: ['第 2 步 / 3'] })
@@ -623,13 +692,34 @@ async function main() {
     el?.click()
   })
   await shot(pMe, '27-纯线上-账本-报表', '.drawer-body table.fin')
-  await clickText(pMe, '.drawer-peek .btn', '总览')
+  // 分页控件在内容区顶部、四段等宽一行排开（老排法挤在 peek 条上会折成两行）
+  const seg = await pMe.evaluate(() => {
+    const el = document.querySelector('.ledger-seg')
+    return el ? { n: el.querySelectorAll('button').length, h: el.offsetHeight } : null
+  })
+  if (!seg || seg.n !== 4) failures.push(`27-纯线上-账本-报表: 分段控件不是四段（${seg?.n ?? '没有'}）`)
+  else if (seg.h > 50) failures.push(`27-纯线上-账本-报表: 分段控件折行了（${seg.h}px）`)
+  await clickText(pMe, '.ledger-seg button', '总览')
   await shot(pMe, '27a-纯线上-账本-总览', '.drawer-body .progress')
-  await clickText(pMe, '.drawer-peek .btn', '日志')
+  await clickText(pMe, '.ledger-seg button', '日志')
   await shot(pMe, '27b-纯线上-账本-日志', '.drawer-body .logdot')
   // 纯线上没有「本人更正」这条路径
   await expectText(pMe, '27b-纯线上-账本-日志', { noButtons: ['更正'] })
+
+  // 27c 第四页「更多」：银行 / 转账 / 破产入口。这一页就是试玩里那个死局的出口——
+  // 现金不足既买不了、又结束不了回合，是因为纯线上根本没有银行
+  await clickText(pMe, '.ledger-seg button', '更多')
+  await shot(pMe, '27c-纯线上-账本-更多-银行与转账', '.drawer-body input[step="1000"]')
+  await expectText(pMe, '27c-纯线上-账本-更多-银行与转账', {
+    // 「跳过动画」是这台设备的偏好、不是账本的一页，收在这儿而不是占一格分段
+    has: ['🏦 银行', '玩家间转账', '月息 10%', '跳过动画'],
+  })
   await clickText(pMe, '.drawer-peek .btn', '收起')
+
+  // 结束回合的出口必须常驻：卡片决策排它上面一行，不取代它（design/09 §2.4）
+  await expectText(pMe, '27d-纯线上-结束回合常驻', { has: ['结束回合'] })
+  const ctaRows = await pMe.evaluate(() => document.querySelectorAll('.drawer-cta .cta-row').length)
+  if (!ctaRows) failures.push('27d-纯线上-结束回合常驻: 底部操作区没有分行')
 
   // 27 断线：棋盘压暗 + 骰盘禁用并写明不能掷骰
   offlineOnPurpose = true

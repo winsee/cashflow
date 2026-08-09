@@ -44,10 +44,14 @@ const codePassword = ref('')
 const codeError = ref('')
 /** 建房时选定的对局模式（design/09 §1.2 分流点 1）；房间建好后谁都改不了 */
 const createMode = ref<GameMode>('OFFLINE_ASSIST')
+/** 建房分两步：① 只问「怎么玩」 ② 才是房间名/密码/人数。
+ *  模式是这局唯一改不了的决定（MODE_LOCKED），不该和三个随时能改的表单项挤在一屏里。 */
+const createStep = ref<1 | 2>(1)
 
 function openCreate() {
   roomName.value = '现金流对局'; roomPassword.value = ''; maxPlayers.value = 6
   createMode.value = 'OFFLINE_ASSIST'
+  createStep.value = 1
   sheet.value = 'create'
 }
 function openJoinCode() { joinCode.value = ''; codePassword.value = ''; codeError.value = ''; sheet.value = 'joincode' }
@@ -223,6 +227,9 @@ const myRoom = computed(() => rooms.value.find(r => r.code === game.session?.roo
 const SHEET_TITLE: Record<string, string> = {
   create: '创建房间', joincode: '输入房间码', rename: '修改昵称',
 }
+const sheetTitle = computed(() =>
+  sheet.value === 'create' && createStep.value === 1
+    ? '这一局怎么玩？' : (SHEET_TITLE[sheet.value ?? ''] ?? ''))
 
 function continueGame() {
   game.connect()
@@ -311,33 +318,53 @@ function continueGame() {
     </p>
 
     <!-- ===== 底部弹层：创建 / 输入房间码 / 改名 ===== -->
-    <BaseModal v-if="sheet" :title="SHEET_TITLE[sheet]" dismissable @close="sheet = null">
+    <BaseModal v-if="sheet" :title="sheetTitle" dismissable @close="sheet = null">
       <div>
         <template v-if="sheet === 'create'">
-          <!-- 模式在建房时选定，此后谁都改不了，所以要在这里把「你需要准备什么」写清楚 -->
-          <label>怎么玩</label>
-          <div class="bigbtn-row mode-pick">
-            <div class="bigbtn alt" :class="{ selected: createMode === 'OFFLINE_ASSIST' }"
-                 @click="createMode = 'OFFLINE_ASSIST'">
-              <span class="ic">⚄</span>
-              <span class="t">线下辅助</span>
-              <span class="s">你需要：实体棋盘 + 骰子 + 卡牌。手机只管识别卡面和记账。</span>
+          <!-- 第 ① 步：只问模式。模式此后谁都改不了，这一屏就该只讲这一件事，
+               并把「玩这一局需要准备什么」逐条写出来 -->
+          <template v-if="createStep === 1">
+            <div class="bigbtn-row mode-pick">
+              <div class="bigbtn alt" :class="{ selected: createMode === 'OFFLINE_ASSIST' }"
+                   @click="createMode = 'OFFLINE_ASSIST'">
+                <span v-if="createMode === 'OFFLINE_ASSIST'" class="tick">✓</span>
+                <span class="ic">⚄</span>
+                <span class="t">线下辅助</span>
+                <span class="s">围着实体棋盘玩，手机只管识别卡面和记账。</span>
+                <ul class="prep">
+                  <li>实体棋盘、骰子、全套卡牌</li>
+                  <li>每人一台手机，进同一个房间</li>
+                </ul>
+              </div>
+              <div class="bigbtn" :class="{ selected: createMode === 'ONLINE' }"
+                   @click="createMode = 'ONLINE'">
+                <span v-if="createMode === 'ONLINE'" class="tick">✓</span>
+                <span class="ic">▣</span>
+                <span class="t">纯线上</span>
+                <span class="s">棋盘、骰子、发牌全在屏幕里。</span>
+                <ul class="prep">
+                  <li>什么实物都不用准备</li>
+                  <li>每人一台手机就能开局</li>
+                </ul>
+              </div>
             </div>
-            <div class="bigbtn" :class="{ selected: createMode === 'ONLINE' }"
-                 @click="createMode = 'ONLINE'">
-              <span class="ic">▣</span>
-              <span class="t">纯线上</span>
-              <span class="s">什么都不用准备，一台手机。棋盘、骰子、发牌全在屏幕里。</span>
+          </template>
+
+          <!-- 第 ② 步：房间本身。顶部回显已选模式，「改」退回第 ① 步重选 -->
+          <template v-else>
+            <div class="row between" style="margin-bottom:10px">
+              <ModeBadge :mode="createMode" />
+              <button class="btn ghost small" @click="createStep = 1">改</button>
             </div>
-          </div>
-          <label>房间名</label>
-          <input v-model="roomName" maxlength="20" placeholder="例如：周末局" />
-          <label>房间密码（可选，防止别人随意加入）</label>
-          <input v-model="roomPassword" maxlength="16" placeholder="留空则任何人可加入" />
-          <label>人数上限</label>
-          <select v-model.number="maxPlayers">
-            <option v-for="n in [2,3,4,5,6]" :key="n" :value="n">{{ n }} 人</option>
-          </select>
+            <label>房间名</label>
+            <input v-model="roomName" maxlength="20" placeholder="例如：周末局" />
+            <label>房间密码（可选，防止别人随意加入）</label>
+            <input v-model="roomPassword" maxlength="16" placeholder="留空则任何人可加入" />
+            <label>人数上限</label>
+            <select v-model.number="maxPlayers">
+              <option v-for="n in [2,3,4,5,6]" :key="n" :value="n">{{ n }} 人</option>
+            </select>
+          </template>
         </template>
 
         <template v-else-if="sheet === 'joincode'">
@@ -356,7 +383,9 @@ function continueGame() {
         </template>
       </div>
       <template #actions>
-        <button v-if="sheet === 'create'" class="btn grow"
+        <button v-if="sheet === 'create' && createStep === 1" class="btn grow"
+                @click="createStep = 2">下一步</button>
+        <button v-else-if="sheet === 'create'" class="btn grow"
                 :disabled="busy || !roomName.trim() || !nickname.trim()" @click="create">
           创建房间（你作为房主）
         </button>

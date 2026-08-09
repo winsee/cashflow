@@ -127,6 +127,10 @@ export const useGame = defineStore('game', {
     stagePos: {} as Record<string, number>,
     /** 中央飘字（牌堆洗回这类通知，不是待办） */
     stageFlash: '' as string,
+    /** 最近一次掷出的点数（服务端摇的那一组）。
+     *  存在 store 而不是视图里：开了「跳过动画」时演出队列会被整条丢掉，
+     *  点数却仍然要显示——它是结果，不是动画。 */
+    lastRolls: [] as number[],
     /** 本机偏好：跳过动画。不进房间状态——这是这台设备的事 */
     skipAnim: loadSkipAnim(),
   }),
@@ -407,11 +411,19 @@ export const useGame = defineStore('game', {
       if (!this.isOnline) return
       const steps = buildStage(events, this.state)
       if (!steps.length) return
+      // 点数先记下来再决定演不演：跳过动画的人也得看见服务端摇出了几点
+      for (const s of steps) if (s.kind === 'dice') this.lastRolls = s.rolls
       if (this.skipAnim || prefersReducedMotion()) {
         // 三条出口同一个收口：清空队列 + 直接刷到终态（见 skipStage）
         this.skipStage()
         return
       }
+      // 权威状态马上就要换成「这一切都已经发生完」的样子，而演出才刚排上队。
+      // 先把棋子钉回移动**之前**那一格（`PLAYER_MOVED` 自带 `from`），否则骰子还在翻滚时
+      // 棋子就瞬移到了目的格，等 step 拍开始又跳回起点重走一遍。
+      // `from` 可能是 0（起点标记）；`positions` 用的是 `??` 不是 `||`，0 不会被误 fallback。
+      for (const ev of events)
+        if (ev.type === 'PLAYER_MOVED') this.stagePos[ev.payload.player_id] = ev.payload.from
       this.stageQueue.push(...steps)
       if (!this.stageNow) this.advanceStage()
     },

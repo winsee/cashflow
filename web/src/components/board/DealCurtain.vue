@@ -6,6 +6,10 @@
  *  牌背是米白卡纸 + 该牌堆色双线边框 + 宋体牌堆名，和 GameCard 的正面同一套材质。
  *
  *  点击任意处**终止**整条演出序列并刷到终态（不是加速）。
+ *
+ *  **卡面由调用方决定**：默认插槽不传就照旧渲染 `GameCard`，职业卡场景传 `ProfessionCard`
+ *  （design/09 §1.4.1）。发牌组件不该认识职业卡——那是调用方的知识；
+ *  而翻牌的 3D 结构、牌背材质、帘幕基座只该有一份。
  */
 import { computed } from 'vue'
 import { DECK_COLOR, DECK_LABEL } from '../../decks'
@@ -31,10 +35,12 @@ const label = computed(() => DECK_LABEL[props.deck] ?? '牌堆')
     <div class="deal-card">
       <div class="deal-inner">
         <div class="deal-face">
-          <GameCard v-if="props.card" :card="props.card" />
-          <div v-else class="gcard"><div class="gcard-title">{{ props.title }}</div></div>
+          <slot>
+            <GameCard v-if="props.card" :card="props.card" />
+            <div v-else class="gcard"><div class="gcard-title">{{ props.title }}</div></div>
+          </slot>
         </div>
-        <div class="deal-back" :style="{ color }">{{ label }}</div>
+        <div class="deal-back card-back" :style="{ color }">{{ label }}</div>
       </div>
     </div>
     <p class="muted" style="margin-top:14px">点一下跳过</p>

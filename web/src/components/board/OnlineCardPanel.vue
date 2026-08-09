@@ -6,6 +6,7 @@
  *  **线下模式的 ActionTab 一行不改**——两套骨架各走各的。
  */
 import { computed } from 'vue'
+import { askBankLoan } from '../../bankrequest'
 import { fmt, useGame } from '../../store'
 import { DECK_COLOR, DECK_SHORT } from '../../decks'
 import type { CardDto } from '../../types'
@@ -22,6 +23,22 @@ const preview = computed(() => ac.value?.settlePreview ?? null)
 
 const deckLabel = computed(() => DECK_SHORT[ac.value?.deck ?? ''] ?? '')
 const deckColor = computed(() => DECK_COLOR[ac.value?.deck ?? ''] ?? 'var(--line-2)')
+
+const BUY_SUBTYPES = ['REALESTATE', 'BUSINESS', 'COLLECTIBLE', 'DICE_GAMBLE']
+const FORCED_SUBTYPES = ['EXPENSE_EVENT', 'CASH', 'INSTALLMENT']
+
+/** 这张卡此刻要我掏多少、还差多少现金。
+ *  信用卡分支不算在内——「改记信用卡」本来就是留给现金不够的人的那条路。 */
+const shortfall = computed(() => {
+  const a = ac.value, m = me.value
+  if (!a || a.resolved || !m || !iAmDrawer.value) return 0
+  if (BUY_SUBTYPES.includes(a.subtype))
+    return Math.max(0, (props.card.data.downPayment ?? 0) - m.cash)
+  const pv = preview.value
+  if (pv && !pv.waived && FORCED_SUBTYPES.includes(a.subtype))
+    return Math.max(0, pv.due - m.cash)
+  return 0
+})
 
 /** 市场卡抽卡人侧：写清「已通知 N 位持有该资产的玩家 + 谁还没决定」（沿用既有口径）。
  *  市场卡在抽卡那一瞬就 resolved（效果在伴随事件里完成），所以这一段按牌堆判断而非 resolved。 */
@@ -86,6 +103,16 @@ const marketPending = computed(() => {
           <span class="money neg">{{ fmt(props.card.data.amount) }}</span></div>
         <div class="prow"><span>改记信用卡 · 每月还款</span>
           <span class="money neg">+{{ fmt(props.card.data.creditMonthly) }}</span></div>
+      </div>
+
+      <!-- 钱不够：写出缺口，并给一条通往银行的路（账本 → 更多 → 银行，金额已预填）。
+           只写「现金不足」而不给入口，玩家在纯线上就真的无路可走。 -->
+      <div v-if="shortfall > 0" class="card inner danger" style="background:var(--red-soft)">
+        <div class="row between">
+          <span style="font-size:12.5px;font-weight:700;color:var(--red)">
+            现金还差 {{ fmt(shortfall) }}</span>
+          <button class="btn small gold" @click="askBankLoan(shortfall)">去贷款</button>
+        </div>
       </div>
     </template>
   </div>
