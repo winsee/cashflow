@@ -324,10 +324,12 @@ function continueGame() {
           <!-- 第 ① 步：只问模式。模式此后谁都改不了，这一屏就该只讲这一件事，
                并把「玩这一局需要准备什么」逐条写出来 -->
           <template v-if="createStep === 1">
+            <!-- 两张卡都是 `.alt`（浅纸底）不是漏写：这一屏里主色实心块的唯一含义是「被选中」，
+                 谁被点中谁整块变绿，未选中的一律浅底。从前「纯线上」那张不论选没选都是深绿，
+                 面积最大的那块颜色反倒不表示状态，第一眼就把人读反了 -->
             <div class="bigbtn-row mode-pick">
               <div class="bigbtn alt" :class="{ selected: createMode === 'OFFLINE_ASSIST' }"
                    @click="createMode = 'OFFLINE_ASSIST'">
-                <span v-if="createMode === 'OFFLINE_ASSIST'" class="tick">✓</span>
                 <span class="ic">⚄</span>
                 <span class="t">线下辅助</span>
                 <span class="s">围着实体棋盘玩，手机只管识别卡面和记账。</span>
@@ -336,9 +338,8 @@ function continueGame() {
                   <li>每人一台手机，进同一个房间</li>
                 </ul>
               </div>
-              <div class="bigbtn" :class="{ selected: createMode === 'ONLINE' }"
+              <div class="bigbtn alt" :class="{ selected: createMode === 'ONLINE' }"
                    @click="createMode = 'ONLINE'">
-                <span v-if="createMode === 'ONLINE'" class="tick">✓</span>
                 <span class="ic">▣</span>
                 <span class="t">纯线上</span>
                 <span class="s">棋盘、骰子、发牌全在屏幕里。</span>

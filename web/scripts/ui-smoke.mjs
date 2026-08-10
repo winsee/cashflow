@@ -491,6 +491,10 @@ async function main() {
   await pa.goto(`${BASE}/#/`, { waitUntil: 'networkidle2' })
   await shot(pa, '16-大厅-继续对局', '.card.gold')
   await expectText(pa, '16-大厅-继续对局', { has: ['继续对局', '回到牌桌', '人在线'] })
+  // 会话还在快车道、人却已回大厅：金箔是对局中的阶段特效，不该跟着人走出牌桌
+  // （正例在第 11 屏：`body.skin-ft .hud`）
+  if (await pa.evaluate(() => document.body.classList.contains('skin-ft')))
+    failures.push('16-大厅-继续对局: 大厅不该是金箔皮肤——.skin-ft 只在对局页挂')
   await clickText(pa, '.bigbtn', '创建房间')
 
   // ===== 纯线上模式（design/09 §10 的屏幕清单） =====
@@ -503,10 +507,21 @@ async function main() {
   const step1Inputs = await pa.evaluate(() => document.querySelectorAll('.modal input, .modal select').length)
   if (step1Inputs) failures.push(`18-建房第1步-模式二选一: 第 ① 步不该有 ${step1Inputs} 个输入控件`)
 
+  // 18b 选中态就是那块高亮色块本身：点谁谁整块变绿，屏上不该再有 ✓ 角标那种「单选框」
+  await clickText(pa, '.mode-pick .bigbtn', '纯线上')
+  await shot(pa, '18b-建房第1步-选中纯线上', '.mode-pick .bigbtn.selected')
+  const modePick = await pa.evaluate(() => ({
+    n: document.querySelectorAll('.mode-pick .bigbtn.selected').length,
+    who: document.querySelector('.mode-pick .bigbtn.selected .t')?.textContent?.trim(),
+    ticks: document.querySelectorAll('.mode-pick .tick').length,
+  }))
+  if (modePick.n !== 1 || modePick.who !== '纯线上' || modePick.ticks)
+    failures.push(`18b-建房第1步-选中纯线上: 应只有一张「纯线上」高亮卡且无 ✓ 角标，实测 ${JSON.stringify(modePick)}`)
+
   // 17 第 ② 步才是房间名/密码/人数，顶部回显模式并可退回
   await clickText(pa, '.modal .btn', '下一步')
   await shot(pa, '17-建房第2步-房间设置', '.modal input')
-  await expectText(pa, '17-建房第2步-房间设置', { has: ['房间名', '人数上限', '线下辅助'] })
+  await expectText(pa, '17-建房第2步-房间设置', { has: ['房间名', '人数上限', '纯线上'] })
   await clickText(pa, '.modal .btn', '取消')
 
   const oa = await api('/api/rooms', {

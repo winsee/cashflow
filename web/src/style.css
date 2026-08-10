@@ -107,6 +107,8 @@
    跟着变：主按钮与投影、待办色条、pill 选中、标签栏激活、进度条、
            头像圈、在线点、卡片 focus 描边、输入聚焦环、纸底与卡面
    不跟着变：正负数语义色、警示红、三种卡面（实体物复刻）
+   这个类由 App.vue **只在对局页**挂：金箔是对局中的阶段特效，不是跟着人走的身份标签，
+   会话还在快车道但人回了大厅/说明书/录入页时，一律回墨绿纸底。
    ============================================================ */
 .skin-ft {
   /* 底色三段与 .curtain.ftx 逐字一致：换算过场的帘幕落下时直接融进界面，
@@ -1143,21 +1145,15 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 /* ---------- 建房第 ① 步的模式二选一 ---------- */
 /* 竖排：手机上横排每张只有约 170px 宽，准备物清单会被压成四行 */
 .mode-pick { flex-direction: column; }
-.mode-pick .bigbtn { align-items: flex-start; text-align: left; position: relative; }
-/* 选中态给三种信号：描边 + 一圈浅底光晕 + ✓ 角标。
-   只靠描边不够——两张卡一深一浅，同一种描边在深卡上几乎看不出来。 */
+.mode-pick .bigbtn { align-items: flex-start; text-align: left; }
+/* 选中态 = 整块高亮色块本身，未选中 = 浅纸底（两张卡模板上都写 .alt）。
+   不再另给 ✓ 角标：颜色在这一屏只表示一件事——这张被选中了，一个信号一个主人。
+   深底白字 ↔ 浅底墨字是明度反相，不只是色相差，灰度下照样分得开。 */
 .mode-pick .bigbtn.selected {
-  outline: 2px solid var(--brand); outline-offset: 1px;
-  box-shadow: var(--shadow), 0 0 0 5px var(--brand-soft);
+  background: linear-gradient(150deg, var(--brand), var(--brand-dark));
+  color: #fff; border-color: var(--brand-dark);
+  box-shadow: var(--shadow), 0 0 0 4px var(--brand-soft);
 }
-.mode-pick .bigbtn .tick {
-  position: absolute; top: 8px; right: 10px;
-  width: 20px; height: 20px; border-radius: 999px;
-  display: grid; place-items: center; font-size: 12px; font-weight: 800;
-  /* 深底卡（纯线上）上用浅底勾，浅底卡（线下辅助）上用主色勾 */
-  background: var(--panel); color: var(--brand);
-}
-.mode-pick .bigbtn.alt .tick { background: var(--brand); color: var(--panel); }
 .mode-pick .prep { margin: 6px 0 0; padding-left: 16px; font-size: 12px; opacity: .82; }
 .mode-pick .prep li { margin-top: 2px; }
 
