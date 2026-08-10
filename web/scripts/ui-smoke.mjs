@@ -480,6 +480,10 @@ async function main() {
   await pa.goto(`${BASE}/#/`, { waitUntil: 'networkidle2' })
   await shot(pa, '16-大厅-继续对局', '.card.gold')
   await expectText(pa, '16-大厅-继续对局', { has: ['继续对局', '回到牌桌', '人在线'] })
+  // 会话还在快车道、人却已回大厅：金箔是对局中的阶段特效，不该跟着人走出牌桌
+  // （正例在第 11 屏：`body.skin-ft .hud`）
+  if (await pa.evaluate(() => document.body.classList.contains('skin-ft')))
+    failures.push('16-大厅-继续对局: 大厅不该是金箔皮肤——.skin-ft 只在对局页挂')
   await clickText(pa, '.bigbtn', '创建房间')
 
   // ===== 纯线上模式（design/09 §10 的屏幕清单） =====
