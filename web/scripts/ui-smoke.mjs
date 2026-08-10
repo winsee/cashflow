@@ -521,7 +521,16 @@ async function main() {
   })
 
   await qa.evaluate(() => document.querySelector('.prof-back')?.click())
-  await sleep(2200)          // 揭牌帘幕 0.95s + 定格，等它自己收
+  // 20b 揭牌期间**页内不许摆着那张正面**：`.curtain` 是 420ms 淡入的，
+  // 帘幕变实之前它会从底下透出来，看着就是「点了先闪一下正面」（第三轮试玩①）
+  await sleep(700)
+  const leak = await qa.evaluate(() =>
+    document.querySelectorAll('.pcard').length
+    - document.querySelectorAll('.deal-curtain .pcard').length)
+  if (!(await qa.$('.deal-curtain'))) failures.push('20b-揭牌: 帘幕没落下')
+  else if (leak > 0) failures.push(`20b-揭牌: 帘幕底下还摆着 ${leak} 张职业卡正面（会透出来）`)
+  await shot(qa, '20b-揭牌-帘幕底下不许有正面', '.deal-curtain')
+  await sleep(2000)          // 揭牌帘幕：翻牌 0.95s + 定格到 2.2s，等它自己收
   // 20a 翻开后是整张职业卡，且页面上不留任何看着能换一张的控件
   await shot(qa, '20a-纯线上准备页-职业卡翻开', '.pcard')
   await expectText(qa, '20a-纯线上准备页-职业卡翻开', {
@@ -627,7 +636,9 @@ async function main() {
       // 演出期间抽屉正文按住：不写「第 N 步 / 3」（那一步还没走到），也不摆卡面
       await expectText(pMe, '24-纯线上-掷骰与走格', { hasNot: ['第 3 步 / 3'] })
     }
-    await sleep(3200)
+    // 一整条演出序列（design/09 §5.1 v0.4）：翻滚 1.3 + 读数 0.65 + 最多 6 格 ×0.24
+    // + 可能的过站结算 1.15 + 落点 0.62 ≈ 5.2s 封顶
+    await sleep(5600)
     // 落在不需要任何决定的格子上（结算日/孩子/失业/快车道惩罚格）时给一句交代——
     // 试玩反馈②：什么都没有，回合突然就能结束了，不知道刚发生了什么
     if (!landedShot && await pMe.$('.landing-done')) {
@@ -667,7 +678,7 @@ async function main() {
     }))
     if (early.curtain && early.card)
       failures.push('26-纯线上-全屏发牌翻牌: 牌还没翻过来，抽屉里已经摆着卡面了')
-    await sleep(2200)
+    await sleep(2000)          // 发牌帘幕 2.05s，等它播完再看抽屉
     await shot(pMe, '26a-纯线上-卡面决策（抽屉 half）', '.drawer-cta .btn')
     await expectText(pMe, '26a-纯线上-卡面决策（抽屉 half）', { has: ['第 2 步 / 3'] })
     await shot(pOther, '26b-纯线上-旁观者看到同一张卡', '.gcard-title')
@@ -701,6 +712,24 @@ async function main() {
   else if (seg.h > 50) failures.push(`27-纯线上-账本-报表: 分段控件折行了（${seg.h}px）`)
   await clickText(pMe, '.ledger-seg button', '总览')
   await shot(pMe, '27a-纯线上-账本-总览', '.drawer-body .progress')
+  // full 档（88dvh）+ HUD 超过一屏：抽屉必须收缩到剩余空间里。
+  // 底端一旦落到屏幕之外，里面滚到底也永远差最后一截（试玩：总览的「退出对局」看不全）
+  const drawerCut = await pMe.evaluate(() => {
+    const el = document.querySelector('.board-drawer')
+    if (!el) return null
+    const body = el.querySelector('.drawer-body')
+    body.scrollTop = body.scrollHeight
+    const last = body.lastElementChild?.lastElementChild
+    return {
+      over: Math.round(el.getBoundingClientRect().bottom - window.innerHeight),
+      tail: last ? Math.round(last.getBoundingClientRect().bottom - window.innerHeight) : 0,
+    }
+  })
+  if (!drawerCut) failures.push('27a-纯线上-账本-总览: 找不到抽屉')
+  else if (drawerCut.over > 1)
+    failures.push(`27a-纯线上-账本-总览: 抽屉底端落在屏幕外 ${drawerCut.over}px`)
+  else if (drawerCut.tail > 1)
+    failures.push(`27a-纯线上-账本-总览: 滚到底了，最后一张卡还差 ${drawerCut.tail}px 露不出来`)
   await clickText(pMe, '.ledger-seg button', '日志')
   await shot(pMe, '27b-纯线上-账本-日志', '.drawer-body .logdot')
   // 纯线上没有「本人更正」这条路径

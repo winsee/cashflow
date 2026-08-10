@@ -12,8 +12,10 @@ import type { BoardDto, RoomStateDto } from './types'
 export type Track = 'RAT_RACE' | 'FAST_TRACK'
 
 export type StageStep =
-  /** 拍 1–2：骰子翻滚 + 点数落定。终值就是服务端的点数，绝不本地预演 */
-  | { kind: 'dice'; ms: number; playerId: string; rolls: number[] }
+  /** 拍 1–2：骰子翻滚 + 点数落定。终值就是服务端的点数，绝不本地预演。
+   *  `settling` 是落定后**多停的那一拍**：骰子已经转到那一面，棋子还没起步。
+   *  没有这一拍的话，点数刚出现棋子就走了，读数的时间要跟走格动画抢（第三轮试玩） */
+  | { kind: 'dice'; ms: number; playerId: string; rolls: number[]; settling?: boolean }
   /** 拍 3：棋子逐格跳跃，一格一步 */
   | { kind: 'step'; ms: number; playerId: string; track: Track; index: number }
   /** 拍 4：过站结算——格子脉冲橙光 + 金额飘字 */
@@ -30,14 +32,24 @@ export interface StageEvent {
   payload: Record<string, any>
 }
 
-/** 逐拍时长（ms）。顿拍比时长重要，别为了「快」把节奏抹平（design/09 §5.1）。 */
+/** 逐拍时长（ms）。顿拍比时长重要，别为了「快」把节奏抹平（design/09 §5.1）。
+ *
+ *  v0.4 整体放慢一档（第三轮试玩：「骰子转太快、走格子唰一下就过去了」）。
+ *  快慢节奏靠三样东西，不是靠把每一拍都拉长：
+ *  ① 骰子**匀速快转** → 大幅缓出转到那一面（CSS `.cube` 的 0.62s ease-out）；
+ *  ② 落定后**空一拍**（`diceStop`）让人读数，棋子才起步；
+ *  ③ 走格是快的（每格 240ms），过站结算与落点才是慢的——重的地方停，轻的地方走。
+ */
 export const BEAT = {
-  dice: 750,        // 翻滚 0.5s + 落定 0.25s
-  step: 120,
-  settle: 900,
-  landing: 400,
+  dice: 1300,       // 翻滚（匀速，服务端已经回来了但节奏要给足）
+  diceStop: 650,    // 点数落定 + 读数的空拍，棋子还没起步
+  step: 240,
+  settle: 1150,
+  landing: 620,
   reshuffle: 1600,
-  deal: 1950,       // 飞出 0.5 + 翻转 0.45 + 定格 0.6 + 收牌 0.4
+  // 帘幕是**仪式**不是阅读界面：卡面随后就落进抽屉，可以慢慢看。
+  // 2.9s 试玩反馈「停太久」，收回到 2.05s（翻牌 0.95 + 定格 1.1）
+  deal: 2050,
 }
 
 /** 从一批事件派生演出队列。与账目无关——这里只决定「先看到什么、后看到什么」。 */
@@ -55,6 +67,11 @@ export function buildStage(events: StageEvent[], prev: RoomStateDto | null): Sta
       case 'DICE_ROLLED':
         mover = p.player_id
         out.push({ kind: 'dice', ms: BEAT.dice, playerId: p.player_id, rolls: p.rolls ?? [] })
+        // 落定后空一拍：骰子停稳、点数亮出来，棋子这时候还在原地
+        out.push({
+          kind: 'dice', ms: BEAT.diceStop, playerId: p.player_id,
+          rolls: p.rolls ?? [], settling: true,
+        })
         break
       case 'PAYDAY':
         pending.push({ playerId: p.player_id, amount: (p.cashflow ?? 0) * (p.times ?? 1) })

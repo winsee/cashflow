@@ -839,6 +839,8 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .board-page {
   display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
 }
+/* HUD 不参与压缩：它是定高的信息条，抽屉再高也不许把它挤扁 */
+.board-page > .hud { flex: none; }
 .board-stage {
   position: relative; flex: 1; min-height: 0;
   display: flex; align-items: center; justify-content: center;
@@ -894,12 +896,16 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .sq-label { font-size: 10px; font-weight: 700; fill: var(--text); pointer-events: none; }
 .marker-label { font-size: 10px; font-weight: 800; fill: var(--muted); }
 .settle-amt { font-size: 13px; font-weight: 800; fill: var(--pos); }
-.sq-pulse { animation: sq-pulse .4s var(--ease); }
-.sq-settle { animation: sq-settle .9s var(--ease); }
+/* 这两条的时长跟着 stage.ts 的 BEAT.landing / BEAT.settle 走：
+   动画比节拍短就会先熄灭、留一段静止的死时间，看着像卡住了 */
+.sq-pulse { animation: sq-pulse .62s var(--ease); }
+.sq-settle { animation: sq-settle 1.15s var(--ease); }
 @keyframes sq-pulse { from { opacity: 0; stroke-width: 6; } to { opacity: 1; stroke-width: 2.5; } }
 @keyframes sq-settle { 0% { opacity: .2; } 30% { opacity: 1; } 100% { opacity: .5; } }
 
-.board-pawn { transition: transform var(--dur) var(--ease); }
+/* 一格一跳的时长必须比 BEAT.step（240ms）**略短**：短了才有落地的那一顿，
+   长了就永远在半路上被下一格拽走，看着是一条滑过去的直线而不是走格子。 */
+.board-pawn { transition: transform 200ms cubic-bezier(.3, .85, .35, 1); }
 .board-pawn circle { filter: drop-shadow(0 1px 1.2px rgba(120, 92, 40, .45)); }
 .board-pawn.mine { /* 我的棋子永远在最上层：SVG 没有 z-index，靠渲染顺序 + 描边区分 */ }
 .board-pawn.out circle { filter: grayscale(1); opacity: .55; }
@@ -937,22 +943,30 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 }
 
 /* 立方体骰 */
+/* 透视给得柔一点（6.5 倍边长）：4 倍是鱼眼，斜过来的那两条边会夸张到变形 */
 .die3d {
   --d: 58px; width: var(--d); height: var(--d);
-  perspective: calc(var(--d) * 4);
+  position: relative; perspective: calc(var(--d) * 6.5);
   background: none; border: 0; padding: 0; box-shadow: none;
   display: grid; place-items: center; cursor: pointer;
 }
 .die3d[disabled] { cursor: default; }
+/* 落定的缓出是这套动效里「慢」的那一半：匀速快转 → 0.62s 大幅减速转到那一面。
+   两段速度差本身就是节奏，比把翻滚拉长有用（design/09 §5.1 v0.4）。 */
 .cube {
   position: relative; width: var(--d); height: var(--d);
   transform-style: preserve-3d;
-  transition: transform .42s cubic-bezier(.2, .9, .25, 1.05);
+  transition: transform .62s cubic-bezier(.15, .85, .25, 1.02);
 }
+/* 每一面自带受光：静止时骰子是斜着的（见 Die3d 的 REST_TILT），
+   相邻两面挨着的那道明暗交界就是它的立体感来源——正对镜头的平面方块没有这个。 */
 .face {
   position: absolute; inset: 0; border-radius: calc(var(--d) * .2);
   background: linear-gradient(160deg, #fff, var(--panel2));
   border: 1px solid var(--line-2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9),
+              inset calc(var(--d) * -.14) calc(var(--d) * -.18) calc(var(--d) * .22)
+                calc(var(--d) * -.14) rgba(120, 92, 40, .34);
   display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
   padding: calc(var(--d) * .15);
 }
@@ -967,16 +981,25 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .f5 { transform: rotateY(-90deg) translateZ(calc(var(--d) / 2)); }
 .f3 { transform: rotateX(90deg) translateZ(calc(var(--d) / 2)); }
 .f4 { transform: rotateX(-90deg) translateZ(calc(var(--d) / 2)); }
-/* 可掷：主色实心，看着就能按 */
-.die3d.rollable .face {
-  background: linear-gradient(160deg, var(--brand), var(--brand-dark)); border-color: transparent;
+/* 可掷：**骰子本身不变色**，外圈一圈主色光晕轻轻呼吸。
+   老做法是把整颗染成主色实心，可「可掷」在掷出去的那一刻就没了（`turnDiceUsed`），
+   于是同一颗骰子在一次动作里从绿变白——变色被当成了状态变化去读，其实什么都没发生。
+   骰子始终是那颗象牙白的实体骰子；能不能点是它**周围**的事，不是它自己的事。 */
+/* 光晕画在 `.die3d` **自己身上**（box-shadow），不是加一个 `::before` 垫在下面：
+   `.die3d` 有 `perspective`，它内部是一个 3D 渲染上下文，垫在里面的那层平面子元素
+   Chromium 直接不画（布局与计算样式全对——尺寸、渐变、动画都在——就是不上屏，实测过）。
+   元素自身的阴影不进那个上下文，照常渲染。
+   颜色用主色按透明度调，不用 --brand-soft：那个浅底摆在同样浅的纸底上等于没画。 */
+.die3d.rollable { border-radius: 26%; animation: dieCall 1.9s ease-in-out infinite; }
+@keyframes dieCall {
+  0%, 100% { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--brand) 22%, transparent); }
+  50% { box-shadow: 0 0 16px 7px color-mix(in srgb, var(--brand) 34%, transparent); }
 }
-.die3d.rollable .face i { background: #fff; }
 /* 摇动：多轴翻滚 + 整颗轻浮起，**infinite**——服务端没回来就一直滚，
    不做「摇 0.5 秒然后揭晓」的定长动画，否则网络一慢就得在最后一刻把点数换掉 */
 .die3d.rolling .cube { animation: dieTumble .78s linear infinite; transition: none; }
 .die3d.rolling { animation: dieToss .52s ease-in-out infinite; }
-.die3d.landed { animation: dieLand .46s var(--ease); }
+.die3d.landed { animation: dieLand .6s var(--ease); }
 @keyframes dieTumble {
   from { transform: rotateX(0) rotateY(0) rotateZ(0); }
   to { transform: rotateX(720deg) rotateY(1080deg) rotateZ(360deg); }
@@ -1007,8 +1030,13 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 }
 
 /* ---------- 底部三档抽屉 ---------- */
+/* `flex: 0 1 auto` 而不是 `flex: none`：full 档要 88dvh，可 HUD 还占着 ~190px，
+   两者相加超过一屏。定死高度的话超出的那一截会被 .board-page 的 overflow:hidden 裁掉，
+   抽屉的**底端落在屏幕之外**——里面滚到底也永远差最后一截（试玩：总览的「退出对局」看不全）。
+   让它可收缩，档位高度就成了「最多这么高」，实际由剩余空间兜住。
+   棋盘 stage 是 flex-basis:0，负空间不摊到它头上，所以收缩全落在抽屉上，正是我们要的。 */
 .board-drawer {
-  position: relative; flex: none; background: var(--panel);
+  position: relative; flex: 0 1 auto; min-height: 0; background: var(--panel);
   border-top: 1px solid var(--line-2); border-radius: var(--r-lg) var(--r-lg) 0 0;
   box-shadow: 0 -6px 20px -14px rgba(120, 92, 40, .5);
   display: flex; flex-direction: column;
@@ -1065,9 +1093,13 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
    发牌这一屏要的是牌停在屏心，所以在这里把主轴居中补回来 */
 .deal-curtain { justify-content: center; }
 .deal-card { perspective: 900px; width: 76%; max-width: 300px; }
+/* **静止态就是牌背**（`rotateY(180deg)`），动画只负责把它翻过来。
+   只写 `forwards` 的话，从挂载到动画首帧之间元素停在 `rotateY(0)`——正面会闪一下，
+   然后才从背面重新翻一遍（试玩：点职业卡牌背会先闪现正面）。`both` 补上入场端的填充。 */
 .deal-inner {
   position: relative; transform-style: preserve-3d;
-  animation: deal-flip .95s var(--ease) forwards;
+  transform: rotateY(180deg) scale(.55);
+  animation: deal-flip .95s var(--ease) both;
 }
 .deal-face, .deal-back { backface-visibility: hidden; }
 /* 牌背的材质：米白卡纸 + 牌堆色双线边框 + 宋体牌堆名。

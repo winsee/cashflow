@@ -32,11 +32,21 @@ const i = computed(() => props.index ?? 0)
 const flat = computed(() => !props.rolling && !props.value && !props.rollable)
 const landed = computed(() => !props.rolling && !!props.value && !still.value)
 
+/** 静止时的斜置：正对镜头的立方体看着就是个平面方块，点数那一面朝前、其余五面全被它挡住。
+ *  先在**屏幕空间**里斜一点（写在点数旋转的左边，所以不影响哪一面朝前），
+ *  顶面与侧面各露一条，加上 `.face` 的受光，它才像一颗放在桌上的骰子（第三轮试玩）。
+ *
+ *  **角度要小**：斜到 14°/16° 就成了摆拍，点数那一面明显歪着。10°/12° 配柔一档的透视，
+ *  只露很薄的一条边——像正面拍的一颗真骰子，点数几乎不歪，仍看得出是立方体。
+ *  `scale(.9)` 是找补：斜过去之后投影比正面那一面宽一些，不缩回来 3 粒骰在轮心里会压边。 */
+const REST_TILT = 'rotateX(-10deg) rotateY(12deg) scale(.9)'
+
 const cubeStyle = computed(() => {
   if (props.rolling) return undefined
   // 落定：转到那一面，各粒多转的圈数不同，免得几颗看着像一个整体
-  if (props.value) return { transform: `${DIE_FACE[props.value]} rotateZ(${360 * (1 + i.value)}deg)` }
-  return { transform: DIE_FACE[1] }        // 可掷：1 点朝前
+  if (props.value)
+    return { transform: `${REST_TILT} ${DIE_FACE[props.value]} rotateZ(${360 * (1 + i.value)}deg)` }
+  return { transform: `${REST_TILT} ${DIE_FACE[1]}` }        // 可掷：1 点朝前
 })
 
 /** 摇动：负 delay + 略不同的周期，让几粒各滚各的 */

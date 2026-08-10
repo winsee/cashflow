@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { confirmAction } from '../confirm'
 import { DECK_COLOR, DECK_LABEL } from '../decks'
+import { prefersReducedMotion } from '../stage'
 import { fmt, useGame } from '../store'
 import type { CardDto, FtDream } from '../types'
 import ConnectingFallback from '../components/ConnectingFallback.vue'
@@ -46,11 +47,21 @@ const myProfession = computed(() =>
 async function drawProfession() {
   if (drawing.value) return
   drawing.value = true
+  // 两条降级出口与演出层同一条口径（design/09 §5.2 / §5.4）：直接给翻开态，不揭牌
+  if (game.skipAnim || prefersReducedMotion()) {
+    await game.act('SELECT_PROFESSION')
+    drawing.value = false
+    return
+  }
+  // 帘幕**先落下**再发请求：等 act 返回才置位的话，服务端的状态会抢在帘幕前面到，
+  // 页面先把整张职业卡摆出来（`v-if="game.me?.professionId"` 那一支），
+  // 帘幕这才盖上去重新翻一遍——试玩里看到的「闪现一下正面」就是这半帧。
+  revealing.value = true
   const ok = await game.act('SELECT_PROFESSION')
   drawing.value = false
-  if (!ok) return
-  revealing.value = true
-  setTimeout(() => { revealing.value = false }, 1500)
+  if (!ok) { revealing.value = false; return }
+  // 翻牌 0.95s + 定格（design/09 §5.4）。卡随后就留在页内，不必在帘幕上读完
+  setTimeout(() => { revealing.value = false }, 2200)
 }
 
 /** 「谁认领了哪个梦想」写在下面的出牌顺序里，一人一行。
@@ -241,8 +252,12 @@ async function copyUrl() {
           <h2 style="margin-bottom:2px">抽一张职业卡</h2>
           <p class="muted" style="margin:0">说明书里职业是抽的，不是挑的。抽到哪张就是哪张，不能重抽。</p>
           <!-- 抽过了：摆出整张卡，页面上不留任何看着能换一张的控件
-               （没有「重抽」、没有第二张牌背），否则玩家会以为随机是可以刷的 -->
-          <template v-if="game.me?.professionId">
+               （没有「重抽」、没有第二张牌背），否则玩家会以为随机是可以刷的。
+               **揭牌期间这一支不渲染**：`.curtain` 是 420ms 淡入的，帘幕还没变实之前
+               页内这张正面会**从半透明的帘幕底下透出来**——这才是「点了先闪一下正面」
+               的真正来源（上一轮只把置位顺序调对了，没管透出来这件事）。
+               揭牌期间背后留着牌背（走下面那一支），和点击前是同一幅画面。 -->
+          <template v-if="game.me?.professionId && !revealing">
             <p class="muted" style="text-align:center;margin:10px 0 0">这就是你这一局的身份</p>
             <ProfessionCard v-if="myProfession" :card="myProfession" />
             <button class="btn block" @click="step = 2">下一步 · 挑梦想</button>
@@ -364,8 +379,12 @@ async function copyUrl() {
                   :nickname="game.me?.nickname" @close="showInvite = false" />
 
     <!-- 揭牌：牌背飞向屏心 → Y 轴翻转 → 露出整张职业卡。与发牌共用同一段动画 -->
+    <!-- 卡还没到（帘幕先落下、请求还在路上）时**不给默认插槽**，让 DealCurtain 用它自己的
+         占位卡面兜住高度——插槽给了但内容为空的话，牌面高度塌成 0，连牌背都看不见了 -->
     <DealCurtain v-if="revealing" deck="PROFESSION" title="职业卡" @skip="revealing = false">
-      <ProfessionCard v-if="myProfession" :card="myProfession" />
+      <template v-if="myProfession" #default>
+        <ProfessionCard :card="myProfession" />
+      </template>
     </DealCurtain>
   </div>
   <ConnectingFallback v-else />

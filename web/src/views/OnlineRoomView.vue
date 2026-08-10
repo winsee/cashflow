@@ -176,7 +176,9 @@ const diceCount = ref(1)
 watch(diceDefault, v => { diceCount.value = v }, { immediate: true })
 watch(diceMax, v => { if (diceCount.value > v) diceCount.value = diceDefault.value })
 
-const rolling = computed(() => game.stageNow?.kind === 'dice')
+// 只有翻滚那一拍是 rolling；`settling` 那一拍骰子已经落定，点数就该亮着
+const rolling = computed(() =>
+  game.stageNow?.kind === 'dice' && !game.stageNow.settling)
 const shownRolls = computed(() => {
   if (game.stageNow?.kind === 'dice') return game.stageNow.rolls
   return game.lastRolls
@@ -214,7 +216,8 @@ const step = computed<1 | 2 | 3>(() => {
 const held = computed(() => game.staging)
 const heldTip = computed(() => {
   switch (game.stageNow?.kind) {
-    case 'dice': return '骰子还在转…'
+    case 'dice': return game.stageNow.settling
+      ? `掷出 ${game.stageNow.rolls.reduce((a, b) => a + b, 0)} 点` : '骰子还在转…'
     case 'deal': return '正在发牌…'
     case 'reshuffle': return '正在洗牌…'
     default: return '正在移动…'
@@ -460,11 +463,10 @@ const blockedBy = computed(() => {
                  :offline="!game.connected" @tap="tapSquare">
         <template #hub>
           <!-- 轮心只放骰盘 + 一行状态提示；轮次归 HUD，进度归 HUD 进度带。
-               停赛的人不给骰盘——那是一个按下必被拒的按钮 -->
-          <div v-if="game.isMyTurn && me.skipTurns" class="hub-tip">
-            停赛中 · 还需跳过 {{ me.skipTurns }} 轮
-          </div>
-          <div v-else class="board-dice"
+               停赛的人不给骰盘——那是一个按下必被拒的按钮。
+               **但也不在这里另写一行「停赛中」**：那句话是状态提示的职责，
+               `hubTip` 已经说了，两处都写就会在轮心里重复两遍（第二轮试玩） -->
+          <div v-if="!(game.isMyTurn && me.skipTurns)" class="board-dice"
                :class="`n${Math.max(1, shownRolls.length || diceCount)}`">
             <Die3d v-for="i in Math.max(1, shownRolls.length || diceCount)" :key="i"
                    :index="i - 1" :value="rolling ? null : (shownRolls[i - 1] ?? null)"
