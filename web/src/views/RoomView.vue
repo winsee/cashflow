@@ -265,7 +265,10 @@ async function copyUrl() {
           <!-- 还没抽：一张牌背。不做「进页自动发」——进页那一瞬 WS 可能还没连上，
                会先闪一屏空白再蹦出一张卡；让玩家自己揭这一下，也把"这张是我抽的"落到实处 -->
           <template v-else>
-            <div class="prof-back card-back" :class="{ waiting: drawing }"
+            <!-- `waiting` 的轻晃是「请求还在路上」的提示，**帘幕落下就没有观众了**：
+                 揭牌期间它只会在淡入的那几帧里从帘幕底下透出来，和帘幕里那张牌背
+                 （屏心、scale .55、静止）一大一小地打架。所以 `&& !revealing`。 -->
+            <div class="prof-back card-back" :class="{ waiting: drawing && !revealing }"
                  :style="{ color: DECK_COLOR.PROFESSION }" @click="drawProfession">
               {{ DECK_LABEL.PROFESSION }}
             </div>
