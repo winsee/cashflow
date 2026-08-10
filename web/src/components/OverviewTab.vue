@@ -5,6 +5,7 @@ import { confirmAction } from '../confirm'
 import { fmt, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
 import type { Player } from '../types'
 import StatementTab from './StatementTab.vue'
+import StatusChips from './StatusChips.vue'
 import BaseModal from './base/BaseModal.vue'
 
 const game = useGame()
@@ -61,13 +62,12 @@ async function leaveGame() {
           <b>{{ p.nickname }}</b>
           <span class="muted">· {{ p.professionTitle || '—' }}</span>
           <span v-if="p.id === st.currentPlayerId" class="badge turn" style="margin-left:6px">行动中</span>
-          <span v-if="p.phase === 'FAST_TRACK'" class="badge ft" style="margin-left:6px">快车道</span>
-          <span v-if="p.phase === 'OUT'" class="badge out" style="margin-left:6px">出局</span>
-          <span v-if="p.skipTurns" class="badge" style="margin-left:6px">停赛 {{ p.skipTurns }}</span>
-          <span v-if="p.inBankruptcy" class="badge out" style="margin-left:6px">破产清算中</span>
         </div>
         <div class="num big">{{ fmt(p.cash) }}</div>
       </div>
+
+      <!-- 持续状态：这一页信息最全，主状态与次要状态（快车道 / 分期收款 / 孩子数）都写出来 -->
+      <StatusChips :player="p" minor style="margin-top:6px" />
 
       <template v-if="p.phase === 'RAT_RACE'">
         <div class="row between muted" style="margin-top:6px">

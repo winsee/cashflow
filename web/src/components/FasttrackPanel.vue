@@ -211,7 +211,8 @@ async function ftHit(action: string, title: string, desc: string, amount: number
                 :disabled="squareLocked" @click="ftCharity">
           <span class="dot" style="background:#E8913C"></span>慈善 $100,000
         </button>
-        <span v-else class="badge ft">💝 已行善：每轮可掷 1–3 粒骰</span>
+        <!-- 文案取自 statuses.ts 的 CHARITY_FT，避免同一句话在两处各写一份 -->
+        <span v-else class="badge ft">💝 已行善 · 可掷 1–3 粒骰</span>
       </div>
 
       <div class="section-title">倒霉格</div>

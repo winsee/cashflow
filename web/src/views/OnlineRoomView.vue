@@ -9,6 +9,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { bankRequest } from '../bankrequest'
 import { confirmAction } from '../confirm'
+import { majorStatus } from '../statuses'
 import { fmt, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
 import type { CardDto, Player } from '../types'
 import BoardView from '../components/board/BoardView.vue'
@@ -18,8 +19,10 @@ import FtSquareCard from '../components/cards/FtSquareCard.vue'
 import DealCurtain from '../components/board/DealCurtain.vue'
 import OnlineCardPanel from '../components/board/OnlineCardPanel.vue'
 import OnlineLandingPanel from '../components/board/OnlineLandingPanel.vue'
+import PlayerTableRow from '../components/PlayerTableRow.vue'
 import PromptModal from '../components/PromptModal.vue'
 import ReceiptStack from '../components/ReceiptStack.vue'
+import SeatStrip from '../components/SeatStrip.vue'
 import ResultView from '../components/ResultView.vue'
 import ConnectingFallback from '../components/ConnectingFallback.vue'
 import FasttrackIntro from '../components/FasttrackIntro.vue'
@@ -52,27 +55,14 @@ const toWin = computed(() => {
   return f ? Math.max(0, f.initial_income + FT_WIN_INCREMENT - f.current_income) : 0
 })
 
-/** 本轮的行动顺序座次条：一眼读出现在第几轮、轮到谁、这一轮还剩几个人到我 */
-const seats = computed(() => {
-  const s = game.state
-  if (!s) return []
-  return s.turnOrder.map((pid, i) => {
-    const p = s.players.find(x => x.id === pid)
-    return {
-      id: pid, initial: p?.nickname.slice(0, 1) ?? '?',
-      now: i === s.turnIndex, done: i < s.turnIndex, out: p?.phase === 'OUT',
-    }
-  })
-})
-
 /** 观战牌桌（design/09 §6）：每位玩家走到回合的哪一步、账面什么样。
  *  全从已下发的字段派生，不加一次请求；口径与线下 `ActionTab.tableStepText` 同一套。 */
 function stepTextOf(p: Player): string {
   const s = game.state!
-  if (p.phase === 'OUT') return '已出局'
-  if (p.inBankruptcy) return '正在破产清算'
-  if (p.id !== s.currentPlayerId)
-    return p.skipTurns ? `停赛中 · 还需跳过 ${p.skipTurns} 轮` : '等待中'
+  // 出局 / 破产清算 / 停赛这三句由状态徽章负责，这里不再说第二遍
+  // （同「轮心把停赛说了两遍」那条：一个位置只有一个主人）
+  if (p.phase === 'OUT' || p.inBankruptcy) return ''
+  if (p.id !== s.currentPlayerId) return p.skipTurns ? '' : '等待中'
   if (!s.turnDiceUsed) return '正在掷骰'
   if (s.landing && !s.landing.resolved) return '正在处理落点'
   if (s.activeCard && !s.activeCard.resolved) return '正在决定这张卡'
@@ -80,10 +70,8 @@ function stepTextOf(p: Player): string {
 }
 
 const tableRows = computed(() => (game.state?.players ?? []).map(p => ({
-  id: p.id, nickname: p.nickname,
+  id: p.id, p,
   now: p.id === game.state!.currentPlayerId,
-  ft: p.phase === 'FAST_TRACK',
-  cash: p.cash, flow: p.derived.monthlyCashflow, ftIncome: p.fasttrack.current_income,
   step: stepTextOf(p),
 })))
 
@@ -224,11 +212,15 @@ const heldTip = computed(() => {
   }
 })
 
+/** 我身上优先级最高的持续状态（停赛 / 慈善 / 破产 …）：轮心与 peek 条共用这一句 */
+const myStatus = computed(() => (me.value ? majorStatus(me.value) : null))
+
 const hubTip = computed(() => {
   if (!game.connected) return '重新连上之前，不能掷骰'
   if (held.value) return heldTip.value
   if (!game.isMyTurn) return `${game.currentPlayer?.nickname ?? '对手'} 正在行动`
-  if (me.value?.skipTurns) return `停赛中 · 还需跳过 ${me.value.skipTurns} 轮`
+  // 「停赛中 · 还需跳过 N 轮」与牌桌、总览、座次条同一份派生，不在这里另写一遍
+  if (me.value?.skipTurns) return myStatus.value?.label ?? ''
   if (step.value === 1) return '点骰子开始这一回合'
   if (step.value === 2) return landing.value?.note || '这一格还欠你一个决定'
   return '这一格处理完了'
@@ -424,10 +416,7 @@ const blockedBy = computed(() => {
         · 第 {{ game.state.turnCount }} 轮
         <span v-if="!game.connected" style="color:var(--red)">· 重连中…</span>
         <span class="grow"></span>
-        <span class="seat-strip">
-          <span v-for="s in seats" :key="s.id" class="seat-dot"
-                :class="{ now: s.now, done: s.done, out: s.out }">{{ s.initial }}</span>
-        </span>
+        <SeatStrip />
       </div>
       <template v-if="me.phase !== 'OUT'">
         <div class="hud-goal">
@@ -512,11 +501,7 @@ const blockedBy = computed(() => {
           </span>
           <span class="grow"></span>
           <!-- 头像列就是展开牌桌的入口：围观也是玩，别人的账面不该只能靠猜 -->
-          <button class="seat-strip" title="看牌桌"
-                  @click="detent = detent === 'peek' ? 'half' : 'peek'">
-            <span v-for="s in seats" :key="s.id" class="seat-dot"
-                  :class="{ now: s.now, done: s.done, out: s.out }">{{ s.initial }}</span>
-          </button>
+          <SeatStrip clickable @open="detent = detent === 'peek' ? 'half' : 'peek'" />
           <button v-if="me.isHost" class="btn ghost small"
                   @click="game.act('HOST_END_TURN')">⋯ 代结束</button>
         </template>
@@ -526,7 +511,7 @@ const blockedBy = computed(() => {
         <template v-else>
           <span class="who">第 {{ step }} 步 / 3</span>
           <span class="muted">
-            <template v-if="me.charityTurns">慈善生效中 · 还剩 {{ me.charityTurns }} 轮</template>
+            <template v-if="myStatus">{{ myStatus.label }}</template>
             <template v-else-if="step === 1">掷骰</template>
             <template v-else-if="step === 2">处理落点</template>
             <template v-else>可以结束回合</template>
@@ -596,26 +581,8 @@ const blockedBy = computed(() => {
                演出期间照旧显示（这时卡面还没落进抽屉，正文不该是空的） -->
           <template v-if="!game.isMyTurn && (held || !activeCardInfo) && game.connected">
             <div class="section-title">牌桌</div>
-            <div v-for="r in tableRows" :key="r.id" class="card inner">
-              <div class="row between">
-                <div class="row" style="gap:8px">
-                  <span class="avatar-lg">{{ r.nickname.slice(0, 1) }}</span>
-                  <div>
-                    <b style="font-size:13px">{{ r.nickname
-                      }}<span v-if="r.id === me.id">（你）</span></b>
-                    <div class="muted" style="font-size:11px">{{ r.step }}</div>
-                  </div>
-                </div>
-                <span v-if="r.now" class="badge turn">行动中</span>
-              </div>
-              <div class="row between muted" style="margin-top:8px">
-                <span>现金 <b class="money">{{ fmt(r.cash) }}</b></span>
-                <span v-if="r.ft">现金流量日收入 <b class="money">{{ fmt(r.ftIncome) }}</b></span>
-                <span v-else>月现金流
-                  <b class="money" :class="r.flow >= 0 ? 'pos' : 'neg'">
-                    {{ r.flow >= 0 ? '+' : '' }}{{ fmt(r.flow) }}</b></span>
-              </div>
-            </div>
+            <PlayerTableRow v-for="r in tableRows" :key="r.id" inner
+                            :player="r.p" :step="r.step" :now="r.now" :self="r.id === me.id" />
           </template>
         </template>
       </div>

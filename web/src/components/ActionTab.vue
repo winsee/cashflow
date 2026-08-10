@@ -6,7 +6,9 @@ import { fmt, useGame } from '../store'
 import type { CardDto } from '../types'
 import CardPicker from './CardPicker.vue'
 import FasttrackPanel from './FasttrackPanel.vue'
+import PlayerTableRow from './PlayerTableRow.vue'
 import ReceiptStack from './ReceiptStack.vue'
+import StatusChips from './StatusChips.vue'
 import StockTradeBox from './StockTradeBox.vue'
 import BaseModal from './base/BaseModal.vue'
 import GameCard from './cards/GameCard.vue'
@@ -322,7 +324,8 @@ async function hostEndTurn() {
 const tableStepText = computed(() => {
   const cur = game.currentPlayer
   if (!cur) return ''
-  if (cur.inBankruptcy) return '正在破产清算'
+  // 破产清算由状态徽章说，这里不说第二遍
+  if (cur.inBankruptcy) return ''
   if (cur.phase === 'FAST_TRACK') return '正在快车道行动'
   if (!st.value.turnPaydayUsed) return '正在确认银行结算日'
   if (!st.value.turnSquareUsed) return '正在选停留格'
@@ -335,11 +338,8 @@ const tableStepText = computed(() => {
     <!-- 「刚刚发生在你身上」：没操作却改了我的账的事，停在最上直到本人确认 -->
     <ReceiptStack />
 
-    <!-- 慈善/停赛状态 -->
-    <div v-if="me.charityTurns > 0 || me.skipTurns > 0" class="row wrap" style="margin-bottom:8px">
-      <span v-if="me.charityTurns > 0" class="badge ft">💝 慈善生效中 · 还剩 {{ me.charityTurns }} 轮 · 可掷 1 或 2 粒骰</span>
-      <span v-if="me.skipTurns > 0" class="badge out">⏸️ 停赛中 · 还需跳过 {{ me.skipTurns }} 轮</span>
-    </div>
+    <!-- 我身上的持续状态（慈善 / 停赛 / 破产清算 …）：与牌桌、总览同一份派生 -->
+    <StatusChips :player="me" style="margin-bottom:8px" />
 
     <!-- 破产清算（最高优先） -->
     <BankruptcyPanel v-if="me.inBankruptcy" />
@@ -545,29 +545,7 @@ const tableStepText = computed(() => {
       <!-- 不是我的回合、也没有活动卡：显示牌桌。围观也是玩——他走到哪一步了，看得见 -->
       <template v-else-if="!myTurn && game.currentPlayer">
         <div class="section-title">牌桌</div>
-        <div class="card">
-          <div class="row between">
-            <div class="row" style="gap:8px">
-              <span class="avatar-lg">{{ game.currentPlayer.nickname.slice(0, 1) }}</span>
-              <div>
-                <b style="font-size:13.5px">{{ game.currentPlayer.nickname }}</b>
-                <div class="muted" style="font-size:11px">{{ tableStepText }}</div>
-              </div>
-            </div>
-            <span class="badge turn">行动中</span>
-          </div>
-          <div v-if="game.currentPlayer.phase === 'RAT_RACE'" class="row between muted" style="margin-top:9px">
-            <span>现金 <b class="money">{{ fmt(game.currentPlayer.cash) }}</b></span>
-            <span>月现金流
-              <b class="money" :class="game.currentPlayer.derived.monthlyCashflow >= 0 ? 'pos' : 'neg'">
-                {{ game.currentPlayer.derived.monthlyCashflow >= 0 ? '+' : ''
-                }}{{ fmt(game.currentPlayer.derived.monthlyCashflow) }}</b></span>
-          </div>
-          <div v-else class="row between muted" style="margin-top:9px">
-            <span>现金 <b class="money">{{ fmt(game.currentPlayer.cash) }}</b></span>
-            <span>现金流量日收入 <b class="money">{{ fmt(game.currentPlayer.fasttrack.current_income) }}</b></span>
-          </div>
-        </div>
+        <PlayerTableRow :player="game.currentPlayer" :step="tableStepText" now />
       </template>
 
       <!-- 股票交易窗口收起后的重开入口 -->

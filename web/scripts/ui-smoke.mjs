@@ -21,10 +21,16 @@ const OUT = join(repo, 'build', 'ui-smoke')
 const PORT = 8391
 const BASE = `http://127.0.0.1:${PORT}`
 
+// 房主的开发机是 Windows，前三条是那台机器上的路径；后面几条只为在 Linux 容器
+// （云端 CI / 远程会话）里也能跑一遍，existsSync 取第一条命中的，Windows 上行为不变。
 const BROWSERS = [
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  '/opt/pw-browsers/chromium',
+  '/usr/bin/microsoft-edge',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium',
 ]
 const browserPath = BROWSERS.find(existsSync)
 if (!browserPath) { console.error('找不到 Edge/Chrome'); process.exit(1) }
@@ -35,7 +41,9 @@ if (!existsSync(join(root, 'dist', 'index.html'))) {
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
 
-const py = join(repo, 'server', '.venv', 'Scripts', 'python.exe')
+// 同上：Windows 是 Scripts/python.exe，Linux 容器里是 bin/python
+const pyWin = join(repo, 'server', '.venv', 'Scripts', 'python.exe')
+const py = existsSync(pyWin) ? pyWin : join(repo, 'server', '.venv', 'bin', 'python')
 const server = spawn(py, ['-m', 'app.serve'], {
   cwd: join(repo, 'server'),
   env: { ...process.env, CASHFLOW_HTTPS: 'off', CASHFLOW_HTTP_PORT: String(PORT) },
@@ -341,6 +349,31 @@ async function main() {
   await expectText(pb, '08g-撤销回执只给当事人', { has: ['房主撤销'] })
   await clickText(pb, '.btn', '我知道了')
 
+  // 持续状态（慈善 / 停赛这类跨回合的）**必须让同桌看得见**：
+  // 引擎里 skip_turns 是在 _advance_turn 的重放路径里静默递减的，发不出事件，
+  // 所以「谁身上还挂着什么」只能靠状态本身说出来。
+  await send(pa, 'END_TURN')                             // 换一个回合，停留格才是空的
+  await send(pb, 'END_TURN')
+  await sleep(300)
+  await send(pa, 'CHARITY')
+  await sleep(700)
+  // 本人：行动页顶部一枚徽章；捐款是自己点的，不该再给自己推一条回执
+  await shot(pa, '03h-线下-本人的持续状态', '.badge-row .badge')
+  await expectText(pa, '03h-线下-本人的持续状态', {
+    has: ['慈善生效中'], hasNot: ['刚刚发生在你身上'],
+  })
+  // 别人：牌桌那一行同样写着，外加一条「别人身上开始了一段持续状态」的回执
+  await shot(pb, '03i-线下-别人的持续状态', '.badge-row .badge')
+  await expectText(pb, '03i-线下-别人的持续状态', {
+    has: ['慈善生效中', '捐款做慈善', '可自选掷 1 或 2 粒骰'],
+  })
+  await clickText(pb, '.btn', '我知道了')
+  // 总览页信息最全：主状态之外，次要状态（快车道 / 分期收款 / 孩子数）也写出来
+  await pb.evaluate(() => document.querySelectorAll('.tabbar button')[2].click())
+  await shot(pb, '03j-线下-总览-别人的持续状态', '.badge-row .badge')
+  await expectText(pb, '03j-线下-总览-别人的持续状态', { has: ['慈善生效中'] })
+  await pb.evaluate(() => document.querySelectorAll('.tabbar button')[1].click())
+
   // 「人人可买」的股票卡：无持仓的人也弹（卡面写明每个人都能买），但一个字都不该问他卖不卖
   await send(pa, 'END_TURN')                             // 这一回合的停留格已经用掉了
   await send(pb, 'END_TURN')
@@ -616,6 +649,19 @@ async function main() {
   await shot(pOther, '23a-纯线上-观战牌桌', '.drawer-body .avatar-lg')
   await expectText(pOther, '23a-纯线上-观战牌桌', { has: ['牌桌', '行动中', '月现金流'] })
 
+  // 座次条抽成了组件，HUD 与 peek 条两处必须都还在（这两处以前是各写一份的）
+  await shot(pOther, '23b-纯线上-座次条两处都在', '.hud-turn .seat-strip .seat-dot')
+  const strips = await pOther.evaluate(() => ({
+    hud: document.querySelectorAll('.hud-turn .seat-strip .seat-dot').length,
+    peek: document.querySelectorAll('.drawer-peek .seat-strip .seat-dot').length,
+    marks: document.querySelectorAll('.seat-dot .mark').length,
+  }))
+  if (strips.hud !== 2 || strips.peek !== 2)
+    failures.push(`23b-纯线上-座次条两处都在: HUD ${strips.hud} 个 / peek ${strips.peek} 个，应各 2 个`)
+  // 开局谁身上都没有持续状态，所以此刻一个角标都不该有——有角标就是判据写漏了
+  if (strips.marks)
+    failures.push(`23b-纯线上-座次条两处都在: 没人有持续状态，却画了 ${strips.marks} 个角标`)
+
   // 25 掷骰 → 走格 → 落点。点数由服务端摇，落到哪一格无法预设，所以反复掷到
   // 停在机会格为止（24 格里 12 个是机会，几轮之内必中），中途的落点顺手处理掉。
   const screen = page => page.evaluate(() => document.getElementById('app')?.innerText ?? '')
@@ -763,6 +809,53 @@ async function main() {
   await pOther.setOfflineMode(false)
   await sleep(1800)
   offlineOnPurpose = false
+
+  // 29 座次条角标的**正例**：谁身上挂着持续状态，同桌一眼看得出。
+  // 上面那间房只有 2 个人，把谁标成出局都会立刻判定胜负、整屏换成结算页，
+  // 所以另开一间 3 人房专门验这一条——它不掷骰、不走完整回合，只看渲染。
+  {
+    const sa = await api('/api/rooms', {
+      nickname: '阿盯', name: '状态验证局', maxPlayers: 4, password: null, mode: 'ONLINE' })
+    const sb = await api(`/api/rooms/${sa.roomCode}/join`, { nickname: '小盯', password: null })
+    const sc = await api(`/api/rooms/${sa.roomCode}/join`, { nickname: '丙盯', password: null })
+    const [ga, gb, gc] = [
+      await openAs({ ...sa, nickname: '阿盯' }),
+      await openAs({ ...sb, nickname: '小盯' }),
+      await openAs({ ...sc, nickname: '丙盯' }),
+    ]
+    const dreams = (await (await fetch(`${BASE}/api/board/fasttrack`)).json()).dreams
+    for (const [i, g] of [ga, gb, gc].entries()) {
+      await send(g, 'SELECT_PROFESSION')
+      await sleep(200)
+      await send(g, 'SELECT_DREAM', { dreamId: dreams[i].id })
+      await sleep(200)
+    }
+    await send(ga, 'START_GAME')
+    await sleep(600)
+    for (const g of [ga, gb]) {
+      await g.goto(`${BASE}/#/play`, { waitUntil: 'networkidle2' })
+      await sleep(400)
+    }
+    // 房主移除丙盯 → 他 phase=OUT，还剩 2 人所以对局继续（3 人房才有这个余地）
+    await send(ga, 'HOST_REMOVE_PLAYER', { playerId: sc.playerId })
+    await sleep(900)
+    // 牌桌只画给旁观者看，所以站到「不是我回合」的那一台上（先手由服务端摇骰定）
+    const gaTurn = await ga.evaluate(() =>
+      (document.querySelector('.hud-turn')?.textContent ?? '').includes('轮到你了'))
+    const gWatch = gaTurn ? gb : ga
+    await gWatch.evaluate(() => document.querySelector('.drawer-peek .seat-strip')?.click())
+    await sleep(500)
+    await shot(gWatch, '29-纯线上-座次条角标与牌桌状态', '.seat-dot .mark')
+    await expectText(gWatch, '29-纯线上-座次条角标与牌桌状态', { has: ['已出局'] })
+    const marks = await gWatch.evaluate(() => ({
+      hud: document.querySelectorAll('.hud-turn .seat-dot .mark').length,
+      badge: [...document.querySelectorAll('.drawer-body .badge')].map(b => b.textContent.trim()),
+    }))
+    if (marks.hud !== 1)
+      failures.push(`29-纯线上-座次条角标与牌桌状态: HUD 座次条应有 1 个角标，实际 ${marks.hud} 个`)
+    if (!marks.badge.some(t => t.includes('已出局')))
+      failures.push('29-纯线上-座次条角标与牌桌状态: 牌桌那一行没写「已出局」')
+  }
 
   // 文字溢出不靠肉眼查：扫一遍撑破容器的元素（跳过可滚容器与 SVG 内部）
   for (const [name, page] of [['纯线上棋盘', pMe], ['线下行动页', pa]]) {
