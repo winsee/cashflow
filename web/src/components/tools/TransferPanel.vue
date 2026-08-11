@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** 🤝 玩家间转账：发起后待对方确认才扣款。
- *  线下「行动」页与纯线上「账本 · 更多」页共用（见 BankPanel 的同一条理由）。 */
+ *  线下「行动」页与纯线上「资金」弹层共用（见 BankPanel 的同一条理由）。 */
 import { computed, ref } from 'vue'
 import { useGame } from '../../store'
 

@@ -106,8 +106,8 @@ async function buy() {
       </template>
     </p>
 
-    <!-- 纯线上：银行在**另一条路**上（账本 → 更多），只写一句「请先去贷款」等于指向一个
-         不存在的入口（试玩里 $4,000/股 的 CD 就是这样把人卡死的）。给一条能点的路。 -->
+    <!-- 纯线上：银行不在这一页上（在棋盘右上角 🏦 的资金弹层里），只写一句「请先去贷款」
+         等于指向一个看不见的入口（试玩里 $4,000/股 的 CD 就是这样把人卡死的）。给一条能点的路。 -->
     <div v-if="game.isOnline && w.canBuy && shortOfCash" class="card inner danger"
          style="background:var(--red-soft)">
       <div class="row between">

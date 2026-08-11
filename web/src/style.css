@@ -1070,12 +1070,18 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   content: ''; position: absolute; left: 0; right: 0; top: -14px; height: 14px;
   background: linear-gradient(180deg, transparent, var(--panel)); pointer-events: none;
 }
-/* 账本的分段控件：钉在内容区顶部，四段等宽。
-   老排法是把四个 tab 连同「跳过动画」「收起」一起塞进 peek 那一条，375 屏宽必然折成两行；
-   分页控件属于它翻的那叠内容，本来就该长在内容区顶上，而不是长在状态条上。 */
+/* 抽屉那根把手也能点（点一下退一档 / peek 档点一下展开），所以给 pointer 而不是 grab——
+   grab 只暗示「能拖」，会把「点一下就收起来」这条路藏掉。
+   只覆盖抽屉自己的那一根：BaseModal 的把手仍然只认下滑，那儿 grab 是诚实的。 */
+.board-drawer .sheet-grab.grabbable { cursor: pointer; }
+
+/* 账本的分段控件：钉在内容区顶部，三段等宽。
+   老排法是把 tab 连同「跳过动画」「收起」一起塞进 peek 那一条，375 屏宽必然折成两行；
+   分页控件属于它翻的那叠内容，本来就该长在内容区顶上，而不是长在状态条上。
+   第四段「更多」已搬去悬浮的资金弹层（design/09 §2.4 v0.5）。 */
 .ledger-seg {
   position: sticky; top: 0; z-index: 1; flex: none;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
   padding: 3px; margin-bottom: 2px;
   background: var(--panel2); border: 1px solid var(--line); border-radius: 999px;
 }
