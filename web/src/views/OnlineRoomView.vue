@@ -284,19 +284,35 @@ watch(wantDetent, (w) => {
   else if (w === 'peek' && !ledger.value) detent.value = 'peek'
 })
 
-const drawerH = computed(() => DETENT_H[detent.value])
+/** 跟手期间抽屉的实时像素高（null = 没在拖，交回档位说了算） */
+const dragH = ref<number | null>(null)
+const dragging = computed(() => dragH.value !== null)
+const drawerH = computed(() =>
+  dragH.value !== null ? `${dragH.value}px` : DETENT_H[detent.value])
 /** 档位切换缩的是棋盘**自身的宽度变量**（stage 有 overflow:hidden，缩 stage 等于白缩） */
 const boardWidth = computed(() =>
   detent.value === 'full' ? '150px' : detent.value === 'half' ? '230px' : '332px')
 
-/** 把手是抽屉**唯一**的收起控件（design/09 §2.2 v0.5）。
+/** 抽屉的手势（design/09 §2.2 v0.10）：**整块都接**，不只那根 34×4px 的把手。
  *
- *  从前它只认拖拽（`Math.abs(dy) < 24` 直接 return），点了没反应，于是账本只好在
- *  peek 条右端另挂一枚「收起 ✕」按钮补位——一枚实心描边按钮，为了关一个抽屉。
- *  而手动拉到 half 看牌桌的人连那枚按钮都没有，只能再点一次头像列。
- *  一条规则收干净：**向下 = 退一步**（账本打开时「退一步」就是关掉账本，不停在 half），
- *  向上 = 进一步；点击在 peek 档是展开，其余档位是退一步。 */
-let grabStart = 0
+ *  v0.7 把手从「只认拖拽」补成「也认点击」，解决的是「点了没反应」；把手势限死在
+ *  把手上是当时省下的一步，真机上的代价是：想收抽屉只能去够那根小横条，
+ *  而在正文里往下拉换来的是**浏览器把整页刷新掉**（滚动链溢出到根，见 style.css
+ *  那几条 `overscroll-behavior` / `touch-action`）。
+ *
+ *  现在三处入口共用同一台状态机：
+ *  - 把手：跟手 + **点击**（peek 档点是展开，其余档位点是退一步；账本的「退一步」
+ *    是整个关掉账本，不停在 half——账本只有 full 一种形态）
+ *  - 状态条：只跟手。它从来不是个按钮，给它点击语义等于凭空多一个不写在脸上的开关
+ *  - 正文：只跟手，且要先判归属（见 `onBodyMove`）——那儿的主人是滚动
+ *
+ *  松手就近吸附到三档里最近的一档；`ORDER` 的逐档升降只留给点击与合成事件。 */
+const drawerEl = ref<HTMLElement | null>(null)
+const TAP_DY = 24        // 把手：位移不到这个数算点击
+const BODY_DY = 12       // 正文：起判要早于浏览器决定滚动
+let dragFromY = 0
+let dragFromH = 0
+
 function raise() {
   detent.value = ORDER[Math.min(ORDER.length - 1, ORDER.indexOf(detent.value) + 1)]
 }
@@ -304,17 +320,112 @@ function lower() {
   if (ledger.value) { closeLedger(); return }
   detent.value = ORDER[Math.max(0, ORDER.indexOf(detent.value) - 1)]
 }
+
+/** 三档的像素高。full 实际被 `flex: 0 1 auto` 压过，但标称值单调，够拿来就近吸附 */
+function detentPx(): Record<Detent, number> {
+  const vh = window.innerHeight
+  return { peek: 128, half: vh * 0.46, full: vh * 0.88 }
+}
+function nearestDetent(h: number): Detent {
+  const px = detentPx()
+  return ORDER.reduce((best, d) =>
+    Math.abs(px[d] - h) < Math.abs(px[best] - h) ? d : best, ORDER[0])
+}
+
+function beginDrag(y: number) {
+  dragFromY = y
+  // **实测**起始高，不用标称值：full 档被 flex 压过，标称 88dvh 不是它的真高度
+  dragFromH = drawerEl.value?.offsetHeight ?? 128
+}
+function moveDrag(y: number) {
+  const px = detentPx()
+  dragH.value = Math.min(px.full, Math.max(px.peek, dragFromH - (y - dragFromY)))
+}
+/** @param tappable 位移不够时算不算一次点击（只有把手算） */
+function endDrag(y: number, tappable: boolean) {
+  const dy = y - dragFromY
+  const followed = dragH.value !== null
+  dragH.value = null
+  // 位移不到 TAP_DY 一律不换档（跟过手的就弹回原档）：手指点一下难免带三五像素，
+  // 拿「有没有 move 事件」当判据的话，点一下把手就成了拖一下，什么都不会发生
+  if (Math.abs(dy) < TAP_DY) {
+    if (tappable) detent.value === 'peek' ? raise() : lower()
+    return
+  }
+  // 账本只有 full 一种形态，半开着既读不成也让不开路：向下就整个关掉，向上留在 full
+  if (ledger.value) { if (dy > 0) closeLedger(); return }
+  // 没跟过手（合成事件、或指针一步到位）就退回逐档升降
+  if (!followed) { dy < 0 ? raise() : lower(); return }
+  detent.value = nearestDetent(dragFromH - dy)
+}
+
+// ---- 入口一/二：把手与状态条（都是 touch-action:none 的非滚动块，pointer 事件够用）----
+
 function onGrab(e: PointerEvent) {
-  grabStart = e.clientY
+  beginDrag(e.clientY)
   // 指针已经不活跃时 setPointerCapture 会抛 NotFoundError；捕获只是为了拖得跟手，
   // 抓不到也不该把这一次交互整个废掉（下面的 pointerup 照样要认）
   try { (e.target as HTMLElement).setPointerCapture(e.pointerId) } catch { /* 无妨 */ }
 }
-function onGrabUp(e: PointerEvent) {
-  const dy = e.clientY - grabStart
-  if (Math.abs(dy) < 24) detent.value === 'peek' ? raise() : lower()
-  else if (dy < 0) raise()
-  else lower()
+function onGrabMove(e: PointerEvent) {
+  if (!e.buttons && e.pointerType === 'mouse') return
+  if (dragH.value === null && Math.abs(e.clientY - dragFromY) < 3) return
+  moveDrag(e.clientY)
+}
+function onGrabUp(e: PointerEvent) { endDrag(e.clientY, true) }
+
+/** 状态条：里头有头像列和「⋯ 代结束」，从按钮上起手的不是拖抽屉 */
+let peekArmed = false
+function onPeekDown(e: PointerEvent) {
+  peekArmed = !(e.target as HTMLElement).closest('button, a, input, select')
+  if (!peekArmed) return
+  onGrab(e)
+}
+function onPeekMove(e: PointerEvent) { if (peekArmed) onGrabMove(e) }
+function onPeekUp(e: PointerEvent) {
+  if (!peekArmed) return
+  peekArmed = false
+  endDrag(e.clientY, false)   // 状态条不认点击
+}
+
+// ---- 入口三：正文。这里的主人是滚动，抽屉只在滚不动的方向上接管 ----
+
+/** null = 还没判；'drawer' = 归抽屉；'scroll' = 归原生滚动，这一次触摸不再重判
+ *  （滚到顶就突然被抽屉接管，是比「拖不动」更糟的手感） */
+let bodyOwner: null | 'drawer' | 'scroll' = null
+
+/** 正文必须用 touch 事件而不是 pointer：要在浏览器把手势判成滚动**之前**
+ *  `preventDefault()` 才抢得过来，而 `touch-action: pan-y` 下滚动一开始，
+ *  pointermove 就被 `pointercancel` 掉了。Vue 3 的 `@touchmove` 默认非 passive，正合用。 */
+function onBodyStart(e: TouchEvent) {
+  if (e.touches.length !== 1) { bodyOwner = 'scroll'; return }
+  bodyOwner = null
+  beginDrag(e.touches[0].clientY)
+}
+function onBodyMove(e: TouchEvent) {
+  if (bodyOwner === 'scroll' || e.touches.length !== 1) return
+  const y = e.touches[0].clientY
+  const dy = y - dragFromY
+  if (bodyOwner === null) {
+    if (Math.abs(dy) < BODY_DY) return
+    const el = e.currentTarget as HTMLElement
+    const scrollable = el.scrollHeight - el.clientHeight > 2
+    // 向下且已经在顶（再滚也没得滚，这一拉本来就要溢出给浏览器去刷新整页）→ 归抽屉
+    // 向上且正文根本滚不动（peek 档的常态）→ 归抽屉
+    bodyOwner = (dy > 0 ? el.scrollTop <= 0 : !scrollable) ? 'drawer' : 'scroll'
+    if (bodyOwner === 'scroll') return
+  }
+  e.preventDefault()
+  moveDrag(y)
+}
+function onBodyEnd(e: TouchEvent) {
+  const owner = bodyOwner
+  bodyOwner = null
+  if (owner !== 'drawer') return
+  // 松手时也要 preventDefault：否则浏览器会朝手指底下那个东西补一次 click，
+  // 而正文里全是「买入 / 放弃」——拖一下抽屉顺手买了张卡是不可接受的
+  e.preventDefault()
+  endDrag(e.changedTouches[0]?.clientY ?? dragFromY, false)
 }
 
 function openLedger(page: LedgerPage = 'statement') {
@@ -502,14 +613,19 @@ const blockedBy = computed(() => {
     </div>
 
     <!-- ===== 底部三档抽屉 ===== -->
-    <div class="board-drawer" :style="{ '--dh': drawerH }">
-      <!-- 把手是抽屉唯一的收起控件（§2.2 v0.5）。用 `<button>` 而不是 `<div>`：
-           它现在能点了，语义与键盘可达性得跟上；裸 button 早已被重置成中性，视觉不变。 -->
+    <div ref="drawerEl" class="board-drawer" :class="{ dragging }" :style="{ '--dh': drawerH }">
+      <!-- 把手：跟手 + 点击（§2.2 v0.10）。用 `<button>` 而不是 `<div>`：
+           它能点，语义与键盘可达性得跟上；裸 button 早已被重置成中性，视觉不变。
+           手势现在铺到了整个抽屉，但**点击只有这一根认**——状态条和正文不是按钮。 -->
       <button class="sheet-grab grabbable"
               :aria-label="detent === 'peek' ? '展开抽屉' : (ledger ? '收起账本' : '收起抽屉')"
-              @pointerdown="onGrab" @pointerup="onGrabUp"></button>
+              @pointerdown="onGrab" @pointermove="onGrabMove"
+              @pointerup="onGrabUp" @pointercancel="onGrabUp"></button>
 
-      <div class="drawer-peek">
+      <!-- 状态条也能拖：整块抽屉都该跟手，而不是只有那根 34×4px 的小横条 -->
+      <div class="drawer-peek"
+           @pointerdown="onPeekDown" @pointermove="onPeekMove"
+           @pointerup="onPeekUp" @pointercancel="onPeekUp">
         <!-- 破产清算优先于一切：这时候抽屉里只有清算面板，分段控件让位 -->
         <template v-if="me.inBankruptcy">
           <b class="who">破产清算</b>
@@ -548,7 +664,12 @@ const blockedBy = computed(() => {
         </template>
       </div>
 
-      <div class="drawer-body">
+      <!-- 正文的主人是滚动，抽屉只在滚不动的那个方向上接管（见 `onBodyMove` 的判归属）。
+           在这儿往下拉从前是把整页交给浏览器去刷新——对局中途的一次误刷新，
+           代价远大于一个没收起来的抽屉。 -->
+      <div class="drawer-body"
+           @touchstart="onBodyStart" @touchmove="onBodyMove"
+           @touchend="onBodyEnd" @touchcancel="onBodyEnd">
         <!-- 破产清算：抽屉自动升到 full 档，里面只有这块面板——
              卖资产、还贷、完成清算，每一步都得走得完，否则一破产就锁死 -->
         <template v-if="me.inBankruptcy">
