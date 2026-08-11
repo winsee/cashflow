@@ -100,6 +100,15 @@ async function shot(page, name, must) {
   console.log(`  ${ok ? '✓' : '✗'} ${name}`)
 }
 
+/** 只在场一两秒的那一拍（发薪帘幕、座次条上的瞬时金额）：立刻截，不等也不回头验。
+ *  `shot()` 是「等元素 → 停 500ms → 截 → 再验」，等验到的时候这一拍早过去了，
+ *  于是截出来的图是对的、断言却报「没渲染出来」。所以这类屏的断言必须在**发现的那一刻**
+ *  就把 DOM 取到手（见调用处），这里只负责把画面留下来。 */
+async function shotNow(page, name) {
+  await page.screenshot({ path: join(OUT, `${name}.png`) })
+  console.log(`  ✓ ${name}`)
+}
+
 /** 文案断言：有些屏的关键不是「有没有元素」，而是「写没写清楚 / 有没有多出不该有的按钮」 */
 async function expectText(page, name, { has = [], hasNot = [], noButtons = [] } = {}) {
   const { text, buttons } = await page.evaluate(() => ({
@@ -745,6 +754,8 @@ async function main() {
   }
   let onDeal = false
   let landedShot = false
+  let paydayShot = false
+  let stubShot = false
   for (let i = 0; i < 12 && !onDeal; i++) {
     await clickText(pMe, '.drawer-cta .btn', '掷')
     if (i === 0) {
@@ -753,14 +764,53 @@ async function main() {
       // 演出期间抽屉正文按住：不写「第 N 步 / 3」（那一步还没走到），也不摆卡面
       await expectText(pMe, '24-纯线上-掷骰与走格', { hasNot: ['第 3 步 / 3'] })
     }
-    // 一整条演出序列（design/09 §5.1 v0.4）：翻滚 1.3 + 读数 0.65 + 最多 6 格 ×0.24
-    // + 可能的过站结算 1.15 + 落点 0.62 ≈ 5.2s 封顶
-    await sleep(5600)
+    // 一整条演出序列（design/09 §5.1 v0.5）：翻滚 1.3 + 读数 0.65 + 最多 6 格 ×0.24
+    // + 可能的过站结算 1.7 + 落点 0.62 ≈ 5.8s 封顶。
+    // **边等边探发薪帘幕**：它只在场 1.7s，等 sleep 完再看必然错过。
+    // 哪一回合过站由服务端点数决定，所以照 24a 的老规矩「走到才截」，不做硬断言——
+    // 24 格里一半是机会格，第一次掷骰就撞上的话循环当场就 break 了，这一跑真的一次都不过站。
+    // （试过「没截到就把机会卡就地抽掉、继续掷」：结算日那三屏是稳了，25/26 那四屏反过来
+    //   饿死了，还把牌局留在半路上害 27e 挂掉——一个循环不该同时扛两个目标。）
+    for (let k = 0; k < 40; k++) {
+      await sleep(150)
+      if (paydayShot || !(await pMe.$('.curtain.payday'))) continue
+      paydayShot = true
+      // **先取 DOM 再截图**：这一拍只有 1.7s，截完再验就晚了（见 shotNow 的注释）
+      const cur = await pMe.evaluate(() => {
+        const c = document.querySelector('.curtain.payday')
+        return {
+          hero: !!c?.querySelector('.cline.hero'),
+          text: c?.innerText ?? '',
+          // 帘幕背后不该有它自己要揭晓的那个数（同职业卡那条通则，design/09 §5.4）
+          dup: document.querySelectorAll('.settle-amt').length,
+        }
+      })
+      // 旁观者同一时刻看到的是座次条上的瞬时金额（当事人被帘幕盖着，两边不重复说这笔钱）
+      const chip = await pOther.evaluate(() =>
+        document.querySelectorAll('.seat-strip .seat-pay').length)
+      // 断言取完了再等一下才截：明细逐行入场要到 ~1.02s 才排完（600ms 错相 + 420ms 动画），
+      // 发现即截会拍到一张只显示前两行的半成品。1.7s 的拍里这一等仍有 ~0.6s 余量
+      await sleep(850)
+      await shotNow(pMe, '24b-纯线上-发薪帘幕')
+      await shotNow(pOther, '24c-纯线上-别人过结算日')
+      if (!cur.hero) failures.push('24b-纯线上-发薪帘幕: 没有「本月净得」那一行')
+      for (const w of ['银行结算日', '工资收入', '非工资收入', '总支出', '银行储蓄'])
+        if (!cur.text.includes(w)) failures.push(`24b-纯线上-发薪帘幕: 少了「${w}」`)
+      if (cur.dup) failures.push('24b-纯线上-发薪帘幕: 帘幕在场时板上还飘着同一个金额')
+      if (!chip) failures.push('24c-纯线上-别人过结算日: 座次条上没有瞬时金额角标')
+    }
     // 落在不需要任何决定的格子上（结算日/孩子/失业/快车道惩罚格）时给一句交代——
     // 试玩反馈②：什么都没有，回合突然就能结束了，不知道刚发生了什么
     if (!landedShot && await pMe.$('.landing-done')) {
       landedShot = true
       await shot(pMe, '24a-纯线上-自动格的交代', '.landing-done')
+    }
+    // 帘幕是**仪式**（自动消散、还能被一次点击跳过），存根是**记录**：
+    // 「经过」根本不产生 landing，播完零残留就没地方回看了
+    if (paydayShot && !stubShot) {
+      stubShot = true
+      await shot(pMe, '24d-纯线上-结算日存根', '.landing-done')
+      await expectText(pMe, '24d-纯线上-结算日存根', { has: ['结算日'] })
     }
     const t = await screen(pMe)
     if (t.includes('抽哪一叠')) { onDeal = true; break }

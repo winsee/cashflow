@@ -76,10 +76,36 @@ const FT_HIT_TEXT: Record<string, { icon: string; title: string; why: string }> 
   FT_DIVORCE: { icon: '💔', title: '离婚', why: '失去全部现金' },
 }
 
+/** 结算日存根：全屏发薪帘幕（PaydayCurtain）散场后留在抽屉里的那张摘要卡。
+ *
+ *  帘幕是**仪式**——自动消散、还能被一次点击跳过，播完零残留；而「经过」根本不产生
+ *  landing，下面那张落点结果卡只认「停在」。所以没看清就没有任何回看的地方，
+ *  这张卡补的就是这一段（同发牌那条老规矩：帘幕落下，卡片落进抽屉可以慢慢看）。
+ *
+ *  金额取**事件**（store.catchStub）而不是快照：一次移动可能连过两个结算格，
+ *  快照里只有单月值，×2 在那儿看不出来。
+ */
+const stub = computed(() => {
+  const s = game.settlementStub
+  if (!s || s.playerId !== me.value?.id) return null
+  const ft = s.track === 'FAST_TRACK'
+  const name = ft ? '现金流量日' : '银行结算日'
+  // 停在这一格 vs 只是路过：两句话不一样，而 landing 正好分得清
+  const stopped = landing.value?.type === (ft ? 'FT_PAYDAY' : 'PAYDAY')
+  return {
+    icon: ft ? '💰' : '🏦',
+    title: `${stopped ? '停在' : '本回合经过'}${name}${s.times > 1 ? ` ×${s.times}` : ''}`,
+    why: s.times > 1
+      ? `${ft ? '现金流量日收入' : '月现金流'} ${signed(s.cashflow)} × ${s.times}`
+      : (ft ? '非工资收入已自动入账' : '本月收入已自动入账'),
+    amount: s.amount,
+  }
+})
+
 /** 与回执的分工按**频次**切：
  *
- *  - 每回合都可能发生的（银行结算日 / 现金流量日）只走这张结果卡：它随回合自然消失，
- *    不要求任何确认，所以**金额写在这儿**——没有回执替它说钱。
+ *  - 每回合都可能发生的（银行结算日 / 现金流量日）走上面那张存根卡：它随回合自然消失，
+ *    不要求任何确认，所以**金额写在那儿**——没有回执替它说钱。
  *  - 一局只撞上几次的重击（孩子 / 失业 / 快车道三个惩罚格）另有回执负责报数，
  *    这儿就不再把同一个数字说第二遍。
  */
@@ -88,12 +114,9 @@ const done = computed<{ icon: string; title: string; why: string; amount?: numbe
   const m = me.value
   if (!lg || !lg.resolved || !m) return null
   switch (lg.type) {
-    case 'PAYDAY':
-      return { icon: '🏦', title: '停在银行结算日', why: '本月收入已自动入账',
-               amount: m.derived.monthlyCashflow }
-    case 'FT_PAYDAY':
-      return { icon: '💰', title: '停在现金流量日', why: '非工资收入已自动入账',
-               amount: m.fasttrack.current_income }
+    // PAYDAY / FT_PAYDAY 不在这儿——**结算日归结算日存根管**（见下面的 stub）。
+    // 那份读的是事件金额，连过两个结算格的 ×2 写得出来；这儿只有快照的单月值。
+    // 一个位置只有一个主人，两处都画就会把同一笔钱说两遍。
     // 「添了一个」还是「满 3 个无效果」由**回执**去说（它读的是事件流，分得清）；
     // 结果卡读的是快照，只讲此刻的状态——两种情况下这句话都是对的。
     case 'CHILD':
@@ -116,6 +139,17 @@ const done = computed<{ icon: string; title: string; why: string; amount?: numbe
 </script>
 
 <template>
+  <!-- 结算日存根：可以和「还欠一个决定」的落点同时出现
+       （经过结算日之后落在机会格上，两件事都得说） -->
+  <div v-if="stub" class="card inner landing-done">
+    <span class="ic">{{ stub.icon }}</span>
+    <div class="tx">
+      <div class="t1">{{ stub.title }}</div>
+      <div class="t2">{{ stub.why }}</div>
+    </div>
+    <span class="amt money" :class="stub.amount >= 0 ? 'pos' : 'neg'">{{ signed(stub.amount) }}</span>
+  </div>
+
   <div v-if="landing && !landing.resolved" class="stack" style="gap:10px">
     <!-- 机会格：唯一需要玩家做子选择的落点 -->
     <template v-if="landing.type === 'OPPORTUNITY'">

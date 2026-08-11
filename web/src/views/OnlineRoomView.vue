@@ -19,6 +19,7 @@ import FtSquareCard from '../components/cards/FtSquareCard.vue'
 import DealCurtain from '../components/board/DealCurtain.vue'
 import OnlineCardPanel from '../components/board/OnlineCardPanel.vue'
 import OnlineLandingPanel from '../components/board/OnlineLandingPanel.vue'
+import PaydayCurtain from '../components/board/PaydayCurtain.vue'
 import PlayerTableRow from '../components/PlayerTableRow.vue'
 import PromptModal from '../components/PromptModal.vue'
 import ReceiptStack from '../components/ReceiptStack.vue'
@@ -137,6 +138,14 @@ watch(() => game.stageNow, (s) => {
 
 const settleStep = computed(() =>
   game.stageNow?.kind === 'settle' ? game.stageNow : null)
+/** 发薪帘幕**只给当事人**——别人的回合也弹全屏就成了刷屏。
+ *  旁观者拿到的是板上那一拍橙光飘字 + 座次条上的瞬时金额。
+ *  破产那一批不弹：清算屏之前不该先演一场庆祝仪式（stage.ts 的 `bankrupting`）。 */
+const paydayStep = computed(() =>
+  settleStep.value
+    && settleStep.value.playerId === game.session?.playerId
+    && !settleStep.value.bankrupting
+    ? settleStep.value : null)
 const pulseIndex = computed(() =>
   game.stageNow?.kind === 'landing' ? game.stageNow.index : undefined)
 
@@ -465,6 +474,7 @@ const blockedBy = computed(() => {
                  :me-id="game.session?.playerId ?? ''"
                  :current-index="currentIndex" :trail="trail"
                  :settle-index="settleStep?.index" :settle-amount="settleStep?.amount"
+                 :settle-mine="!!paydayStep"
                  :pulse-index="pulseIndex" :compact="detent !== 'peek'"
                  :offline="!game.connected" @tap="tapSquare">
         <template #hub>
@@ -637,6 +647,9 @@ const blockedBy = computed(() => {
         </template>
       </div>
     </div>
+
+    <!-- 全屏发薪：只给当事人，自动消散（design/09 §5.5） -->
+    <PaydayCurtain v-if="paydayStep" :step="paydayStep" @skip="game.skipStage()" />
 
     <!-- 全屏发牌翻牌：全员同步播放 -->
     <DealCurtain v-if="dealStep" :deck="dealStep.deck" :title="dealStep.title"

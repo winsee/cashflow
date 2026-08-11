@@ -785,6 +785,7 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .conv > :nth-child(3) { animation-delay: 240ms; }
 .conv > :nth-child(4) { animation-delay: 360ms; }
 .conv > :nth-child(5) { animation-delay: 480ms; }
+.conv > :nth-child(6) { animation-delay: 600ms; }
 @keyframes cline-in { from { opacity: 0; transform: translateY(6px); } }
 .facts { display: flex; flex-direction: column; gap: 6px; text-align: left; }
 .fact { display: flex; gap: var(--sp-2); font-size: 11.5px; color: #5E4A18; line-height: 1.5; }
@@ -796,6 +797,42 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .win-box { background: rgba(255, 255, 255, .6); border-radius: 14px; padding: 14px 16px; width: 100%; }
 .win-box .t { font-size: var(--fs-base); font-weight: 800; color: #3E2E08; }
 .win-box .s { font-size: 12.5px; color: #7A5E15; margin-top: 3px; }
+
+/* ---------- 发薪帘幕（design/09 §5.5） ----------
+   它跟其它几张过场屏有两点不一样，样式上都要照顾到：
+   ① 一局要看十几次，所以**自动消散**、没有按钮 —— 内容居中，不用 .tail（它的
+      margin-top:auto 会把内容顶散，同 FasttrackCheer 的注释）；
+   ② 淡入要快。通用帘幕的 420ms 是「背后是无关界面，越柔和越好」，
+      而这一屏总共只有 BEAT.settle = 1700ms，420ms 的淡入会吃掉四分之一。 */
+.curtain.payday {
+  animation-duration: 220ms;
+  /* 结算格是橙的 —— 照 §5.3「抽的是哪副牌，帘幕就是哪个颜色」的老规矩 */
+  background: radial-gradient(120% 80% at 50% 0%,
+      color-mix(in srgb, var(--deck-payday) 5%, #FFFBF3),
+      color-mix(in srgb, var(--deck-payday) 13%, #FDF3E4) 55%,
+      color-mix(in srgb, var(--deck-payday) 22%, #F7E6CE));
+}
+/* 金箔那条要写回来：.curtain.ftx 排在 .curtain.payday 前面，同特异性下会被上面这条盖掉 */
+.curtain.payday.ftx {
+  background: radial-gradient(120% 80% at 50% 0%, #FFF6DC, #F3E3B8 55%, #E8D296);
+}
+/* 负现金流不是「少一点金色」，是换一种语气：撤掉暖橙，底色转冷 */
+.curtain.payday.neg {
+  background: radial-gradient(120% 80% at 50% 0%, #FFF9F7, #F7E9E6 55%, #EDD8D4);
+}
+.curtain.payday .curtain-inner { justify-content: center; gap: var(--sp-2); }
+.curtain.payday .cline.cash { margin-top: 6px; background: rgba(255, 255, 255, .45); }
+.curtain.payday.neg .cline.hero { background: linear-gradient(180deg, #7A3128, #56201A); }
+.curtain.payday.neg h2 { color: #6B2B22; }
+.curtain.payday.neg .fineprint { color: #8A473C; }
+/* 快车道只有一个数，让它自己占一行：六位数在 375 屏宽也要放得下，所以用 clamp 而不是定值 */
+.pay-big {
+  font-family: var(--font-num); font-variant-numeric: tabular-nums;
+  font-size: clamp(30px, 11vw, 46px); font-weight: 800; letter-spacing: -1px;
+  line-height: 1.1; color: #3E2E08;
+  animation: cline-in var(--dur-slow) var(--ease) both;
+}
+.pay-sub { font-size: var(--fs-sm); color: #7A5E15; margin: 0; }
 
 /* ---------- 战报页 ---------- */
 .result-hero {
@@ -902,11 +939,15 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .board-sq.tappable { cursor: pointer; }
 .sq-label { font-size: 10px; font-weight: 700; fill: var(--text); pointer-events: none; }
 .marker-label { font-size: 10px; font-weight: 800; fill: var(--muted); }
-.settle-amt { font-size: 13px; font-weight: 800; fill: var(--pos); }
+/* 旁观者版的过站结算：当事人看到的是全屏发薪帘幕（PaydayCurtain），
+   板上这一份是给同桌其余人看的，所以字号从 13px 提到 20px —— 隔着一张桌子也得读得出。
+   颜色不写死：月现金流为负时这一笔是**扣钱**，绿色的 +$ 会把话说反 */
+.settle-amt { font-size: 20px; font-weight: 800; fill: var(--pos); }
+.settle-amt.neg { fill: var(--neg); }
 /* 这两条的时长跟着 stage.ts 的 BEAT.landing / BEAT.settle 走：
    动画比节拍短就会先熄灭、留一段静止的死时间，看着像卡住了 */
 .sq-pulse { animation: sq-pulse .62s var(--ease); }
-.sq-settle { animation: sq-settle 1.15s var(--ease); }
+.sq-settle { animation: sq-settle 1.7s var(--ease); }
 @keyframes sq-pulse { from { opacity: 0; stroke-width: 6; } to { opacity: 1; stroke-width: 2.5; } }
 @keyframes sq-settle { 0% { opacity: .2; } 30% { opacity: 1; } 100% { opacity: .5; } }
 
@@ -1183,6 +1224,18 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 }
 .seat-dot .mark.out { background: var(--red); }
 .seat-dot .mark.ft { background: var(--gold); }
+/* 别人过结算日时飘在座次点上方的瞬时金额（design/09 §5.5）。
+   跟 .mark 是两回事：那个是持续状态、常驻；这个随演出那一拍生灭，所以浮在外面、不占位。 */
+.seat-pay {
+  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  padding: 1px 5px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+  font-family: var(--font-num); font-variant-numeric: tabular-nums;
+  font-size: 10px; font-weight: 800; letter-spacing: -.2px;
+  color: #3E2E08; background: var(--gold); box-shadow: var(--shadow);
+  animation: seat-pay-in .42s var(--ease) both;
+}
+.seat-pay.neg { color: #FFF1EE; background: var(--neg); }
+@keyframes seat-pay-in { from { opacity: 0; transform: translate(-50%, 6px); } }
 
 @media (prefers-reduced-motion: reduce) {
   /* 棋子位移要额外写一条：整条序列压成淡入之后，位置应该直接跳变 */
