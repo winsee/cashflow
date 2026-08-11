@@ -21,17 +21,17 @@ const OUT = join(repo, 'build', 'ui-smoke')
 const PORT = 8391
 const BASE = `http://127.0.0.1:${PORT}`
 
-// 房主的开发机是 Windows，前三条是那台机器上的路径；后面几条只为在 Linux 容器
-// （云端 CI / 远程会话）里也能跑一遍，existsSync 取第一条命中的，Windows 上行为不变。
+// 开发机是 Windows，所以 Edge 排在最前面；后面几条是为了这套冒烟也能在
+// Linux 容器里跑（CI / 远程会话），`UI_SMOKE_BROWSER` 可以直接指一个可执行文件
 const BROWSERS = [
+  process.env.UI_SMOKE_BROWSER,
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
-  '/opt/pw-browsers/chromium',
   '/usr/bin/microsoft-edge',
   '/usr/bin/google-chrome',
   '/usr/bin/chromium',
-]
+].filter(Boolean)
 const browserPath = BROWSERS.find(existsSync)
 if (!browserPath) { console.error('找不到 Edge/Chrome'); process.exit(1) }
 if (!existsSync(join(root, 'dist', 'index.html'))) {
@@ -41,9 +41,12 @@ if (!existsSync(join(root, 'dist', 'index.html'))) {
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
 
-// 同上：Windows 是 Scripts/python.exe，Linux 容器里是 bin/python
-const pyWin = join(repo, 'server', '.venv', 'Scripts', 'python.exe')
-const py = existsSync(pyWin) ? pyWin : join(repo, 'server', '.venv', 'bin', 'python')
+// 同上：Windows 的 venv 布局在前，Linux 的 bin/ 兜底
+const py = [
+  join(repo, 'server', '.venv', 'Scripts', 'python.exe'),
+  join(repo, 'server', '.venv', 'bin', 'python'),
+].find(existsSync)
+if (!py) { console.error('找不到 server/.venv 里的 python'); process.exit(1) }
 const server = spawn(py, ['-m', 'app.serve'], {
   cwd: join(repo, 'server'),
   env: { ...process.env, CASHFLOW_HTTPS: 'off', CASHFLOW_HTTP_PORT: String(PORT) },
@@ -513,6 +516,10 @@ async function main() {
   await pa.goto(`${BASE}/#/`, { waitUntil: 'networkidle2' })
   await shot(pa, '16-大厅-继续对局', '.card.gold')
   await expectText(pa, '16-大厅-继续对局', { has: ['继续对局', '回到牌桌', '人在线'] })
+  // 会话还在快车道、人却已回大厅：金箔是对局中的阶段特效，不该跟着人走出牌桌
+  // （正例在第 11 屏：`body.skin-ft .hud`）
+  if (await pa.evaluate(() => document.body.classList.contains('skin-ft')))
+    failures.push('16-大厅-继续对局: 大厅不该是金箔皮肤——.skin-ft 只在对局页挂')
   await clickText(pa, '.bigbtn', '创建房间')
 
   // ===== 纯线上模式（design/09 §10 的屏幕清单） =====
@@ -525,10 +532,21 @@ async function main() {
   const step1Inputs = await pa.evaluate(() => document.querySelectorAll('.modal input, .modal select').length)
   if (step1Inputs) failures.push(`18-建房第1步-模式二选一: 第 ① 步不该有 ${step1Inputs} 个输入控件`)
 
+  // 18b 选中态就是那块高亮色块本身：点谁谁整块变绿，屏上不该再有 ✓ 角标那种「单选框」
+  await clickText(pa, '.mode-pick .bigbtn', '纯线上')
+  await shot(pa, '18b-建房第1步-选中纯线上', '.mode-pick .bigbtn.selected')
+  const modePick = await pa.evaluate(() => ({
+    n: document.querySelectorAll('.mode-pick .bigbtn.selected').length,
+    who: document.querySelector('.mode-pick .bigbtn.selected .t')?.textContent?.trim(),
+    ticks: document.querySelectorAll('.mode-pick .tick').length,
+  }))
+  if (modePick.n !== 1 || modePick.who !== '纯线上' || modePick.ticks)
+    failures.push(`18b-建房第1步-选中纯线上: 应只有一张「纯线上」高亮卡且无 ✓ 角标，实测 ${JSON.stringify(modePick)}`)
+
   // 17 第 ② 步才是房间名/密码/人数，顶部回显模式并可退回
   await clickText(pa, '.modal .btn', '下一步')
   await shot(pa, '17-建房第2步-房间设置', '.modal input')
-  await expectText(pa, '17-建房第2步-房间设置', { has: ['房间名', '人数上限', '线下辅助'] })
+  await expectText(pa, '17-建房第2步-房间设置', { has: ['房间名', '人数上限', '纯线上'] })
   await clickText(pa, '.modal .btn', '取消')
 
   const oa = await api('/api/rooms', {
@@ -553,8 +571,23 @@ async function main() {
     hasNot: ['找到你手上那张职业卡'],
   })
 
-  await qa.evaluate(() => document.querySelector('.prof-back')?.click())
-  // 20b 揭牌期间**页内不许摆着那张正面**：`.curtain` 是 420ms 淡入的，
+  // 点击的同时挂一个 rAF 采样：帘幕挂载后的**第一帧**就把牌的布局高度记下来。
+  // 后面拿它和翻完之后比——`transform` 不进 offsetHeight，所以这一对数只测一件事：
+  // 牌在翻转途中有没有「长个」（占位卡面换成真卡那一跳，第四轮试玩的主因）
+  await qa.evaluate(() => {
+    window.__dealH0 = -1
+    document.querySelector('.prof-back')?.click()
+    requestAnimationFrame(() => {
+      window.__dealH0 = document.querySelector('.deal-curtain .deal-inner')?.offsetHeight ?? -1
+    })
+  })
+  // 20c 起手这一段：卡面还没到，牌停在拍 1「牌背待命」；页内那张牌背**不许还在抖**
+  await sleep(120)
+  const shaking = await qa.evaluate(() =>
+    !!document.querySelector('.deal-curtain') && !!document.querySelector('.prof-back.waiting'))
+  if (shaking) failures.push('20c-揭牌起手: 帘幕已落下，页内牌背还挂着 .waiting 在抖（会透出来打架）')
+  await shot(qa, '20c-揭牌起手-牌背待命', '.deal-curtain')
+  // 20b 揭牌期间**页内不许摆着那张正面**：`.curtain` 是淡入的，
   // 帘幕变实之前它会从底下透出来，看着就是「点了先闪一下正面」（第三轮试玩①）
   await sleep(700)
   const leak = await qa.evaluate(() =>
@@ -563,6 +596,17 @@ async function main() {
   if (!(await qa.$('.deal-curtain'))) failures.push('20b-揭牌: 帘幕没落下')
   else if (leak > 0) failures.push(`20b-揭牌: 帘幕底下还摆着 ${leak} 张职业卡正面（会透出来）`)
   await shot(qa, '20b-揭牌-帘幕底下不许有正面', '.deal-curtain')
+  // 20b' 牌的几何在整段揭牌里不许变（第四轮试玩：点了还是闪一下，闪的是牌背忽然长高）
+  const [h0, h1] = await qa.evaluate(() => [
+    window.__dealH0,
+    document.querySelector('.deal-curtain .deal-inner')?.offsetHeight ?? -1,
+  ])
+  // 容差 120px 而不是 0：占位卡面只能撑一个通用的 3:4（实测 400px），真卡高度随卡上
+  // 行数浮动（实测 444px），职业卡还是**服务端随机发**的，最后那几十像素消不掉——
+  // 且换入就发生在动画首帧、scale(.55)，看不出来。
+  // 要钉死的是**几百像素**那一跳：修之前占位是一行标题的 `.gcard`，约 60px → 444px。
+  if (h0 <= 0) failures.push(`20b-揭牌: 首帧没量到牌的高度（${h0}），帘幕挂载慢了？`)
+  else if (Math.abs(h1 - h0) > 120) failures.push(`20b-揭牌: 牌在翻转途中长个了 ${h0}px → ${h1}px`)
   await sleep(2000)          // 揭牌帘幕：翻牌 0.95s + 定格到 2.2s，等它自己收
   // 20a 翻开后是整张职业卡，且页面上不留任何看着能换一张的控件
   await shot(qa, '20a-纯线上准备页-职业卡翻开', '.pcard')

@@ -21,7 +21,7 @@
 
 ## 3. 建房两步与开局准备（B 组 · online-mode）
 
-- [x] 3.1 `LobbyView`：建房弹层拆 `createStep: 1 | 2`，第 ① 步只放两张**竖排**模式卡（`.bigbtn-row` 加 `flex-direction: column`）+ 准备物清单 + 选中态（描边 + 浅底 + ✓ 角标），按钮「下一步 / 取消」
+- [x] 3.1 `LobbyView`：建房弹层拆 `createStep: 1 | 2`，第 ① 步只放两张**竖排**模式卡（`.bigbtn-row` 加 `flex-direction: column`）+ 准备物清单 + 选中态（选中的那张整块主色高亮，未选中同为浅纸底；2026-08-10 订正，原为描边 + 浅底 + ✓ 角标），按钮「下一步 / 取消」
 - [x] 3.2 第 ② 步放房间名/密码/人数，顶部回显模式徽章 + 「改」退回第 ① 步；沿用既有 disabled 判据
 - [x] 3.3 `DealCurtain` 加默认插槽（不传仍渲染 `GameCard`）
 - [x] 3.4 `RoomView` 第 1 步的 `online` 分支改为牌背 → 点击 → 翻牌 → 整张 `ProfessionCard`；等待期只显示「正在发牌…」，翻开后不留任何可换一张的控件；`me.professionId` 已有值时直接显示翻开态不放动画
