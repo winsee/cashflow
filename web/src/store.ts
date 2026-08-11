@@ -309,7 +309,7 @@ export const useGame = defineStore('game', {
           // 先用「旧快照 + 本批事件」算回执，再换上新快照：
           // 被没收的资产在新快照里已经不存在了，名字只能从旧的那份拿。
           if (msg.type === 'state' && msg.lastEvents?.length) {
-            this.ingestEvents(msg.lastEvents)
+            this.ingestEvents(msg.lastEvents, msg.state)
             this.ingestStage(msg.lastEvents)
           }
           this.seq = msg.seq
@@ -374,11 +374,13 @@ export const useGame = defineStore('game', {
     },
 
     /** 从本批事件里挑出「没经我操作却改了我的账」的部分，推成可消回执。
-     *  必须在换上新快照之前调用（见 connect 里的注释）。 */
-    ingestEvents(events: { type: string; payload: Record<string, any> }[]) {
+     *  必须在换上新快照之前调用（见 connect 里的注释）。
+     *  `next` 是这批事件之后的新快照：破产清算的结局（复活/出局）是在服务端 apply 里算的，
+     *  事件 payload 里看不出来，只能读结果——但读的仍是服务端给的结果，不是客户端重算。 */
+    ingestEvents(events: { type: string; payload: Record<string, any> }[], next?: RoomStateDto) {
       const meId = this.session?.playerId
       if (!meId || !this.state) return
-      const fresh = buildReceipts(events, this.state, meId, this.recentActionAt)
+      const fresh = buildReceipts(events, this.state, meId, this.recentActionAt, next)
       if (fresh.length) this.receipts.push(...fresh)
       // 波及范围与回执用同一批事件、同一个「换快照前」的时机：被没收的资产名只在旧快照里有
       const impact = buildCardImpact(events, this.state)

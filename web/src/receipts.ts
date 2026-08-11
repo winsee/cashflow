@@ -145,12 +145,15 @@ function make(r: Omit<Receipt, 'id'>): Receipt {
  * @param prev      **换上新快照之前**的房间状态：被没收的资产只在这里还查得到名字
  * @param meId      我的玩家 id
  * @param recentAt  我最近发出的行动类型 → 时间戳
+ * @param next      **这批事件之后**的房间状态。只给结局写在 apply 里、payload 看不出来的
+ *                  那几件事用（现在只有 `BANKRUPTCY_RESOLVED` 的复活/出局）。
  */
 export function buildReceipts(
   events: { type: string; payload: Record<string, any> }[],
   prev: RoomStateDto,
   meId: string,
   recentAt: Record<string, number>,
+  next?: RoomStateDto,
 ): Receipt[] {
   const me = prev.players.find(p => p.id === meId)
   if (!me) return []
@@ -304,7 +307,15 @@ export function buildReceipts(
       }
 
       case 'UNEMPLOYMENT_HIT': {
-        if (p.player_id !== meId) break
+        if (p.player_id !== meId) {
+          // 别人失业：不动我的账，但接下来两轮牌桌上少一个人，这是要看见的
+          out.push(make({
+            tone: 'neg', icon: '💼',
+            title: `${nickOf(p.player_id)} 失业了`,
+            why: '支付一次总支出，接下来停赛 2 轮',
+          }))
+          break
+        }
         out.push(make({
           tone: 'neg', icon: '💼',
           title: '失业',
@@ -335,6 +346,62 @@ export function buildReceipts(
           why: '非工资收入超过总支出，已进入快车道',
           amount: `现金流量日收入 ${money(p.initial_income ?? 0)}`,
         }))
+        break
+      }
+
+      // ⑩ 别人身上开始了一段**持续多个回合**的状态。
+      //    这类事不动我的账，但改变了「接下来这个人能做什么」，同桌该知道。
+      //    与 ENTERED_FASTTRACK 同一范式：有确定的 player_id 就用它排除当事人，
+      //    不进 SELF_ACTION（那张表靠 6 秒时间窗，这里不需要猜）。
+      //    慈善与「完成清算」两套模式下都是玩家自己点的，当事人那侧本就该排掉。
+      //    **只收这几件低频重击**——回执要点「我知道了」才消失，别人生个孩子不该来打扰我。
+      case 'CHARITY_DONATED': {
+        if (p.player_id === meId) break
+        out.push(make({
+          tone: 'neutral', icon: '💝',
+          title: `${nickOf(p.player_id)} 捐款做慈善`,
+          why: '此后 3 轮可自选掷 1 或 2 粒骰',
+        }))
+        break
+      }
+
+      case 'FT_CHARITY_DONATED': {
+        if (p.player_id === meId) break
+        out.push(make({
+          tone: 'neutral', icon: '💝',
+          title: `${nickOf(p.player_id)} 在快车道行善`,
+          why: '此后每轮可自选掷 1–3 粒骰（永久）',
+        }))
+        break
+      }
+
+      case 'BANKRUPTCY_STARTED': {
+        if (p.player_id === meId) break
+        out.push(make({
+          tone: 'neg', icon: '⚠️',
+          title: `${nickOf(p.player_id)} 进入破产清算`,
+          why: '月现金流为负且付不出到期款项，须按首期 50% 变卖资产',
+        }))
+        break
+      }
+
+      // 结局（复活 vs 出局）是在服务端 apply 里算的，payload 只有 player_id，
+      // 所以读**新快照**里的 phase。客户端不重算规则，只看服务端给的结果。
+      case 'BANKRUPTCY_RESOLVED': {
+        if (p.player_id === meId) break
+        const after = next?.players.find(x => x.id === p.player_id)
+        if (!after) break
+        out.push(after.phase === 'OUT'
+          ? make({
+            tone: 'neg', icon: '🚫',
+            title: `${nickOf(p.player_id)} 出局了`,
+            why: '卖光资产后月现金流仍为负，资产已由银行收回',
+          })
+          : make({
+            tone: 'neutral', icon: '🛟',
+            title: `${nickOf(p.player_id)} 走出了破产`,
+            why: '月现金流已转正，接下来停赛 3 轮',
+          }))
         break
       }
     }

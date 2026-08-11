@@ -332,6 +332,8 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .badge.turn { background: var(--brand-soft); color: var(--brand); border-color: transparent; }
 .badge.ft { background: var(--gold-soft); color: var(--gold-deep); border-color: transparent; }
 .badge.out { background: var(--red-soft); color: var(--red); border-color: transparent; }
+/* 持续状态徽章行（StatusChips）：一个人身上可能同时挂着两三条，窄屏要能折行 */
+.badge-row { display: flex; flex-wrap: wrap; gap: 4px; }
 
 /* ---------- 提示 / 弹层 ---------- */
 .toast {
@@ -1172,6 +1174,15 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .seat-dot.now { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent); border-color: transparent; }
 .seat-dot.done { opacity: .4; }
 .seat-dot.out { filter: grayscale(1); opacity: .35; }
+/* 持续状态角标：19px 的圆写不下字，就给右下角一个点。
+   停赛的人会被跳过——不标出来，「这一轮还剩几个人到我」这句话就是错的。 */
+.seat-dot { position: relative; }
+.seat-dot .mark {
+  position: absolute; right: -1px; bottom: -1px; width: 7px; height: 7px;
+  border-radius: 999px; border: 1px solid var(--panel); background: var(--muted);
+}
+.seat-dot .mark.out { background: var(--red); }
+.seat-dot .mark.ft { background: var(--gold); }
 
 @media (prefers-reduced-motion: reduce) {
   /* 棋子位移要额外写一条：整条序列压成淡入之后，位置应该直接跳变 */
