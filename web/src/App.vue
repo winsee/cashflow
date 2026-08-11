@@ -13,8 +13,14 @@ if (game.session) game.connect()
 
 // 阶段换肤：整屏从墨绿转金箔。挂在 <body> 上，覆盖的是一层颜色变量，
 // 纸底、卡面、主按钮、待办色条、标签栏全部自动跟着走（见 style.css 的 .skin-ft）。
-watch(() => game.inFasttrack, (ft) => {
-  document.body.classList.toggle('skin-ft', ft)
+//
+// 条件是两半：**在快车道** 且 **人在牌桌上**。金箔是对局中的阶段特效，不是跟着人走的
+// 身份标签——`inFasttrack` 只看我的赛道，会话活着它就一直为真，留着会话回大厅
+// （浏览器返回 / 直接开 `/#/` / 从大厅点进说明书，大厅那张「继续对局」卡就是为这种状态准备的）
+// 时它照样是真，于是大厅、说明书、录入页全跟着变金。路由这一半就是用来兜住这条路的。
+const SKIN_ROUTE = '/play'    // 对局页：线下 PlayView 与纯线上 OnlineRoomView 都挂在这儿
+watch([() => game.inFasttrack, () => route.path], ([ft, path]) => {
+  document.body.classList.toggle('skin-ft', ft && path === SKIN_ROUTE)
 }, { immediate: true })
 
 watch(() => game.state?.status, (status) => {
