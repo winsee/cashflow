@@ -59,7 +59,7 @@ defineExpose({ prefillBank })
       <h3>🎬 显示设置</h3>
       <label class="row between" style="cursor:pointer">
         <span>跳过动画</span>
-        <input type="checkbox" :checked="game.skipAnim"
+        <input class="switch" type="checkbox" :checked="game.skipAnim"
                @change="game.setSkipAnim(!game.skipAnim)" />
       </label>
       <p class="muted" style="margin:6px 0 0">

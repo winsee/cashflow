@@ -783,7 +783,8 @@ async function main() {
   await pOther.evaluate(() => document.querySelector('.drawer-peek .seat-strip')?.click())
   await shot(pOther, '23a-纯线上-观战牌桌', '.drawer-body .avatar-lg')
   await expectText(pOther, '23a-纯线上-观战牌桌', { has: ['牌桌', '行动中', '月现金流'] })
-  // 23b 把手是抽屉唯一的收起控件：手动拉起来看牌桌之后，点一下把手就该退回 peek。
+  // 23b 点击只有把手认（§2.2：手势铺到整块抽屉，点击仍归把手一个主人）：
+  // 手动拉起来看牌桌之后，点一下把手就该退回 peek。
   // 从前这里一个收起控件都没有，只能再点一次头像列（design/09 §2.2 v0.5）
   const grabBack = await pOther.evaluate(async () => {
     const el = document.querySelector('.board-drawer .sheet-grab')
@@ -809,6 +810,36 @@ async function main() {
   // 开局谁身上都没有持续状态，所以此刻一个角标都不该有——有角标就是判据写漏了
   if (strips.marks)
     failures.push(`23c-纯线上-座次条两处都在: 没人有持续状态，却画了 ${strips.marks} 个角标`)
+
+  // 23d 手势铺到整个抽屉（design/09 §2.2 v0.10）：在**正文**里往下拖一段就该收起来，
+  // 不必去够那根 34×4px 的把手。修之前这一拖是溢出给浏览器去刷新整页的。
+  // 同时钉死：这一拖不许把手指底下那个东西顺手点掉（正文里全是「买入 / 放弃」）。
+  await pOther.evaluate(() => document.querySelector('.drawer-peek .seat-strip')?.click())
+  await sleep(700)
+  const bodyDrag = await pOther.evaluate(async () => {
+    const drawer = document.querySelector('.board-drawer')
+    const body = document.querySelector('.drawer-body')
+    const before = drawer.offsetHeight
+    let stray = 0
+    const spy = () => { stray++ }
+    body.addEventListener('click', spy, true)
+    const at = y => {
+      const t = new Touch({ identifier: 1, target: body, clientX: 40, clientY: y })
+      return { touches: [t], changedTouches: [t], bubbles: true, cancelable: true }
+    }
+    body.dispatchEvent(new TouchEvent('touchstart', at(200)))
+    for (const y of [215, 260, 320, 380])
+      body.dispatchEvent(new TouchEvent('touchmove', at(y)))
+    body.dispatchEvent(new TouchEvent('touchend', at(380)))
+    await new Promise(r => setTimeout(r, 700))
+    body.removeEventListener('click', spy, true)
+    return { before, after: drawer.offsetHeight, stray }
+  })
+  if (!(bodyDrag.after < bodyDrag.before))
+    failures.push(`23d-纯线上-拖正文收抽屉: 抽屉没收起（${bodyDrag.before}px → ${bodyDrag.after}px）`)
+  if (bodyDrag.stray)
+    failures.push(`23d-纯线上-拖正文收抽屉: 拖拽顺手点掉了正文里的东西（${bodyDrag.stray} 次 click）`)
+  await shot(pOther, '23d-纯线上-拖正文收抽屉', '.drawer-peek')
 
   // 25 掷骰 → 走格 → 落点。点数由服务端摇，落到哪一格无法预设，所以反复掷到
   // 停在机会格为止（24 格里 12 个是机会，几轮之内必中），中途的落点顺手处理掉。
@@ -1006,6 +1037,15 @@ async function main() {
     // 「跳过动画」是这台设备的偏好、不是账本的一页，收在这儿而不是占一格分段
     has: ['资金', '🏦 银行', '玩家间转账', '月息 10%', '跳过动画'],
   })
+  // 「跳过动画」是个开关，不是一个铺满整行的巨大方框——通用表单样式（width:100% +
+  // 44px 热区）说的是文本输入框，复选框套上去就是真机试玩里那一屏。修之前这里是整行宽
+  const sw = await pMe.evaluate(() => {
+    const el = document.querySelector('.modal input[type="checkbox"]')
+    return el ? { w: el.offsetWidth, h: el.offsetHeight, sw: el.classList.contains('switch') } : null
+  })
+  if (!sw) failures.push('27d-纯线上-资金弹层: 找不到「跳过动画」的复选框')
+  else if (!sw.sw) failures.push('27d-纯线上-资金弹层: 复选框没有走 .switch 样式')
+  else if (sw.w > 60) failures.push(`27d-纯线上-资金弹层: 复选框被撑成 ${sw.w}×${sw.h}px`)
   await pMe.evaluate(() => document.querySelector('.modal-mask')?.click())
   await sleep(400)
 
