@@ -128,7 +128,10 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+/* 下拉刷新在对局中途是个真实伤害：一个想收抽屉的动作，代价是整页重载。
+   对局页本就是 height:100dvh + overflow:hidden 的弹性列，从来不该被下拉；
+   会滚的页面（大厅/说明书）只是没了回弹光晕，滚动一切照旧 */
+html, body { margin: 0; padding: 0; overscroll-behavior-y: none; }
 body {
   /* 几何与 .curtain.ftx 同一条，快车道下两者才对得上 */
   background:
@@ -271,7 +274,9 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; bor
 }
 
 /* ---------- 表单 ---------- */
-input, select, textarea {
+/* 这一条说的是**文本输入框**：铺满一行、44px 热区、16px 防 iOS 聚焦缩放。
+   复选框/单选框不在射程内——套上去会被撑成一个铺满整行的巨大方框（真机试玩） */
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   background: var(--panel2);
   color: var(--text);
   border: 1px solid var(--line-2);
@@ -288,6 +293,25 @@ input:focus, select:focus, textarea:focus {
 }
 input::placeholder { color: #b3a888; }
 label { display: block; margin: var(--sp-3) 0 5px; color: var(--muted); font-size: var(--fs-sm); font-weight: 600; }
+
+/* 开关：仍然是原生 `<input type="checkbox">`，只是换个长相——
+   点整行切换（外层 `<label>`）、键盘可达、`:checked` 驱动全是现成的，
+   换成 `<button>` 反倒要把这三样各补一遍 */
+.switch {
+  appearance: none; -webkit-appearance: none;
+  flex: none; width: 46px; height: 27px; border-radius: 999px;
+  background: var(--line-2); border: 1px solid var(--line-2);
+  position: relative; cursor: pointer; padding: 0;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 21px; height: 21px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(60, 45, 20, .35);
+  transition: transform var(--dur) var(--ease);
+}
+.switch:checked { background: var(--brand); border-color: var(--brand); }
+.switch:checked::after { transform: translateX(19px); }
+.switch:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--brand-soft); }
 
 /* ---------- 财务表格 ---------- */
 table.fin { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -1091,10 +1115,16 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   height: var(--dh, 128px); transition: height var(--dur-slow) var(--ease);
   z-index: var(--z-hud);
 }
+/* 跟手期间必须把那条 transition 关掉，否则抽屉永远慢手指 420ms，拖起来像在拉皮筋 */
+.board-drawer.dragging { transition: none; }
 .drawer-body {
   flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
   padding: 0 var(--sp-3) var(--sp-2);
   display: flex; flex-direction: column; gap: var(--sp-2);
+  /* 滚动链不外溢：正文滚到顶还继续下拉时，浏览器不该接手去刷新整页。
+     `pan-y` 声明这里只有纵向滚动，横向/缩放手势不参与（下拉收抽屉那一支
+     由 JS 在 scrollTop===0 时 preventDefault 抢下来） */
+  overscroll-behavior-y: contain; touch-action: pan-y;
 }
 /* 决策按钮钉底：一张牌堆卡加上前后对比就超过 half 档的高度，内容必须能滚，
    但「买入 / 放弃」不能跟着滚走。按钮条上方压一道渐变，内容从它下面划过去。 */
@@ -1105,6 +1135,9 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   padding: var(--sp-2) var(--sp-3) calc(var(--sp-2) + env(safe-area-inset-bottom));
   background: var(--panel);
   display: flex; flex-direction: column; gap: var(--sp-2);
+  /* 这一块不滚动，从这儿起手的下拉只会喂给浏览器去刷新整页。
+     `touch-action:none` 拦的是浏览器的平移/缩放手势，点按不受影响，按钮照旧能点 */
+  touch-action: none;
 }
 .cta-row { display: flex; gap: var(--sp-2); }
 .drawer-cta::before {
@@ -1139,6 +1172,8 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .drawer-peek {
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px; row-gap: 6px;
   padding: 0 var(--sp-3) 2px; font-size: 13px;
+  /* 同 .drawer-cta：不滚动的一块，手势归抽屉，不喂给浏览器去刷新整页 */
+  touch-action: none;
 }
 .drawer-peek .who { font-weight: 800; }
 
