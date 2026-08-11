@@ -1149,7 +1149,10 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
    越柔和越好；这一张背后就是它自己要揭晓的那张牌，半透明的每一毫秒都在漏。
    （试玩「点了还是闪一下」的次因：淡入期间页内那张牌背从底下透出来，和帘幕里那张叠成重影） */
 .deal-curtain { justify-content: center; animation-duration: 180ms; }
-.deal-card { perspective: 900px; width: 76%; max-width: 300px; }
+/* 透视从 900px 收到 700px（v1.0）：卡宽只有 300px，900px 是 3 倍焦距，属于很弱的透视，
+   转过来时几乎没有近大远小，观感就退化成一次横向压扁。700px（≈2.3 倍）才看得出
+   这是一张**有正反两面的实物**在转。 */
+.deal-card { perspective: 700px; width: 76%; max-width: 300px; }
 /* **静止态就是牌背**（`rotateY(180deg)`），动画只负责把它翻过来。
    只写 `forwards` 的话，从挂载到动画首帧之间元素停在 `rotateY(0)`——正面会闪一下，
    然后才从背面重新翻一遍（试玩：点职业卡牌背会先闪现正面）。`both` 补上入场端的填充。
@@ -1159,9 +1162,9 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
    宁可多一个几十毫秒的静止拍（正好是 §5.4 拍 1「牌背待命」），也不要一边翻一边改几何。 */
 .deal-inner {
   position: relative; transform-style: preserve-3d;
-  transform: rotateY(180deg) scale(.55);
+  transform: translateZ(0) rotateY(180deg) scale(.55);
 }
-.deal-inner.flipping { animation: deal-flip .95s var(--ease) both; }
+.deal-inner.flipping { animation: deal-flip .95s linear both; }
 .deal-face, .deal-back { backface-visibility: hidden; }
 /* 牌背的材质：米白卡纸 + 牌堆色双线边框 + 宋体牌堆名。
    发牌帘幕与准备页的职业卡牌背共用同一张背——翻过来才对得上正面。 */
@@ -1171,10 +1174,46 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   font-family: var(--font-card); font-size: 20px; font-weight: 700;
 }
 .deal-back { position: absolute; inset: 0; transform: rotateY(180deg); }
+/* 牌堆发牌的两拍（design/09 §5.1）：拍 6 飞入放大 0→45%（0.43s）+ 拍 7 翻牌 45%→100%（0.52s）。
+   **配速逐段给**（v1.0），不再让整条动画吃同一条重度 ease-out `--ease`：那条曲线会把
+   180°→90° 的交界点压到翻牌段的头 20%（≈104ms），而 `backface-visibility` 的正反切换
+   就发生在 90° 那一帧——一跨过去就是背面切掉、正面切进，剩下的 420ms 只是正面在慢慢摊平。
+   观感于是成了「突然出现正面」，不是「翻过来」。把交界点放到 72%（翻牌段正中），
+   前后各约 260ms，翻转才有可看的过程。
+   `translateZ` **必须写在 rotateY 前面**：写在后面的话位移跟着卡自己的法线走，
+   转到 90° 时就成了往侧面推。抬起在 90° 处最高，卡「立起来」那一瞬才不是一条零宽的缝。 */
 @keyframes deal-flip {
-  0% { transform: rotateY(180deg) scale(.55); }
-  45% { transform: rotateY(180deg) scale(1); }
-  100% { transform: rotateY(0) scale(1); }
+  0%   { transform: translateZ(0)    rotateY(180deg) scale(.55);
+         animation-timing-function: cubic-bezier(.22, .61, .36, 1); }  /* 飞入：缓出 */
+  45%  { transform: translateZ(0)    rotateY(180deg) scale(1);
+         animation-timing-function: cubic-bezier(.36, 0, .66, .5); }   /* 起转：略加速 */
+  72%  { transform: translateZ(60px) rotateY(90deg)  scale(1);
+         animation-timing-function: cubic-bezier(.32, .5, .28, 1); }   /* 立起来：抬到最高 */
+  100% { transform: translateZ(0)    rotateY(0)      scale(1); }
+}
+
+/* 职业卡揭牌（design/09 §5.4 v1.0）：**没有飞入放大那一拍**。玩家点的那张 `.prof-back`
+   和这里都是 `76% / max 300px`，待命态就该是原尺寸——只有「飞到屏心」，
+   没有「先缩小再长回来」。省下的 0.43s 全部还给旋转，交界点正好落在整段的正中间。 */
+.deal-inner.reveal {
+  aspect-ratio: 3 / 4;
+  transform: translateZ(0) rotateY(180deg);
+}
+/* 几何从头到尾不变（§5.4 那条通则：过场里的主体，几何要么全程不变，要么只在它自己的动画里变）。
+   `.deal-back` 是 `inset:0` 贴着文档流里的 `.deal-face` 的，而占位卡面 400px、
+   真 `.pcard` 444px——`ready` 置真那一帧牌背会跟着长 44px。以前这一跳被 `scale(.55)`
+   缩成 ≈24px 掩着，缩放一去掉就完全暴露（正是试玩说的「又稍稍变长」）。
+   所以把框焊死在 3:4（与 `.prof-back` 同比例），两面都铺在这只固定框上，
+   真卡顶端对齐、允许向下溢出那 44px——`.deal-inner`/`.deal-card` 都没有 `overflow: hidden`，
+   而溢出的那一截只在正面朝外时才看得见，那时牌背早已转走。 */
+.deal-inner.reveal > .deal-face { position: absolute; inset: 0 0 auto 0; }
+.deal-inner.reveal.flipping { animation: card-reveal .95s linear both; }
+@keyframes card-reveal {
+  0%   { transform: translateZ(0)    rotateY(180deg);
+         animation-timing-function: cubic-bezier(.36, 0, .66, .5); }
+  50%  { transform: translateZ(64px) rotateY(90deg);
+         animation-timing-function: cubic-bezier(.32, .5, .28, 1); }
+  100% { transform: translateZ(0)    rotateY(0); }
 }
 
 /* ---------- 准备页：职业卡的牌背（纯线上，design/09 §1.4.1） ---------- */

@@ -590,15 +590,84 @@ async function main() {
       window.__dealH0 = document.querySelector('.deal-curtain .deal-inner')?.offsetHeight ?? -1
     })
   })
-  // 20c 起手这一段：卡面还没到，牌停在拍 1「牌背待命」；页内那张牌背**不许还在抖**
+  // 20c 帘幕一落下，页内那张牌背**不许还在抖**：`waiting` 的轻晃是「请求还在路上」的提示，
+  // 帘幕落下就没有观众了，留着只会在淡入的那几帧里从底下透出来打架。
+  // （截到的是翻转途中那一帧——`ready` 修好之后卡面本地几十毫秒就到，
+  //   拍 1「牌背待命」只在服务端慢时才看得见，不作为截图目标）
   await sleep(120)
   const shaking = await qa.evaluate(() =>
     !!document.querySelector('.deal-curtain') && !!document.querySelector('.prof-back.waiting'))
-  if (shaking) failures.push('20c-揭牌起手: 帘幕已落下，页内牌背还挂着 .waiting 在抖（会透出来打架）')
-  await shot(qa, '20c-揭牌起手-牌背待命', '.deal-curtain')
+  if (shaking) failures.push('20c-揭牌: 帘幕已落下，页内牌背还挂着 .waiting 在抖（会透出来打架）')
+  await shot(qa, '20c-揭牌-翻转途中', '.deal-curtain')
+
+  // 20d 「翻转真的在转」——第四轮试玩「怎么没有翻面的动画？点一下背面，背面变小，
+  // 又稍稍变长，然后突然出现正面」。以前一条断言都没钉住这件事：20b/20c 只管
+  // 「别闪正面」「别长个」，动画本身是不是还在转，没人问过。
+  //
+  // **不靠 rAF 采样**：这一拍只有 0.95s，中间还夹着两次截图，掉帧会让计数忽多忽少。
+  // 改成把动画**暂停后逐点 seek**（`anim.currentTime = t` 再读 computed style），
+  // 结果只由 CSS 决定，与真机快慢、截图停顿全都无关。取完把进度放回去继续播。
+  //
+  // 读 `matrix3d` 的第 11 个数：`translateZ(z) rotateY(θ) scale(s)` 展开后
+  // a11 = cos θ，**不含缩放**（缩放落在 a1 = s·cos θ 上）。所以这一个数干净地回答
+  // 「牌转到哪个角度了」，不会被「飞入放大」的 scale 混进来。
+  const spin = await qa.evaluate(() => {
+    const el = document.querySelector('.deal-curtain .deal-inner')
+    if (!el) return { err: '帘幕里没有牌' }
+    const anim = el.getAnimations()[0]
+    if (!anim?.effect) {
+      const cs = getComputedStyle(el)
+      return { err: `牌上没挂动画：class="${el.className}" n=${el.getAnimations().length} `
+        + `name=${cs.animationName} dur=${cs.animationDuration} play=${cs.animationPlayState}` }
+    }
+    const dur = anim.effect.getTiming().duration
+    const keep = anim.currentTime
+    anim.pause()
+    const xs = []
+    for (let i = 0; i <= 32; i++) {
+      anim.currentTime = (dur * i) / 32
+      xs.push(getComputedStyle(el).transform)
+    }
+    anim.currentTime = keep
+    anim.play()
+    // 顺手把「翻完之后」的牌高也带回去（20b' 用）。整段揭牌只有 ack + 2.2s，
+    // 而这会儿翻牌（0.95s）已经播完、帘幕铁定还在——比之后再 sleep 一次去量稳得多
+    return { dur, xs, h1: el.offsetHeight }
+  })
+  if (spin?.err) failures.push(`20d-翻转: ${spin.err}`)
+  else if (!spin) failures.push('20d-翻转: 采不到样')
+  else {
+    // 两种序列化都要认：牌**正对着**镜头（θ = 0° 或 180°）时 3D 分量全为零，
+    // Chromium 会把它压成 2D 的 `matrix(a,b,c,d,e,f)`——这是正常的，不是拍平。
+    // 2D 那一支里 a = s·cos θ、d = s，所以 cos θ = a/d，缩放照样约掉。
+    const cosOf = t => {
+      const n = t.slice(t.indexOf('(') + 1, -1).split(',').map(parseFloat)
+      return t.startsWith('matrix3d(') ? n[10] : n[0] / n[3]
+    }
+    const cos = spin.xs.map(cosOf)
+    const at = f => cos[Math.round(f * 32)]
+    // 侧过来的那些帧**必须**是 matrix3d：转到中途还只有 2D 矩阵，说明 3D 被拍平了，
+    // 「翻过来」退化成一次横向压扁（perspective / preserve-3d 掉了就是这个样子）
+    const flat = spin.xs.filter((t, i) => !t.startsWith('matrix3d(') && Math.abs(cos[i]) < 0.99)
+    if (flat.length) {
+      failures.push(`20d-翻转: ${flat.length}/33 帧侧过来了却不是 matrix3d，3D 被拍平了（${flat[0]}）`)
+    } else if (!(Math.min(...cos) < -0.9 && Math.max(...cos) > 0.9)) {
+      failures.push(`20d-翻转: cos θ 没有从 -1 扫到 +1（${Math.min(...cos).toFixed(2)}~${Math.max(...cos).toFixed(2)}），牌没翻满 180°`)
+    } else if (at(0.3) <= -0.95) {
+      // 修之前：0→45% 是牌堆发牌的「飞入放大」拍，rotateY 纹丝不动钉在 180°，
+      // cos θ 恒为 -1。这一条专钉「前小半段白演缩放」。
+      failures.push(`20d-翻转: 三成时间过去了牌还没起转（cos θ=${at(0.3).toFixed(3)}，≈ 钉在 180°）`)
+    } else if (Math.abs(at(0.5)) >= 0.35) {
+      // 90° 交界点（`backface-visibility` 正反切换的那一帧）必须在正中间。
+      // 被缓动压到段首的话，观感就是「突然出现正面」而不是「翻过来」。
+      failures.push(`20d-翻转: 90° 交界点没落在正中间（半程 cos θ=${at(0.5).toFixed(3)}，应接近 0）`)
+    }
+  }
+
   // 20b 揭牌期间**页内不许摆着那张正面**：`.curtain` 是淡入的，
   // 帘幕变实之前它会从底下透出来，看着就是「点了先闪一下正面」（第三轮试玩①）
-  await sleep(700)
+  // 不再另 sleep：上面 20c 的截图 + 20d 的采样已经花掉一秒有余，翻牌早播完了，
+  // 而帘幕只活 ack + 2.2s——多睡一次就会踩着它落幕（实测会截空）
   const leak = await qa.evaluate(() =>
     document.querySelectorAll('.pcard').length
     - document.querySelectorAll('.deal-curtain .pcard').length)
@@ -606,16 +675,15 @@ async function main() {
   else if (leak > 0) failures.push(`20b-揭牌: 帘幕底下还摆着 ${leak} 张职业卡正面（会透出来）`)
   await shot(qa, '20b-揭牌-帘幕底下不许有正面', '.deal-curtain')
   // 20b' 牌的几何在整段揭牌里不许变（第四轮试玩：点了还是闪一下，闪的是牌背忽然长高）
-  const [h0, h1] = await qa.evaluate(() => [
-    window.__dealH0,
-    document.querySelector('.deal-curtain .deal-inner')?.offsetHeight ?? -1,
-  ])
-  // 容差 120px 而不是 0：占位卡面只能撑一个通用的 3:4（实测 400px），真卡高度随卡上
-  // 行数浮动（实测 444px），职业卡还是**服务端随机发**的，最后那几十像素消不掉——
-  // 且换入就发生在动画首帧、scale(.55)，看不出来。
-  // 要钉死的是**几百像素**那一跳：修之前占位是一行标题的 `.gcard`，约 60px → 444px。
+  const h0 = await qa.evaluate(() => window.__dealH0)
+  const h1 = spin?.h1 ?? -1
+  // 容差从 120px 收到 4px（v1.0）。以前留 120px 是因为占位卡面撑的是通用 3:4（实测 400px）、
+  // 真卡随行数浮动（实测 444px），那 44px 消不掉——只能靠 `scale(.55)` 缩成 ≈24px 掩着。
+  // 现在 `.deal-inner.reveal` 自己焊死 3:4、两面都绝对定位铺上去，**牌的外框不再由卡面驱动**，
+  // 换卡那一帧一个像素都不该动（真卡多出来的 44px 向下溢出，牌背早已转走看不见）。
+  // 只留 4px 给亚像素舍入。
   if (h0 <= 0) failures.push(`20b-揭牌: 首帧没量到牌的高度（${h0}），帘幕挂载慢了？`)
-  else if (Math.abs(h1 - h0) > 120) failures.push(`20b-揭牌: 牌在翻转途中长个了 ${h0}px → ${h1}px`)
+  else if (Math.abs(h1 - h0) > 4) failures.push(`20b-揭牌: 牌在翻转途中长个了 ${h0}px → ${h1}px`)
   await sleep(2000)          // 揭牌帘幕：翻牌 0.95s + 定格到 2.2s，等它自己收
   // 20a 翻开后是整张职业卡，且页面上不留任何看着能换一张的控件
   await shot(qa, '20a-纯线上准备页-职业卡翻开', '.pcard')

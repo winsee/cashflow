@@ -381,10 +381,13 @@ async function copyUrl() {
     <InviteDialog v-if="showInvite" :code="game.state.roomCode" :url="joinUrl"
                   :nickname="game.me?.nickname" @close="showInvite = false" />
 
-    <!-- 揭牌：牌背飞向屏心 → Y 轴翻转 → 露出整张职业卡。与发牌共用同一段动画 -->
+    <!-- 揭牌：牌背飞到屏心 → Y 轴翻转 → 露出整张职业卡。与发牌共用 3D 结构与牌背材质，
+         但**节拍表不同**（`variant="reveal"`，design/09 §5.4 v1.0）：牌已经在屏上被点了，
+         没有「飞入放大」那一拍，整 0.95s 都给旋转，尺寸从头到尾不变 -->
     <!-- 卡还没到（帘幕先落下、请求还在路上）时**不给默认插槽**，让 DealCurtain 用它自己的
          占位卡面兜住高度——插槽给了但内容为空的话，牌面高度塌成 0，连牌背都看不见了 -->
-    <DealCurtain v-if="revealing" deck="PROFESSION" title="职业卡" @skip="revealing = false">
+    <DealCurtain v-if="revealing" variant="reveal" deck="PROFESSION" title="职业卡"
+                 @skip="revealing = false">
       <template v-if="myProfession" #default>
         <ProfessionCard :card="myProfession" />
       </template>
