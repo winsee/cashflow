@@ -27,9 +27,8 @@ import FasttrackCheer from '../components/FasttrackCheer.vue'
 import StatementTab from '../components/StatementTab.vue'
 import OverviewTab from '../components/OverviewTab.vue'
 import LogTab from '../components/LogTab.vue'
-import BankPanel from '../components/tools/BankPanel.vue'
 import BankruptcyPanel from '../components/tools/BankruptcyPanel.vue'
-import TransferPanel from '../components/tools/TransferPanel.vue'
+import FundsSheet from '../components/board/FundsSheet.vue'
 
 const game = useGame()
 const finished = computed(() => game.state?.status === 'FINISHED')
@@ -255,9 +254,10 @@ async function endTurn() {
 // ---------- 三档抽屉 ----------
 
 type Detent = 'peek' | 'half' | 'full'
-type LedgerPage = 'statement' | 'overview' | 'log' | 'more'
+type LedgerPage = 'statement' | 'overview' | 'log'
 const DETENT_H: Record<Detent, string> = { peek: '128px', half: '46dvh', full: '88dvh' }
 const RANK: Record<Detent, number> = { peek: 0, half: 1, full: 2 }
+const ORDER: Detent[] = ['peek', 'half', 'full']
 const detent = ref<Detent>('peek')
 const ledger = ref<null | LedgerPage>(null)
 
@@ -288,17 +288,32 @@ const drawerH = computed(() => DETENT_H[detent.value])
 const boardWidth = computed(() =>
   detent.value === 'full' ? '150px' : detent.value === 'half' ? '230px' : '332px')
 
+/** 把手是抽屉**唯一**的收起控件（design/09 §2.2 v0.5）。
+ *
+ *  从前它只认拖拽（`Math.abs(dy) < 24` 直接 return），点了没反应，于是账本只好在
+ *  peek 条右端另挂一枚「收起 ✕」按钮补位——一枚实心描边按钮，为了关一个抽屉。
+ *  而手动拉到 half 看牌桌的人连那枚按钮都没有，只能再点一次头像列。
+ *  一条规则收干净：**向下 = 退一步**（账本打开时「退一步」就是关掉账本，不停在 half），
+ *  向上 = 进一步；点击在 peek 档是展开，其余档位是退一步。 */
 let grabStart = 0
+function raise() {
+  detent.value = ORDER[Math.min(ORDER.length - 1, ORDER.indexOf(detent.value) + 1)]
+}
+function lower() {
+  if (ledger.value) { closeLedger(); return }
+  detent.value = ORDER[Math.max(0, ORDER.indexOf(detent.value) - 1)]
+}
 function onGrab(e: PointerEvent) {
   grabStart = e.clientY
-  ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  // 指针已经不活跃时 setPointerCapture 会抛 NotFoundError；捕获只是为了拖得跟手，
+  // 抓不到也不该把这一次交互整个废掉（下面的 pointerup 照样要认）
+  try { (e.target as HTMLElement).setPointerCapture(e.pointerId) } catch { /* 无妨 */ }
 }
 function onGrabUp(e: PointerEvent) {
   const dy = e.clientY - grabStart
-  if (Math.abs(dy) < 24) return
-  const order: Detent[] = ['peek', 'half', 'full']
-  const i = order.indexOf(detent.value)
-  detent.value = order[Math.min(order.length - 1, Math.max(0, i + (dy < 0 ? 1 : -1)))]
+  if (Math.abs(dy) < 24) detent.value === 'peek' ? raise() : lower()
+  else if (dy < 0) raise()
+  else lower()
 }
 
 function openLedger(page: LedgerPage = 'statement') {
@@ -313,27 +328,22 @@ function closeLedger() {
 // 进入破产清算时把账本收掉：清算期间抽屉里只该有清算面板，分段控件让位
 watch(() => me.value?.inBankruptcy, (v) => { if (v) ledger.value = null })
 
-/** 破产入口的判据与线下同一条（月现金流为负且现金加它小于零） */
-const bankruptable = computed(() =>
-  !!me.value && !me.value.inBankruptcy && me.value.derived.monthlyCashflow < 0
-  && me.value.cash + me.value.derived.monthlyCashflow < 0)
+// ---------- 资金弹层（银行 · 转账 · 破产入口 · 显示设置） ----------
 
-async function startBankruptcy() {
-  const ok = await confirmAction({
-    title: '进入破产流程？',
-    lines: ['将按首期付款 50% 向银行变卖资产，直至月现金流转正'],
-    danger: true,
-  })
-  if (ok) await game.act('BANKRUPTCY_START')
-}
+const funds = ref(false)
+const fundsSheet = ref<InstanceType<typeof FundsSheet> | null>(null)
 
-// 现金不足的三处提示点「去贷款」→ 打开 账本 → 更多 → 银行，并把缺口预填进去
-const bankPanel = ref<InstanceType<typeof BankPanel> | null>(null)
+/** 绝不叠弹层（design/09 §2.3）：别人的动作要我答复时，我自己翻开的这一层让位。
+ *  反方向不用管——`.modal-mask` 是全屏 fixed 且压在 `.board-tools` 之上，
+ *  `PromptModal` 在场时那枚 🏦 本来就点不到。 */
+watch(() => game.myPrompts.length, (n) => { if (n) funds.value = false })
+
+// 现金不足的三处提示点「去贷款」→ 打开资金弹层的银行块，并把缺口预填进去
 watch(bankRequest, async (req) => {
   if (!req) return
-  openLedger('more')
+  funds.value = true
   await nextTick()
-  bankPanel.value?.prefill(req.need)
+  fundsSheet.value?.prefillBank(req.need)
 })
 
 // ---------- 逃出老鼠赛跑（沿用线下模式那一套判据与 sessionStorage 记忆） ----------
@@ -449,7 +459,14 @@ const blockedBy = computed(() => {
     <div class="board-stage" :class="{ 'card-open': !held && !!game.state.activeCard }"
          :style="{ '--bw': boardWidth }"
          @click="game.staging && game.skipStage()">
-      <div class="board-tools">
+      <!-- 悬浮工具挂在 stage 内部的右上角（design/09 §8）。
+           🏦 排最上：三个里只有它是「事到临头才需要」的，另外两个是随便什么时候翻翻。
+           **full 档整列收起**：那时 stage 只剩 16px（HUD + 88dvh 已超一屏，负空间全由抽屉吸收，
+           而 stage 的 flex-basis 是 0），三枚圆钮会被 `overflow:hidden` 切成一条边——
+           一枚切了一半的圆看着像渲染坏了，而不像一个决定。full 档只在「账本打开」与
+           「破产清算」两种情形出现，前者点一下把手就退出来，后者本就只该有清算面板。 -->
+      <div v-if="detent !== 'full'" class="board-tools">
+        <button class="board-float" title="资金" @click="funds = true">🏦</button>
         <button class="board-float" title="账本" @click="openLedger()">📋</button>
         <router-link to="/manual" class="board-float" title="说明书">📖</router-link>
       </div>
@@ -487,7 +504,11 @@ const blockedBy = computed(() => {
 
     <!-- ===== 底部三档抽屉 ===== -->
     <div class="board-drawer" :style="{ '--dh': drawerH }">
-      <div class="sheet-grab grabbable" @pointerdown="onGrab" @pointerup="onGrabUp"></div>
+      <!-- 把手是抽屉唯一的收起控件（§2.2 v0.5）。用 `<button>` 而不是 `<div>`：
+           它现在能点了，语义与键盘可达性得跟上；裸 button 早已被重置成中性，视觉不变。 -->
+      <button class="sheet-grab grabbable"
+              :aria-label="detent === 'peek' ? '展开抽屉' : (ledger ? '收起账本' : '收起抽屉')"
+              @pointerdown="onGrab" @pointerup="onGrabUp"></button>
 
       <div class="drawer-peek">
         <!-- 破产清算优先于一切：这时候抽屉里只有清算面板，分段控件让位 -->
@@ -495,12 +516,10 @@ const blockedBy = computed(() => {
           <b class="who">破产清算</b>
           <span class="muted">卖资产直到月现金流转正</span>
         </template>
-        <!-- 账本打开时状态条上只有标题与出口：四页归四页，分段控件在内容区顶部。
-             七个按钮挤一条的老排法在 375 屏宽下必然折成两行 -->
+        <!-- 账本打开时状态条上**只剩标题**：分段控件在内容区顶部，收起归把手。
+             从前这里还挂着一枚「收起 ✕」——一枚实心描边按钮，只为关一个本来就有把手的抽屉 -->
         <template v-else-if="ledger">
           <b class="who">账本</b>
-          <span class="grow"></span>
-          <button class="btn ghost small" @click="closeLedger">收起 ✕</button>
         </template>
         <template v-else-if="!game.isMyTurn">
           <span class="who">{{ game.currentPlayer?.nickname ?? '对手' }}</span>
@@ -540,39 +559,18 @@ const blockedBy = computed(() => {
         <template v-if="me.inBankruptcy">
           <BankruptcyPanel :show-resolve="false" />
         </template>
-        <!-- 分段控件钉在内容区顶部：四段等宽、任何屏宽都排得下一行 -->
+        <!-- 分段控件钉在内容区顶部：三段等宽、任何屏宽都排得下一行。
+             第四段「更多」（银行/转账/破产/显示设置）已搬去悬浮的资金弹层——
+             账本是「随时可查」的三张表，资金是「事到临头要动手」的工具，两回事 -->
         <template v-else-if="ledger">
           <div class="ledger-seg">
             <button :class="{ on: ledger === 'statement' }" @click="ledger = 'statement'">报表</button>
             <button :class="{ on: ledger === 'overview' }" @click="ledger = 'overview'">总览</button>
             <button :class="{ on: ledger === 'log' }" @click="ledger = 'log'">日志</button>
-            <button :class="{ on: ledger === 'more' }" @click="ledger = 'more'">更多</button>
           </div>
           <StatementTab v-if="ledger === 'statement'" />
           <OverviewTab v-else-if="ledger === 'overview'" />
-          <LogTab v-else-if="ledger === 'log'" />
-          <!-- 「更多」：随时可用但不是待办的三块（design/09 §2.4）。
-               它们与报表/总览/日志同属「随时可查、随时可用」，本就该在同一层。 -->
-          <template v-else-if="ledger === 'more'">
-            <BankPanel v-if="me.phase === 'RAT_RACE'" ref="bankPanel" />
-            <p v-else class="muted">快车道没有银行贷款（说明书第 6 页），记录卡已翻面。</p>
-            <TransferPanel />
-            <button v-if="bankruptable" class="btn block warn" @click="startBankruptcy">
-              🆘 进入破产流程
-            </button>
-            <!-- 本机的显示偏好：它是这台设备的事，不是账本的一页，所以收在这儿而不是占一格分段 -->
-            <div class="card">
-              <h3>🎬 显示设置</h3>
-              <label class="row between" style="cursor:pointer">
-                <span>跳过动画</span>
-                <input type="checkbox" :checked="game.skipAnim"
-                       @change="game.setSkipAnim(!game.skipAnim)" />
-              </label>
-              <p class="muted" style="margin:6px 0 0">
-                只影响这台设备：掷骰、走格、发牌不再播放过场，点数与卡面直接给出结果。
-              </p>
-            </div>
-          </template>
+          <LogTab v-else />
         </template>
         <template v-else>
           <div v-if="!game.connected" class="card quiet" style="padding:14px;text-align:center">
@@ -697,6 +695,9 @@ const blockedBy = computed(() => {
         </div>
       </div>
     </div>
+
+    <!-- 资金：我主动翻开的常驻工具，随时可推开。要我答复的弹层一到就自动让位（见 watch） -->
+    <FundsSheet v-if="funds" ref="fundsSheet" @close="funds = false" />
 
     <!-- 弹层同样等演出播完：别人抽的市场卡要我答复，也得先让我看见那张牌翻过来 -->
     <PromptModal v-if="!held" />

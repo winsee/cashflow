@@ -654,6 +654,20 @@ async function main() {
   if (nameInDisc) failures.push('22-纯线上-棋盘待掷骰: 盘面标题压进了圆盘')
   const tabbars = await pMe.evaluate(() => document.querySelectorAll('.tabbar').length)
   if (tabbars) failures.push('22-纯线上-棋盘待掷骰: 纯线上不该有常驻标签栏')
+  // 资金 / 账本 / 说明书三枚悬浮圆钮，peek 档必须整枚都在 stage 里（stage 有 overflow:hidden）
+  const floats = await pMe.evaluate(() => {
+    const stage = document.querySelector('.board-stage').getBoundingClientRect()
+    const all = [...document.querySelectorAll('.board-float')]
+    return {
+      n: all.length,
+      whole: all.filter(b => b.getBoundingClientRect().bottom <= stage.bottom + 1).length,
+      text: all.map(b => b.textContent.trim()).join(''),
+    }
+  })
+  if (floats.n !== 3 || floats.whole !== 3)
+    failures.push(`22-纯线上-棋盘待掷骰: 悬浮圆钮 ${floats.n} 枚、完整可见 ${floats.whole} 枚`)
+  if (!floats.text.includes('🏦'))
+    failures.push('22-纯线上-棋盘待掷骰: 没有资金入口（🏦）')
 
   // 24 观战：别人的回合是只读骰盘（平面 `?`，不摆点数）+ 一行「他走到哪一步」
   await shot(pOther, '23-纯线上-观战', '.drawer-peek')
@@ -667,6 +681,19 @@ async function main() {
   await pOther.evaluate(() => document.querySelector('.drawer-peek .seat-strip')?.click())
   await shot(pOther, '23a-纯线上-观战牌桌', '.drawer-body .avatar-lg')
   await expectText(pOther, '23a-纯线上-观战牌桌', { has: ['牌桌', '行动中', '月现金流'] })
+  // 23b 把手是抽屉唯一的收起控件：手动拉起来看牌桌之后，点一下把手就该退回 peek。
+  // 从前这里一个收起控件都没有，只能再点一次头像列（design/09 §2.2 v0.5）
+  const grabBack = await pOther.evaluate(async () => {
+    const el = document.querySelector('.board-drawer .sheet-grab')
+    const before = document.querySelector('.board-drawer').offsetHeight
+    for (const t of ['pointerdown', 'pointerup'])
+      el.dispatchEvent(new PointerEvent(t, { bubbles: true, clientY: 400, pointerId: 1 }))
+    await new Promise(r => setTimeout(r, 700))
+    return { before, after: document.querySelector('.board-drawer').offsetHeight }
+  })
+  if (!(grabBack.after < grabBack.before))
+    failures.push(`23b-纯线上-点把手收起: 抽屉没退档（${grabBack.before}px → ${grabBack.after}px）`)
+  await shot(pOther, '23b-纯线上-点把手收起', '.drawer-peek')
 
   // 25 掷骰 → 走格 → 落点。点数由服务端摇，落到哪一格无法预设，所以反复掷到
   // 停在机会格为止（24 格里 12 个是机会，几轮之内必中），中途的落点顺手处理掉。
@@ -749,7 +776,7 @@ async function main() {
     await shot(pMe, '25-纯线上-落点处理', '.drawer-body')
   }
 
-  // 26 账本：报表 / 总览 / 日志三分段（full 档抽屉，不是 tabbar）
+  // 27 账本：报表 / 总览 / 日志三分段（full 档抽屉，不是 tabbar）
   await pMe.evaluate(() => {
     const el = [...document.querySelectorAll('.board-float')].find(x => x.textContent.includes('📋'))
     el?.click()
@@ -760,8 +787,17 @@ async function main() {
     const el = document.querySelector('.ledger-seg')
     return el ? { n: el.querySelectorAll('button').length, h: el.offsetHeight } : null
   })
-  if (!seg || seg.n !== 4) failures.push(`27-纯线上-账本-报表: 分段控件不是四段（${seg?.n ?? '没有'}）`)
+  if (!seg || seg.n !== 3) failures.push(`27-纯线上-账本-报表: 分段控件不是三段（${seg?.n ?? '没有'}）`)
   else if (seg.h > 50) failures.push(`27-纯线上-账本-报表: 分段控件折行了（${seg.h}px）`)
+  // full 档下 stage 只剩十几个像素（HUD + 88dvh 已超一屏，负空间全由抽屉吸收，而 stage 的
+  // flex-basis 是 0）。悬浮圆钮挂在 stage 内部，留着就会被 overflow:hidden 切成一条边，
+  // 看着像渲染坏了——所以这一档整列收起，而不是留几枚半截的圆
+  const sliced = await pMe.evaluate(() => {
+    const stage = document.querySelector('.board-stage').getBoundingClientRect()
+    return [...document.querySelectorAll('.board-float')]
+      .filter(b => b.getBoundingClientRect().bottom > stage.bottom + 1).length
+  })
+  if (sliced) failures.push(`27-纯线上-账本-报表: full 档下有 ${sliced} 枚悬浮圆钮被切了一半`)
   await clickText(pMe, '.ledger-seg button', '总览')
   await shot(pMe, '27a-纯线上-账本-总览', '.drawer-body .progress')
   // full 档（88dvh）+ HUD 超过一屏：抽屉必须收缩到剩余空间里。
@@ -787,20 +823,40 @@ async function main() {
   // 纯线上没有「本人更正」这条路径
   await expectText(pMe, '27b-纯线上-账本-日志', { noButtons: ['更正'] })
 
-  // 27c 第四页「更多」：银行 / 转账 / 破产入口。这一页就是试玩里那个死局的出口——
-  // 现金不足既买不了、又结束不了回合，是因为纯线上根本没有银行
-  await clickText(pMe, '.ledger-seg button', '更多')
-  await shot(pMe, '27c-纯线上-账本-更多-银行与转账', '.drawer-body input[step="1000"]')
-  await expectText(pMe, '27c-纯线上-账本-更多-银行与转账', {
-    // 「跳过动画」是这台设备的偏好、不是账本的一页，收在这儿而不是占一格分段
-    has: ['🏦 银行', '玩家间转账', '月息 10%', '跳过动画'],
+  // 27c 收起归把手：peek 条上不再有「收起 ✕」那枚按钮，点一下把手账本就该整个关掉
+  // （不是退到 half——账本只有 full 一种形态，退一半等于半开着挡路）
+  const noCloseBtn = await pMe.evaluate(() =>
+    [...document.querySelectorAll('.drawer-peek button')].some(b => b.textContent.includes('收起')))
+  if (noCloseBtn) failures.push('27c-纯线上-账本收起: peek 条上还留着「收起」按钮')
+  const closed = await pMe.evaluate(async () => {
+    const el = document.querySelector('.board-drawer .sheet-grab')
+    for (const t of ['pointerdown', 'pointerup'])
+      el.dispatchEvent(new PointerEvent(t, { bubbles: true, clientY: 300, pointerId: 1 }))
+    await new Promise(r => setTimeout(r, 700))
+    return !document.querySelector('.ledger-seg')
   })
-  await clickText(pMe, '.drawer-peek .btn', '收起')
+  if (!closed) failures.push('27c-纯线上-账本收起: 点把手没有把账本关掉')
+  await shot(pMe, '27c-纯线上-账本收起-把手', '.drawer-peek')
+
+  // 27d 资金弹层：银行 / 转账 / 破产入口 / 显示设置，一枚悬浮圆钮直开。
+  // 它就是试玩里那个死局的出口——现金不足既买不了、又结束不了回合，是因为纯线上
+  // 根本没有银行；v0.4 之前它埋在「账本 → 更多」第三层，试玩反馈「太深了」
+  await pMe.evaluate(() => {
+    const el = [...document.querySelectorAll('.board-float')].find(x => x.textContent.includes('🏦'))
+    el?.click()
+  })
+  await shot(pMe, '27d-纯线上-资金弹层', '.modal input[step="1000"]')
+  await expectText(pMe, '27d-纯线上-资金弹层', {
+    // 「跳过动画」是这台设备的偏好、不是账本的一页，收在这儿而不是占一格分段
+    has: ['资金', '🏦 银行', '玩家间转账', '月息 10%', '跳过动画'],
+  })
+  await pMe.evaluate(() => document.querySelector('.modal-mask')?.click())
+  await sleep(400)
 
   // 结束回合的出口必须常驻：卡片决策排它上面一行，不取代它（design/09 §2.4）
-  await expectText(pMe, '27d-纯线上-结束回合常驻', { has: ['结束回合'] })
+  await expectText(pMe, '27e-纯线上-结束回合常驻', { has: ['结束回合'] })
   const ctaRows = await pMe.evaluate(() => document.querySelectorAll('.drawer-cta .cta-row').length)
-  if (!ctaRows) failures.push('27d-纯线上-结束回合常驻: 底部操作区没有分行')
+  if (!ctaRows) failures.push('27e-纯线上-结束回合常驻: 底部操作区没有分行')
 
   // 27 断线：棋盘压暗 + 骰盘禁用并写明不能掷骰
   offlineOnPurpose = true

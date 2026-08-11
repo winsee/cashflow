@@ -105,7 +105,7 @@ const marketPending = computed(() => {
           <span class="money neg">+{{ fmt(props.card.data.creditMonthly) }}</span></div>
       </div>
 
-      <!-- 钱不够：写出缺口，并给一条通往银行的路（账本 → 更多 → 银行，金额已预填）。
+      <!-- 钱不够：写出缺口，并给一条通往银行的路（直开资金弹层的银行块，金额已预填）。
            只写「现金不足」而不给入口，玩家在纯线上就真的无路可走。 -->
       <div v-if="shortfall > 0" class="card inner danger" style="background:var(--red-soft)">
         <div class="row between">
