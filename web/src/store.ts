@@ -8,6 +8,20 @@ import type {
   BoardDto, CardDto, GameMode, LogEntry, Player, Prompt, RoomListItem, RoomSeats, RoomStateDto,
 } from './types'
 
+/** 结算日存根：帘幕散场后留在抽屉里的那张摘要卡的数据。
+ *  `key` = 轮次@行动者，换回合即自然失效（同 `lastImpact` 的做法）。 */
+export interface SettlementStub {
+  key: string
+  playerId: string
+  track: 'RAT_RACE' | 'FAST_TRACK'
+  /** 本回合这一路上结算的总额（连过两个结算格就是两次之和） */
+  amount: number
+  /** 一共结算了几个月 */
+  times: number
+  /** 单月净额 */
+  cashflow: number
+}
+
 /** toast 的四种口吻：成功 / 出错 / 仪式（金色高光）/ 中性信息 */
 export type FlashVariant = 'ok' | 'err' | 'gold' | 'info'
 
@@ -117,6 +131,10 @@ export const useGame = defineStore('game', {
     lastImpact: null as CardImpact | null,
     /** 有人（不是我）逃出老鼠赛跑了：全屏祝贺一屏，点掉为止 */
     cheer: null as Cheer | null,
+    /** 本回合的结算日存根：发薪帘幕自动消散、还能被一次点击跳过，**播完零残留**，
+     *  而「经过」根本不产生 landing，落点结果卡只认「停在」——于是没看清就没地方回看。
+     *  照发牌那条老规矩办：帘幕是仪式，卡片随后落进抽屉可以慢慢看。 */
+    lastSettlement: null as SettlementStub | null,
     /** 棋盘数据（两条轨道），纯线上模式进房时拉一次 */
     board: null as BoardDto | null,
     // ---- 演出层（stage.ts）：只影响「界面此刻显示到哪一帧」，与账目无关 ----
@@ -196,6 +214,13 @@ export const useGame = defineStore('game', {
     myLanding(): RoomStateDto['landing'] {
       if (!this.isOnline || !this.isMyTurn) return null
       return this.state?.landing ?? null
+    },
+    /** 本回合的结算日存根，过了这个回合自动作废（同 cardImpact 的 key 做法）。
+     *  重连首帧是 `type:'snapshot'`、不带 lastEvents，所以不会补出一张陈年摘要卡。 */
+    settlementStub(): SettlementStub | null {
+      const s = this.lastSettlement
+      if (!s || !this.state) return null
+      return s.key === `${this.state.turnCount}@${this.state.currentPlayerId ?? ''}` ? s : null
     },
     /** 演出是否正在播：播的时候棋盘按 stagePos 画，播完回到权威位置 */
     staging(): boolean {
@@ -385,7 +410,37 @@ export const useGame = defineStore('game', {
       // 波及范围与回执用同一批事件、同一个「换快照前」的时机：被没收的资产名只在旧快照里有
       const impact = buildCardImpact(events, this.state)
       if (impact) this.lastImpact = impact
+      this.catchStub(events, meId)
       this.catchCheer(events, meId)
+    },
+    /** 攒出本回合的结算日存根。同一次移动可能连过两个结算格（服务端会产出两条事件），
+     *  合成一条「本回合经过 N 次」——那正是玩家在回合结束前想回看的那句话。
+     *  金额取**事件**而不是快照：快照只有单月值，×N 在那儿看不出来。 */
+    catchStub(events: { type: string; payload: Record<string, any> }[], meId: string) {
+      // 线下辅助模式的结算日是玩家自己点的、当场有 confirm 与 toast，不需要存根——
+      // 那套界面一屏一字都不动
+      if (!this.isOnline) return
+      for (const ev of events) {
+        const p = ev.payload ?? {}
+        if (p.player_id !== meId) continue
+        let add: Omit<SettlementStub, 'key' | 'playerId'> | null = null
+        if (ev.type === 'PAYDAY') {
+          const times = p.times ?? 1
+          add = { track: 'RAT_RACE', amount: (p.cashflow ?? 0) * times, times, cashflow: p.cashflow ?? 0 }
+        } else if (ev.type === 'FT_PAYDAY') {
+          const times = p.times ?? 1
+          const amount = p.amount ?? 0
+          add = { track: 'FAST_TRACK', amount, times, cashflow: times ? Math.round(amount / times) : amount }
+        }
+        if (!add) continue
+        const key = `${this.state!.turnCount}@${this.state!.currentPlayerId ?? ''}`
+        const prev = this.lastSettlement?.key === key ? this.lastSettlement : null
+        this.lastSettlement = {
+          key, playerId: meId, track: add.track, cashflow: add.cashflow,
+          amount: (prev?.amount ?? 0) + add.amount,
+          times: (prev?.times ?? 0) + add.times,
+        }
+      }
     },
     /** 别人逃出老鼠赛跑：推一屏全屏祝贺。
      *  和回执同一入口，所以重连首帧（type: 'snapshot'，不带 lastEvents）天然不会误弹。

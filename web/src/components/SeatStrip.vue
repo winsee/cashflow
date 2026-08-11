@@ -19,6 +19,17 @@ const emit = defineEmits<{ (e: 'open'): void }>()
 
 const game = useGame()
 
+/** 别人经过结算日时，他的座次点上飘一枚金额——「谁刚发了薪」在牌桌上该看得见
+ *  （当事人看到的是全屏发薪帘幕，所以这里把自己排掉）。
+ *
+ *  **纯从演出队列派生，不落任何 store 状态**：它随那一拍出现、随那一拍消失。
+ *  也**不进 statuses.ts**——那份是「持续状态」的主人，这个是瞬时的，两者不能混。 */
+const payFlash = computed(() => {
+  const s = game.stageNow
+  if (s?.kind !== 'settle' || s.playerId === game.session?.playerId) return null
+  return { id: s.playerId, text: (s.amount < 0 ? '−' : '+') + Math.abs(s.amount).toLocaleString('en-US'), neg: s.amount < 0 }
+})
+
 const seats = computed(() => {
   const s = game.state
   if (!s) return []
@@ -43,6 +54,9 @@ const seats = computed(() => {
           :class="{ now: s.now, done: s.done, out: s.out }" :title="s.title">
       {{ s.initial }}
       <span v-if="s.mark !== null" class="mark" :class="s.mark || 'plain'"></span>
+      <span v-if="payFlash?.id === s.id" class="seat-pay" :class="{ neg: payFlash.neg }">
+        {{ payFlash.text }}
+      </span>
     </span>
   </component>
 </template>

@@ -29,6 +29,8 @@ const props = defineProps<{
   /** 过站结算正在这一格闪橙光 */
   settleIndex?: number
   settleAmount?: number
+  /** 这一笔是我自己的：金额归全屏发薪帘幕说，板上只留橙光不再飘一遍字 */
+  settleMine?: boolean
   /** 落点脉冲 */
   pulseIndex?: number
   /** 抽屉展开时把盘面标题收起来，把高度让给抽屉 */
@@ -134,6 +136,12 @@ const markerLane = computed(() => markerLanePoint(ring.value))
 
 const settlePoint = computed(() =>
   props.settleIndex ? slotPoint(props.settleIndex, n.value, ring.value) : null)
+/** 月现金流为负时这一笔是扣钱：号与色都得跟着走，不能一律绿色 `+` */
+const settleNeg = computed(() => (props.settleAmount ?? 0) < 0)
+const settleText = computed(() => {
+  const v = props.settleAmount ?? 0
+  return (v < 0 ? '−' : '+') + Math.abs(v).toLocaleString('en-US')
+})
 
 /** 棋盘只负责画棋盘：点哪一格由调用方解释（详情弹层 / 什么都不做），这里不做筛选 */
 function tap(sq: BoardSquare) {
@@ -179,12 +187,15 @@ const markerText = computed(() => props.track === 'FAST_TRACK' ? '在此进入' 
             :d="sectorPath(pulseIndex - 1, n, ring)" fill="none"
             stroke="var(--brand)" stroke-width="2.5" />
 
-      <!-- 过站结算：格子脉冲橙光 + 金额飘字 -->
+      <!-- 过站结算：格子脉冲橙光 + 金额飘字。
+           **飘字只给旁观者**——当事人此刻正被 PaydayCurtain 盖着屏，帘幕背后不该有它自己
+           要揭晓的那个数（同职业卡那条通则）；帘幕散场后这一拍也过去了，看不到残影。 -->
       <g v-if="settlePoint" class="sq-settle">
         <path :d="sectorPath((settleIndex ?? 1) - 1, n, ring)"
-              fill="var(--deck-payday)" fill-opacity="0.55" />
-        <text :x="settlePoint[0]" :y="settlePoint[1] - 14" class="settle-amt"
-              text-anchor="middle">+{{ (settleAmount ?? 0).toLocaleString('en-US') }}</text>
+              :fill="settleNeg ? 'var(--neg)' : 'var(--deck-payday)'" fill-opacity="0.55" />
+        <text v-if="!settleMine" :x="settlePoint[0]" :y="settlePoint[1] - 14"
+              class="settle-amt" :class="{ neg: settleNeg }"
+              text-anchor="middle">{{ settleText }}</text>
       </g>
 
       <!-- 起点 / 在此进入：环外一枚三角 + 两个字。它是标记不是格子（位置 0） -->
