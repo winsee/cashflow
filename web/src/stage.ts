@@ -81,6 +81,8 @@ export function buildStage(events: StageEvent[], prev: RoomStateDto | null): Sta
   const out: StageStep[] = []
   let track: Track = 'RAT_RACE'
   let mover = ''
+  /** 这一批里谁走到了哪一格：发牌帘幕的起飞格取它（见 `landingIndexOf`） */
+  const landedAt: Record<string, number> = {}
   // 过站结算的事件排在 PLAYER_MOVED 之前（服务端按「先结算再落位」产出），
   // 先攒着，等拿到 path 才知道该把橙光打在哪一格上。
   type Settle = Extract<StageStep, { kind: 'settle' }>
@@ -145,7 +147,10 @@ export function buildStage(events: StageEvent[], prev: RoomStateDto | null): Sta
             out.push({ kind: 'settle', ms: BEAT.settle, index, ...pending.shift()! })
           }
         }
-        if (path.length) out.push({ kind: 'landing', ms: BEAT.landing, index: path[path.length - 1] })
+        if (path.length) {
+          landedAt[p.player_id] = path[path.length - 1]
+          out.push({ kind: 'landing', ms: BEAT.landing, index: path[path.length - 1] })
+        }
         break
       }
       case 'DECK_RESHUFFLED':
@@ -154,7 +159,7 @@ export function buildStage(events: StageEvent[], prev: RoomStateDto | null): Sta
       case 'CARD_DRAWN':
         out.push({
           kind: 'deal', ms: BEAT.deal, deck: p.deck, cardId: p.card_id,
-          title: p.title ?? '', fromIndex: landingIndexOf(prev, mover, track),
+          title: p.title ?? '', fromIndex: landingIndexOf(prev, p.player_id ?? mover, landedAt),
         })
         break
     }
@@ -193,11 +198,22 @@ function settlementIndexes(path: number[], track: Track, prev: RoomStateDto | nu
   return out
 }
 
-/** 牌背从哪一格飞出来：抽卡人此刻站的那一格（拿不到就从屏心飞，fromIndex = 0） */
-function landingIndexOf(prev: RoomStateDto | null, playerId: string, track: Track): number {
+/** 牌背从哪一格飞出来：**抽卡人此刻站的那一格**（拿不到就从屏心飞，fromIndex = 0）。
+ *
+ *  两条路径的落点不在同一个地方，都要认：
+ *  ① 掷骰那一批里连着抽卡（停在额外支出/市场风云格）——落点在这批的 `PLAYER_MOVED.path` 末尾，
+ *     `prev` 里那份还是**掷骰之前**的位置，用它会从上一格飞出来；
+ *  ② 「你停在机会格 → 点小生意/大生意」那一批里只有 `CARD_DRAWN`，一个移动事件都没有，
+ *     这时才该回 `prev` 取位置。
+ *  赛道也取玩家自己的 `phase`，不取批内那个由 `PLAYER_MOVED` 才置位的变量——②那条路径上它没被置过。 */
+function landingIndexOf(
+  prev: RoomStateDto | null, playerId: string, landedAt: Record<string, number>,
+): number {
+  if (!playerId) return 0
+  if (landedAt[playerId]) return landedAt[playerId]
   const pl = prev?.players.find(x => x.id === playerId)
   if (!pl) return 0
-  return track === 'FAST_TRACK' ? pl.ftPosition : pl.rrPosition
+  return pl.phase === 'FAST_TRACK' ? pl.ftPosition : pl.rrPosition
 }
 
 /** 棋盘数据在演出层里只用来判「哪一格是结算格」，由 store 拉到后塞进来，省得逐拍再取一次。 */
