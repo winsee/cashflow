@@ -585,6 +585,9 @@ async function main() {
   // 牌在翻转途中有没有「长个」（占位卡面换成真卡那一跳，第四轮试玩的主因）
   await qa.evaluate(() => {
     window.__dealH0 = -1
+    // 点下去**之前**量这张牌背：它就是帘幕里那张牌的起飞矩形（20e 拿它对账）
+    const src = document.querySelector('.prof-back').getBoundingClientRect()
+    window.__profRect = { x: src.left + src.width / 2, y: src.top + src.height / 2, w: src.width }
     document.querySelector('.prof-back')?.click()
     requestAnimationFrame(() => {
       window.__dealH0 = document.querySelector('.deal-curtain .deal-inner')?.offsetHeight ?? -1
@@ -620,12 +623,16 @@ async function main() {
       return { err: `牌上没挂动画：class="${el.className}" n=${el.getAnimations().length} `
         + `name=${cs.animationName} dur=${cs.animationDuration} play=${cs.animationPlayState}` }
     }
+    // **必须把延迟算进去**（v0.12）：翻转拍现在接在飞入拍后面（`animation-delay`），
+    // 而 `anim.currentTime` 是从**延迟开始**算的——照旧 seek 到 [0, dur] 会全部落在延迟里，
+    // 每一帧都是 0% 的入场填充（一律 180°），下面「三成时间过去必须已起转」当场误报。
+    const { delay } = anim.effect.getComputedTiming()
     const dur = anim.effect.getTiming().duration
     const keep = anim.currentTime
     anim.pause()
     const xs = []
     for (let i = 0; i <= 32; i++) {
-      anim.currentTime = (dur * i) / 32
+      anim.currentTime = delay + (dur * i) / 32
       xs.push(getComputedStyle(el).transform)
     }
     anim.currentTime = keep
@@ -661,6 +668,54 @@ async function main() {
       // 90° 交界点（`backface-visibility` 正反切换的那一帧）必须在正中间。
       // 被缓动压到段首的话，观感就是「突然出现正面」而不是「翻过来」。
       failures.push(`20d-翻转: 90° 交界点没落在正中间（半程 cos θ=${at(0.5).toFixed(3)}，应接近 0）`)
+    }
+  }
+
+  // 20e 「牌背是**飞过来**的，不是原地变大」——第五轮试玩「点一下背面，背面突然变一下大小，
+  // 然后又翻转」。现有断言一条都钉不住它：20b' 量的是 `offsetHeight`（`transform` 不进布局），
+  // 20d 特意把缩放从 `cos θ` 里约掉了——两条对位移与缩放都免疫。
+  //
+  // 根因是**交接**：页内那张 `.prof-back` 是 `76% × (页宽 − 24px)`（390px 手机上 ≈278px、
+  // 在页面流里），帘幕里那张 `.deal-card` 是 `76% × 视口宽`（≈296px、钉在屏心），
+  // 两张同款牌背在 180ms 淡入里交叉，一大一小、位置还不同。
+  // 所以这里量的是**飞入拍的第一帧**：它必须压在玩家刚点的那张牌背上。
+  const fly = await qa.evaluate(() => {
+    const el = document.querySelector('.deal-curtain .deal-card')
+    if (!el) return { err: '帘幕里没有 .deal-card' }
+    const anim = el.getAnimations()[0]
+    if (!anim?.effect) {
+      const cs = getComputedStyle(el)
+      return { err: `牌上没挂飞入动画：class="${el.className}" name=${cs.animationName}` }
+    }
+    const keep = anim.currentTime
+    anim.pause()
+    const box = t => {
+      anim.currentTime = t
+      const r = el.getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width }
+    }
+    const first = box(0)
+    const last = box(anim.effect.getComputedTiming().activeDuration)
+    anim.currentTime = keep
+    anim.play()
+    return { first, last, src: window.__profRect }
+  })
+  if (fly?.err) failures.push(`20e-飞入: ${fly.err}`)
+  else if (!fly) failures.push('20e-飞入: 采不到样')
+  else {
+    const d = Math.hypot(fly.first.x - fly.src.x, fly.first.y - fly.src.y)
+    const dw = Math.abs(fly.first.w - fly.src.w)
+    // 修之前：第一帧钉在屏心、宽度是终态的 .55 —— 中心差几十上百 px、宽度差一百多 px
+    if (d > 6) {
+      failures.push(`20e-飞入: 第一帧没压在被点的那张牌背上（中心差 ${d.toFixed(1)}px；`
+        + `源 ${fly.src.x.toFixed(1)},${fly.src.y.toFixed(1)} w=${fly.src.w.toFixed(1)} → `
+        + `首帧 ${fly.first.x.toFixed(1)},${fly.first.y.toFixed(1)} w=${fly.first.w.toFixed(1)}），`
+        + '牌背是凭空变大的，不是飞过来的')
+    } else if (dw > 6) {
+      failures.push(`20e-飞入: 第一帧的宽度与被点的那张对不上（${fly.src.w.toFixed(1)} → `
+        + `${fly.first.w.toFixed(1)}px），交接时会突然变一下大小`)
+    } else if (!(fly.last.w > fly.first.w)) {
+      failures.push(`20e-飞入: 飞完没有比起飞时大（${fly.first.w.toFixed(1)} → ${fly.last.w.toFixed(1)}px）`)
     }
   }
 
@@ -944,6 +999,57 @@ async function main() {
     }))
     if (early.curtain && early.card)
       failures.push('26-纯线上-全屏发牌翻牌: 牌还没翻过来，抽屉里已经摆着卡面了')
+    // 26d 牌背是**从棋盘那一格**飞出来的（design/09 §5.1 拍 6）。`stage.ts` 一直算着
+    // `fromIndex`，v0.12 之前一路没人用，于是屏上只剩一次没有起点的原地放大——
+    // 眼睛读不出「牌从哪儿来」，就只能读成「牌背的尺寸变了一下」（第五轮试玩）。
+    // 20e 是职业卡那条的同一条断言，这里是牌堆卡这条。
+    const deckFly = await pMe.evaluate(() => {
+      const el = document.querySelector('.deal-curtain .deal-card')
+      const disc = document.querySelector('.board-stage .disc')
+      if (!el || !disc) return { err: !el ? '帘幕里没有 .deal-card' : '棋盘不在场' }
+      const d = disc.getBoundingClientRect()
+      if (d.width < 1) return { skip: true }       // 棋盘被压掉了，锚点本就该退化
+      const anim = el.getAnimations()[0]
+      if (!anim?.effect) return { err: `牌上没挂飞入动画：class="${el.className}"` }
+      const keep = anim.currentTime
+      anim.pause()
+      const box = t => {
+        anim.currentTime = t
+        const r = el.getBoundingClientRect()
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width }
+      }
+      const first = box(0)
+      const last = box(anim.effect.getComputedTiming().activeDuration)
+      anim.currentTime = keep
+      anim.play()
+      return {
+        first, last,
+        // 圆盘的中心与半径：格子在**环带**上，不在盘心也不在盘外
+        hub: { x: (d.left + d.right) / 2, y: (d.top + d.bottom) / 2, r: d.width / 2 },
+      }
+    })
+    if (deckFly?.err) failures.push(`26d-飞入: ${deckFly.err}`)
+    else if (deckFly && !deckFly.skip) {
+      const { first, last, hub } = deckFly
+      // 判「在不在某一格上」要用**环带**，不能用圆盘的外接矩形：不带锚点时牌钉在屏心，
+      // 而屏心照样落在那个矩形里——负向对照跑过，这条会漏。
+      // 环带取 geom.RINGS.RAT_RACE 的 R0/R1 ÷ (V/2)＝94/160 与 134/160，两头各放宽一点。
+      const rel = Math.hypot(first.x - hub.x, first.y - hub.y) / hub.r
+      const moved = Math.hypot(first.x - last.x, first.y - last.y)
+      // **位移才是这一拍的主语**，放大只是随行的。不带锚点时首末两帧的中心一模一样
+      // （牌钉在屏心原地放大），这一条专钉它——负向对照下 moved 恒为 0。
+      // 只查环带会漏：屏心离盘心正好 0.82 个半径，照样落在带里（实测）。
+      if (!(moved > 20)) {
+        failures.push(`26d-飞入: 牌背没有位移（首末两帧中心只差 ${moved.toFixed(1)}px），`
+          + '是原地放大，不是从格子里飞出来的')
+      } else if (!(rel > 0.55 && rel < 0.88)) {
+        failures.push(`26d-飞入: 第一帧的中心不在棋盘的格子环上（离盘心 ${rel.toFixed(2)} 个半径，`
+          + '应在 0.55~0.88 之间），牌背不是从格子里飞出来的')
+      } else if (!(first.w < last.w * 0.7)) {
+        failures.push(`26d-飞入: 起飞时不够小（${first.w.toFixed(1)} / 终态 ${last.w.toFixed(1)}px），`
+          + '看不出是从一格里飞出来的')
+      }
+    }
     await sleep(2000)          // 发牌帘幕 2.05s，等它播完再看抽屉
     await shot(pMe, '26a-纯线上-卡面决策（抽屉 half）', '.drawer-cta .btn')
     await expectText(pMe, '26a-纯线上-卡面决策（抽屉 half）', { has: ['第 2 步 / 3'] })

@@ -14,6 +14,7 @@ import { fmt, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
 import type { CardDto, Player } from '../types'
 import BoardView from '../components/board/BoardView.vue'
 import Die3d from '../components/board/Die3d.vue'
+import { RINGS, squareViewportRect } from '../components/board/geom'
 import type { BoardSquare } from '../components/board/geom'
 import FtSquareCard from '../components/cards/FtSquareCard.vue'
 import DealCurtain from '../components/board/DealCurtain.vue'
@@ -493,6 +494,22 @@ async function confirmEnterFasttrack() {
 
 const dealStep = computed(() => game.stageNow?.kind === 'deal' ? game.stageNow : null)
 
+/** 发牌帘幕的**起飞矩形** = 抽卡人停的那一格此刻在屏上的位置（design/09 §5.1 拍 6）。
+ *  `stage.ts` 一直算着 `fromIndex`，此前一路没人用——于是屏上只剩一次没有起点的原地放大，
+ *  眼睛读不出「牌从哪儿来」，只能读成「牌背的尺寸变了一下」。
+ *
+ *  量不到就给 `null`（位置 0 是起点标记不是格子；棋盘在 full 档被压成一条时也量不到），
+ *  组件那边自会退回不带锚点的老行为。 */
+const boardRef = ref<InstanceType<typeof BoardView> | null>(null)
+const dealFrom = computed(() => {
+  const from = dealStep.value?.fromIndex ?? 0
+  if (!from) return null
+  return squareViewportRect(
+    boardRef.value?.disc, from, squares.value.length,
+    RINGS[ft.value ? 'FAST_TRACK' : 'RAT_RACE'],
+  )
+})
+
 /** 这张卡此刻要不要给我一排决策按钮（钉在抽屉底） */
 const cardCta = computed(() => {
   const ac = game.state?.activeCard
@@ -580,7 +597,7 @@ const blockedBy = computed(() => {
         <router-link to="/manual" class="board-float" title="说明书">📖</router-link>
       </div>
 
-      <BoardView :track="ft ? 'FAST_TRACK' : 'RAT_RACE'" :squares="squares"
+      <BoardView ref="boardRef" :track="ft ? 'FAST_TRACK' : 'RAT_RACE'" :squares="squares"
                  :players="game.state.players" :positions="positions"
                  :me-id="game.session?.playerId ?? ''"
                  :current-index="currentIndex" :trail="trail"
@@ -774,7 +791,7 @@ const blockedBy = computed(() => {
 
     <!-- 全屏发牌翻牌：全员同步播放 -->
     <DealCurtain v-if="dealStep" :deck="dealStep.deck" :title="dealStep.title"
-                 :card="activeCardInfo" @skip="game.skipStage()" />
+                 :card="activeCardInfo" :from="dealFrom" @skip="game.skipStage()" />
 
     <!-- 快车道格子详情：格面不写字的补偿 -->
     <div v-if="detail" class="modal-mask" @click.self="detail = null">
