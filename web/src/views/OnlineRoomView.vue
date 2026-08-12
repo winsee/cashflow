@@ -34,6 +34,7 @@ import OverviewTab from '../components/OverviewTab.vue'
 import LogTab from '../components/LogTab.vue'
 import BankruptcyPanel from '../components/tools/BankruptcyPanel.vue'
 import FundsSheet from '../components/board/FundsSheet.vue'
+import StatRow from '../components/base/StatRow.vue'
 
 const game = useGame()
 const finished = computed(() => game.state?.status === 'FINISHED')
@@ -55,6 +56,13 @@ const toWin = computed(() => {
   const f = me.value?.fasttrack
   return f ? Math.max(0, f.initial_income + FT_WIN_INCREMENT - f.current_income) : 0
 })
+
+/** 自己回合内、老鼠赛跑走过一格后进入快车道：本回合到此为止，别再糊出老鼠赛跑最后那张已结算的卡
+ *  （`_a_entered_fasttrack` 不清空 `active_card`，卡本身已 resolved，只是不该再显示）。
+ *  同 `FasttrackPanel.vue` 的 justLanded 判据，之前只 port 到了线下路径。 */
+const justLanded = computed(() =>
+  game.isMyTurn && !!game.state?.turnSquareUsed
+  && me.value?.fasttrack.entered_turn === game.state?.turnCount)
 
 /** 我的家底（design/09 §2.0 v0.12）：HUD 末行一条资产计数，点开是逐项明细。
  *
@@ -229,10 +237,9 @@ const diceMax = computed(() => {
     ? (m.fasttrack.charity_forever ? 3 : 2)
     : (m.charityTurns > 0 ? 2 : 1)
 })
-const diceDefault = computed(() => (ft.value ? 2 : 1))
+// 默认预选允许的最大粒数：手滑直接点掷骰按钮，掷出的也是对自己最有利的选择
 const diceCount = ref(1)
-watch(diceDefault, v => { diceCount.value = v }, { immediate: true })
-watch(diceMax, v => { if (diceCount.value > v) diceCount.value = diceDefault.value })
+watch(diceMax, v => { diceCount.value = v }, { immediate: true })
 
 // 只有翻滚那一拍是 rolling；`settling` 那一拍骰子已经落定，点数就该亮着
 const rolling = computed(() =>
@@ -848,7 +855,19 @@ const blockedBy = computed(() => {
           <!-- 演出没播完就先按住：棋子还在走的时候写「你停在机会格」，
                和牌没翻过来卡片就躺在抽屉里，是同一个毛病 -->
           <OnlineLandingPanel v-if="game.isMyTurn && !held" />
-          <OnlineCardPanel v-if="activeCardInfo && !held" :card="activeCardInfo" />
+          <!-- 进场当回合（老鼠赛跑里已走过一格）：本回合到此为止，不再糊出上一张已结算的旧卡 -->
+          <div v-if="justLanded && !held" class="card focus ft-landed">
+            <div class="todo-label gold">🏁 你已进入快车道</div>
+            <p class="landed-lead">
+              <b>本回合到此为止</b> —— 点下方「结束回合」。下一回合起，每次掷 <b>2 粒骰子</b>在外环移动{{
+                me?.fasttrack.charity_forever ? '（你已行善，可选 1–3 粒）' : '' }}。
+            </p>
+            <div class="landed-nums">
+              <StatRow label="启动资金已到账" :value="me?.cash ?? 0" />
+              <StatRow label="现金流量日收入" :value="me?.fasttrack.current_income ?? 0" />
+            </div>
+          </div>
+          <OnlineCardPanel v-else-if="activeCardInfo && !held" :card="activeCardInfo" />
 
           <!-- 别人的回合、且此刻没有别的东西可显示：牌桌自动兜底。
                这条兜底是对的，只是不够——抽了卡就轮不到它了，所以另有上面那个显式态。
