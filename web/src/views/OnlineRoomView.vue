@@ -843,9 +843,12 @@ const blockedBy = computed(() => {
           <div v-if="!game.connected" class="card quiet" style="padding:14px;text-align:center">
             <span class="muted">重新连上之前，操作暂不可用</span>
           </div>
-          <div v-else-if="me.skipTurns && game.isMyTurn" class="card inner">
-            停赛中 · 还需跳过 {{ me.skipTurns }} 轮，这一回合只能跳过
-          </div>
+          <!-- 停赛（skip_turns>0）不在此另开分支：`_advance_turn` 对停赛玩家静默递减 +
+               continue，从不让他们成为 current player，所以这个条件与 `isMyTurn` 同时成立
+               时，只可能是停赛刚刚生效的那一回合（失业已结算/破产刚复活）——玩家这一回合
+               正常行动过，不是"什么都不能做只能跳过"，按普通回合处理即可，见下方 ReceiptStack /
+               OnlineLandingPanel 与结束回合按钮。停赛状态本身由 hubTip 与座次条/牌桌/总览角标
+               持续展示，不靠这里。 -->
           <div v-else-if="me.phase === 'OUT'" class="card inner muted">
             你已出局 · 可以继续观战
           </div>
@@ -919,12 +922,11 @@ const blockedBy = computed(() => {
           </div>
 
           <!-- 下行：结束回合。判据与服务端 `_d_end_turn` 逐项对齐——
-               UI 的闸门不许比服务端严，服务端准结束的情形界面就必须准。 -->
+               UI 的闸门不许比服务端严，服务端准结束的情形界面就必须准。
+               停赛（skip_turns>0）不再另开分支：这个状态与 `isMyTurn` 同时成立时只可能是
+               停赛刚生效的这一回合（见上方注释），按普通回合结束即可，不必绕开确认弹窗。 -->
           <div v-if="game.isMyTurn" class="cta-row">
-            <button v-if="me.skipTurns" class="btn ghost grow" @click="game.act('END_TURN')">
-              跳过本回合
-            </button>
-            <button v-else class="btn grow" :class="{ ghost: !!cardCta || (step === 1 && canRoll) }"
+            <button class="btn grow" :class="{ ghost: !!cardCta || (step === 1 && canRoll) }"
                     :disabled="!!blockedBy" @click="endTurn">
               {{ blockedBy || '✅ 结束回合' }}
             </button>
