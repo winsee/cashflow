@@ -96,11 +96,18 @@ async function leaveGame() {
         </div>
       </template>
 
-      <div class="muted" style="margin-top:6px" v-if="p.realEstates.length || p.businesses.length || p.stocks.length">
+      <!-- 快车道下改列 fasttrack.businesses：记录卡已翻面，老鼠赛跑那些资产不再相关（同 PlayerTableRow 口径） -->
+      <div class="muted" style="margin-top:6px"
+           v-if="p.phase === 'FAST_TRACK' ? p.fasttrack.businesses.length : (p.realEstates.length || p.businesses.length || p.stocks.length)">
         资产：
-        <span v-for="r in p.realEstates" :key="r.id">🏠{{ r.asset_type }} </span>
-        <span v-for="b in p.businesses" :key="b.id">🏢{{ b.name }} </span>
-        <span v-for="s in p.stocks" :key="s.symbol + s.cost_per_share">📈{{ s.symbol }}×{{ s.shares }} </span>
+        <template v-if="p.phase === 'FAST_TRACK'">
+          <span v-for="b in p.fasttrack.businesses" :key="b.square_id">🏢{{ b.name }} </span>
+        </template>
+        <template v-else>
+          <span v-for="r in p.realEstates" :key="r.id">🏠{{ r.asset_type }} </span>
+          <span v-for="b in p.businesses" :key="b.id">🏢{{ b.name }} </span>
+          <span v-for="s in p.stocks" :key="s.symbol + s.cost_per_share">📈{{ s.symbol }}×{{ s.shares }} </span>
+        </template>
       </div>
 
       <!-- 卡片到此为止：这一页是读物，整卡可点 = 打开这个人的详情，一个手势一个意思。

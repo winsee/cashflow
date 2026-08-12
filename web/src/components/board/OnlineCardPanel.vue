@@ -115,5 +115,8 @@ const marketPending = computed(() => {
         </div>
       </div>
     </template>
+    <!-- 非抽卡人：只在有股票可操作时露出交易区（同一份 StockTradeBox，买卖口径由 store.myStockWindow 定，
+         与 buyerScope/抽卡人身份无关——持仓人卖出从来不受抽卡人限制） -->
+    <StockTradeBox v-else-if="ac?.subtype === 'STOCK_OFFER'" />
   </div>
 </template>
