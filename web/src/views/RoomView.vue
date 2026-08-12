@@ -52,8 +52,8 @@ const myProfession = computed(() =>
 async function drawProfession() {
   if (drawing.value) return
   drawing.value = true
-  // 两条降级出口与演出层同一条口径（design/09 §5.2 / §5.4）：直接给翻开态，不揭牌
-  if (game.skipAnim || prefersReducedMotion()) {
+  // 降级出口与演出层同一条口径（design/09 §5.2 / §5.4）：直接给翻开态，不揭牌
+  if (prefersReducedMotion()) {
     await game.act('SELECT_PROFESSION')
     drawing.value = false
     return

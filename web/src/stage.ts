@@ -222,18 +222,15 @@ export function setStageBoard(board: BoardDto | null) {
   boardCache = board
 }
 
-/** 本机的「跳过动画」偏好：存 localStorage、不进房间状态（它是这台设备的事，不是房间的事实）。 */
-const SKIP_KEY = 'cashflow.skipAnim'
-
-export function loadSkipAnim(): boolean {
-  try { return localStorage.getItem(SKIP_KEY) === '1' } catch { return false }
-}
-
-export function saveSkipAnim(v: boolean) {
-  try { localStorage.setItem(SKIP_KEY, v ? '1' : '0') } catch { /* 隐私模式下忽略 */ }
-}
-
-/** 系统级「减少动态效果」：命中时整条序列压成一次淡入，与设置开关同一条出口。 */
+/** 系统级「减少动态效果」：命中时整条序列压成一次淡入。
+ *
+ *  v0.12 起这是**唯一**的持久降级出口。此前还有一个本机的「跳过动画」开关
+ *  （`localStorage['cashflow.skipAnim']`，收在资金弹层里），已整个撤销：玩家想跳过的
+ *  从来是**这一次**已经看过二十遍的演出，不是**此后每一次**——而那件事「点棋盘任意处
+ *  终止到终态」早就办到了，还不留状态。
+ *
+ *  **连读取一起停掉，不是只删按钮**：开关一撤，界面上就再没有地方关掉它了，
+ *  留着读 localStorage 等于给开过它的设备落一把没有钥匙的锁。 */
 export function prefersReducedMotion(): boolean {
   return typeof matchMedia === 'function'
     && matchMedia('(prefers-reduced-motion: reduce)').matches

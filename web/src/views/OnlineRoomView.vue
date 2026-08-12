@@ -56,6 +56,67 @@ const toWin = computed(() => {
   return f ? Math.max(0, f.initial_income + FT_WIN_INCREMENT - f.current_income) : 0
 })
 
+/** 我的家底（design/09 §2.0 v0.12）：HUD 末行一条资产计数，点开是逐项明细。
+ *
+ *  两条口径与牌桌那一行同源：股票按**总股数**汇总（`stocks` 是批次数组，同一 symbol
+ *  可能有多条不同成本的 lot），快车道下改数快车道企业（记录卡已翻面，老鼠赛跑那些
+ *  资产不再参与计算，不该继续在 HUD 上报数）。
+ *
+ *  **一项都没有就整行不渲染**：开局摆一句「暂无资产」是废话；买下第一项时多出这一行，
+ *  这个跳变本身就是「你开始有家底了」的信号。 */
+const myAssets = computed<{ icon: string; count: string }[]>(() => {
+  const m = me.value
+  if (!m) return []
+  if (m.phase === 'FAST_TRACK') {
+    return m.fasttrack.businesses.length
+      ? [{ icon: '🏢', count: `×${m.fasttrack.businesses.length}` }] : []
+  }
+  const out: { icon: string; count: string }[] = []
+  if (m.realEstates.length) out.push({ icon: '🏠', count: `×${m.realEstates.length}` })
+  if (m.businesses.length) out.push({ icon: '🏢', count: `×${m.businesses.length}` })
+  const shares = m.stocks.reduce((a, s) => a + s.shares, 0)
+  if (shares) out.push({ icon: '📈', count: `${shares.toLocaleString('en-US')} 股` })
+  return out
+})
+
+/** 展开后的逐项明细。房产 / 企业给月现金流（它们的意义就是那笔钱），
+ *  股票给持仓与成本（它没有月现金流，股利另算在利息/股利里）。 */
+const myAssetRows = computed<{ icon: string; name: string; value: string; pos?: boolean }[]>(() => {
+  const m = me.value
+  if (!m) return []
+  if (m.phase === 'FAST_TRACK') {
+    return m.fasttrack.businesses.map(b => ({
+      icon: '🏢', name: b.name, value: '+' + fmt(b.cashflow), pos: true,
+    }))
+  }
+  const rows: { icon: string; name: string; value: string; pos?: boolean }[] = []
+  for (const r of m.realEstates)
+    rows.push({ icon: '🏠', name: r.name, value: (r.cashflow >= 0 ? '+' : '') + fmt(r.cashflow), pos: r.cashflow >= 0 })
+  for (const b of m.businesses)
+    rows.push({ icon: '🏢', name: b.name, value: (b.cashflow >= 0 ? '+' : '') + fmt(b.cashflow), pos: b.cashflow >= 0 })
+  // 同一 symbol 的多个批次合成一行，成本取加权均价——分开列的话「我有多少 OK4U」要自己加
+  const bySymbol = new Map<string, { shares: number; cost: number }>()
+  for (const s of m.stocks) {
+    const cur = bySymbol.get(s.symbol) ?? { shares: 0, cost: 0 }
+    cur.shares += s.shares
+    cur.cost += s.shares * s.cost_per_share
+    bySymbol.set(s.symbol, cur)
+  }
+  for (const [symbol, v] of bySymbol)
+    rows.push({
+      icon: '📈',
+      name: `${symbol} ×${v.shares.toLocaleString('en-US')}（成本 ${fmt(Math.round(v.cost / v.shares))}/股）`,
+      value: fmt(v.cost),
+    })
+  return rows
+})
+
+/** 展开态**不撑高 HUD**，是从 HUD 下沿滑下来、压在棋盘上的一层浮层。
+ *  棋盘 stage 的 `flex-basis` 是 0、负空间全由抽屉吸收，full 档下实测只剩 16px——
+ *  HUD 再长高，先被挤没的是棋盘。过场与浮层可以叠上去，几何不动。 */
+const assetsOpen = ref(false)
+watch(myAssets, (a) => { if (!a.length) assetsOpen.value = false })
+
 /** 观战牌桌（design/09 §6）：每位玩家走到回合的哪一步、账面什么样。
  *  全从已下发的字段派生，不加一次请求；口径与线下 `ActionTab.tableStepText` 同一套。 */
 function stepTextOf(p: Player): string {
@@ -263,10 +324,28 @@ const ORDER: Detent[] = ['peek', 'half', 'full']
 const detent = ref<Detent>('peek')
 const ledger = ref<null | LedgerPage>(null)
 
+/** 牌桌是**显式的内容态**（design/09 §6 v0.12），不再是「默认层里恰好没别的东西」的兜底。
+ *
+ *  v0.11 之前它的条件是 `!isMyTurn && (held || !activeCardInfo)`，而 `activeCard` 从抽卡
+ *  一直活到回合结束——于是别人一个回合里牌桌能露脸的窗口只剩「掷骰 → 落点」那几秒
+ *  （房主：「一旦他抽了卡之后，就会被那个卡片的事件覆盖」）。更要命的是座次条的
+ *  `@open` 改的是**档位**不是内容，「点头像列看牌桌」这个心智模型从来没对齐过。
+ *
+ *  现在它与 `ledger` 同一范式：点座次条开，牌桌**压过卡面与落点卡**。
+ *  主动打开的东西盖住被动内容是这套界面既有的规矩（同 `FundsSheet`）——
+ *  牌桌不是系统弹给你的，是你自己伸手要的。 */
+const table = ref(false)
+function toggleTable() {
+  table.value = !table.value
+  if (table.value && RANK[detent.value] < RANK.half) detent.value = 'half'
+}
+
 /** 档位由内容决定，不由用户记忆决定 */
 const wantDetent = computed<Detent>(() => {
   if (ledger.value) return 'full'
   if (me.value?.inBankruptcy) return 'full'
+  // 牌桌是自己要来的，不该被别的事按回 peek；但它也只要半档，不抢满屏
+  if (table.value) return 'half'
   // 演出没播完就不动档位：牌还没翻过来，抽屉不该先弹起来抢戏。
   // 返回当前档而不是 'peek'——玩家自己拉起来看牌桌的抽屉，不该被一次掷骰按回去。
   if (held.value) return detent.value
@@ -319,6 +398,8 @@ function raise() {
 }
 function lower() {
   if (ledger.value) { closeLedger(); return }
+  // 牌桌只有 half 一种形态，收下去就是关掉它（同账本那条）
+  if (table.value) { table.value = false; detent.value = wantDetent.value; return }
   detent.value = ORDER[Math.max(0, ORDER.indexOf(detent.value) - 1)]
 }
 
@@ -355,6 +436,8 @@ function endDrag(y: number, tappable: boolean) {
   }
   // 账本只有 full 一种形态，半开着既读不成也让不开路：向下就整个关掉，向上留在 full
   if (ledger.value) { if (dy > 0) closeLedger(); return }
+  // 牌桌同理：向下拖就是收起它，不停在 peek 档看半行
+  if (table.value && dy > 0) { table.value = false; detent.value = wantDetent.value; return }
   // 没跟过手（合成事件、或指针一步到位）就退回逐档升降
   if (!followed) { dy < 0 ? raise() : lower(); return }
   detent.value = nearestDetent(dragFromH - dy)
@@ -431,6 +514,7 @@ function onBodyEnd(e: TouchEvent) {
 
 function openLedger(page: LedgerPage = 'statement') {
   ledger.value = page
+  table.value = false        // 账本与牌桌是两屏，不叠在一起
   detent.value = 'full'
 }
 function closeLedger() {
@@ -438,8 +522,14 @@ function closeLedger() {
   detent.value = wantDetent.value
 }
 
-// 进入破产清算时把账本收掉：清算期间抽屉里只该有清算面板，分段控件让位
-watch(() => me.value?.inBankruptcy, (v) => { if (v) ledger.value = null })
+// 进入破产清算时把账本与牌桌都收掉：清算期间抽屉里只该有清算面板
+watch(() => me.value?.inBankruptcy, (v) => { if (v) { ledger.value = null; table.value = false } })
+
+/** 牌桌让位的两处（照 §2.3「我的待办优先于我自己翻开的东西」）：
+ *  ① 轮到我了——该我掷骰了，围观到此为止；
+ *  ② 有人的动作要我答复——`PromptModal` 一到，压在下面的牌桌只是噪音。 */
+watch(() => game.isMyTurn, (mine) => { if (mine) table.value = false })
+watch(() => game.myPrompts.length, (n) => { if (n) table.value = false })
 
 // ---------- 资金弹层（银行 · 转账 · 破产入口 · 显示设置） ----------
 
@@ -563,7 +653,9 @@ const blockedBy = computed(() => {
         · 第 {{ game.state.turnCount }} 轮
         <span v-if="!game.connected" style="color:var(--red)">· 重连中…</span>
         <span class="grow"></span>
-        <SeatStrip />
+        <!-- HUD 这条也是牌桌的开关（peek 条那条同理）：两处长得一样、管的是同一件事，
+             就不该只有一处能点 -->
+        <SeatStrip clickable :active="table" @open="toggleTable" />
       </div>
       <template v-if="me.phase !== 'OUT'">
         <div class="hud-goal">
@@ -577,14 +669,22 @@ const blockedBy = computed(() => {
           <div :style="{ width: progress + '%' }" />
         </div>
       </template>
+      <!-- 我的家底：一项都没有就整行不在（开局不摆「暂无资产」这句废话） -->
+      <button v-if="myAssets.length" class="hud-assets" :class="{ on: assetsOpen }"
+              :aria-expanded="assetsOpen" @click="assetsOpen = !assetsOpen">
+        <span v-for="a in myAssets" :key="a.icon">{{ a.icon }}{{ a.count }}</span>
+        <span class="grow"></span>
+        <span class="chev">{{ assetsOpen ? '⌄' : '›' }}</span>
+      </button>
     </div>
 
     <!-- ===== 棋盘 =====
          演出进行中点棋盘任意处即**终止**当前序列并刷到终态（不是加速）：
          玩到第 20 轮的人不该被自己看过 20 遍的动画拖住 -->
-    <div class="board-stage" :class="{ 'card-open': !held && !!game.state.activeCard }"
+    <div class="board-stage"
+         :class="{ 'card-open': (!held && !!game.state.activeCard) || assetsOpen }"
          :style="{ '--bw': boardWidth }"
-         @click="game.staging && game.skipStage()">
+         @click="assetsOpen ? (assetsOpen = false) : (game.staging && game.skipStage())">
       <!-- 悬浮工具挂在 stage 内部的右上角（design/09 §8）。
            🏦 排最上：三个里只有它是「事到临头才需要」的，另外两个是随便什么时候翻翻。
            **full 档整列收起**：那时 stage 只剩 16px（HUD + 88dvh 已超一屏，负空间全由抽屉吸收，
@@ -627,6 +727,19 @@ const blockedBy = computed(() => {
       </BoardView>
 
       <div v-if="game.stageFlash" class="board-flash">{{ game.stageFlash }}</div>
+
+      <!-- 资产明细浮层：贴 HUD 下沿落在棋盘上，HUD 与抽屉的高度一个像素都不动。
+           点浮层外任意处收起（由 `.board-stage` 那个 @click 接住） -->
+      <div v-if="assetsOpen" class="asset-pop" @click.stop>
+        <div v-for="(r, i) in myAssetRows" :key="i" class="arow">
+          <span>{{ r.icon }}</span>
+          <span class="nm">{{ r.name }}</span>
+          <span class="vl" :class="r.pos === undefined ? '' : (r.pos ? 'pos' : 'neg')">{{ r.value }}</span>
+        </div>
+        <button class="foot" @click="assetsOpen = false; openLedger('statement')">
+          查看完整报表 ›
+        </button>
+      </div>
     </div>
 
     <!-- ===== 底部三档抽屉 ===== -->
@@ -653,6 +766,13 @@ const blockedBy = computed(() => {
         <template v-else-if="ledger">
           <b class="who">账本</b>
         </template>
+        <!-- 牌桌开着时状态条只写标题 + 轮次：正文里逐人都写全了，这里不再复述谁在做什么 -->
+        <template v-else-if="table">
+          <b class="who">牌桌</b>
+          <span class="muted">第 {{ game.state.turnCount }} 轮</span>
+          <span class="grow"></span>
+          <SeatStrip clickable active @open="toggleTable" />
+        </template>
         <template v-else-if="!game.isMyTurn">
           <span class="who">{{ game.currentPlayer?.nickname ?? '对手' }}</span>
           <span class="muted">
@@ -662,8 +782,8 @@ const blockedBy = computed(() => {
             <template v-else>准备结束回合</template>
           </span>
           <span class="grow"></span>
-          <!-- 头像列就是展开牌桌的入口：围观也是玩，别人的账面不该只能靠猜 -->
-          <SeatStrip clickable @open="detent = detent === 'peek' ? 'half' : 'peek'" />
+          <!-- 头像列就是牌桌的开关：围观也是玩，别人的账面不该只能靠猜 -->
+          <SeatStrip clickable @open="toggleTable" />
           <button v-if="me.isHost" class="btn ghost small"
                   @click="game.act('HOST_END_TURN')">⋯ 代结束</button>
         </template>
@@ -705,6 +825,13 @@ const blockedBy = computed(() => {
           <OverviewTab v-else-if="ledger === 'overview'" />
           <LogTab v-else />
         </template>
+        <!-- 牌桌（显式态）：压过卡面与落点卡。标题归状态条，这里直接是人。
+             回执照旧渲染——它是「刚刚发生在你身上」的事，不能因为我在围观就被吞掉 -->
+        <template v-else-if="table">
+          <ReceiptStack />
+          <PlayerTableRow v-for="r in tableRows" :key="r.id" inner
+                          :player="r.p" :step="r.step" :now="r.now" :self="r.id === me.id" />
+        </template>
         <template v-else>
           <div v-if="!game.connected" class="card quiet" style="padding:14px;text-align:center">
             <span class="muted">重新连上之前，操作暂不可用</span>
@@ -723,7 +850,8 @@ const blockedBy = computed(() => {
           <OnlineLandingPanel v-if="game.isMyTurn && !held" />
           <OnlineCardPanel v-if="activeCardInfo && !held" :card="activeCardInfo" />
 
-          <!-- 别人的回合：牌桌。他是谁、走到回合哪一步、账面什么样，一屏看得见。
+          <!-- 别人的回合、且此刻没有别的东西可显示：牌桌自动兜底。
+               这条兜底是对的，只是不够——抽了卡就轮不到它了，所以另有上面那个显式态。
                演出期间照旧显示（这时卡面还没落进抽屉，正文不该是空的） -->
           <template v-if="!game.isMyTurn && (held || !activeCardInfo) && game.connected">
             <div class="section-title">牌桌</div>

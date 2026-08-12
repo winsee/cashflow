@@ -11,7 +11,6 @@
 import { computed } from 'vue'
 import { DIE_FACE, DIE_FACES, PIPS } from './dice'
 import { prefersReducedMotion } from '../../stage'
-import { useGame } from '../../store'
 
 const props = defineProps<{
   /** 服务端摇出的点数；null = 还没有结果 */
@@ -24,9 +23,8 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ (e: 'roll'): void }>()
 
-const game = useGame()
 /** 降级：直接显示终值，不翻滚也不回弹（点数照样是服务端那个） */
-const still = computed(() => game.skipAnim || prefersReducedMotion())
+const still = computed(() => prefersReducedMotion())
 
 const i = computed(() => props.index ?? 0)
 const flat = computed(() => !props.rolling && !props.value && !props.rollable)

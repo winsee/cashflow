@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 💰 资金弹层（design/09 §2.4）：银行 · 转账 · 破产入口 · 本机显示偏好。
+/** 💰 资金弹层（design/09 §2.4）：银行 · 转账 · 破产入口。
  *
  *  纯线上模式专属的**组合**，所以放 `components/board/` 而不是 `components/tools/`
  *  ——`tools/` 那三块是两模式共用的原子，这一层不该混进只有一种模式看得见的东西。
@@ -10,6 +10,10 @@
  *
  *  它属于「我主动打开的常驻工具」——既不是本回合待办（不进 `.drawer-cta`），
  *  也不是别人的动作波及到我（不由系统弹出）。dismissable，随时可以推开。
+ *
+ *  v0.12 撤掉了第四块「🎬 显示设置 / 跳过动画」。这一层的边界是**此刻要动手的事**，
+ *  一个一局最多拨一次的设备偏好本就不属于这儿；更要紧的是它根本不该是持久开关
+ *  （见 `stage.ts` 里 `prefersReducedMotion` 上面那段）。
  */
 import { computed, ref } from 'vue'
 import { confirmAction } from '../../confirm'
@@ -54,17 +58,5 @@ defineExpose({ prefillBank })
     <button v-if="bankruptable" class="btn block warn" @click="startBankruptcy">
       🆘 进入破产流程
     </button>
-    <!-- 本机的显示偏好：它是这台设备的事，不是账本的一页，所以收在这儿而不是占一格分段 -->
-    <div class="card">
-      <h3>🎬 显示设置</h3>
-      <label class="row between" style="cursor:pointer">
-        <span>跳过动画</span>
-        <input class="switch" type="checkbox" :checked="game.skipAnim"
-               @change="game.setSkipAnim(!game.skipAnim)" />
-      </label>
-      <p class="muted" style="margin:6px 0 0">
-        只影响这台设备：掷骰、走格、发牌不再播放过场，点数与卡面直接给出结果。
-      </p>
-    </div>
   </BaseModal>
 </template>

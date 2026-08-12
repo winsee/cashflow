@@ -15,6 +15,11 @@ const isHost = computed(() => game.me?.isHost ?? false)
 
 const detailPlayer = ref<Player | null>(null)
 
+/** 判据一字未改，只是从卡片上搬到了记录卡弹层里 */
+function canRemove(p: Player): boolean {
+  return isHost.value && p.id !== game.me?.id && p.phase !== 'OUT' && st.value.status === 'PLAYING'
+}
+
 async function removePlayer(p: Player) {
   const ok = await confirmAction({
     title: `移除玩家「${p.nickname}」？`,
@@ -23,6 +28,8 @@ async function removePlayer(p: Player) {
     okText: '移除',
   })
   if (ok && await game.act('HOST_REMOVE_PLAYER', { playerId: p.id })) {
+    // 人都移除了，他的记录卡就该退场（否则弹层还开着，底下那枚按钮也还在）
+    detailPlayer.value = null
     game.flash(`已移除 ${p.nickname}`)
   }
 }
@@ -96,23 +103,18 @@ async function leaveGame() {
         <span v-for="s in p.stocks" :key="s.symbol + s.cost_per_share">📈{{ s.symbol }}×{{ s.shares }} </span>
       </div>
 
-      <div class="row between" style="margin-top:6px;align-items:center">
-        <span class="muted" style="font-size:12px">📋 查看记录卡 ›</span>
-        <button v-if="isHost && p.id !== game.me?.id && p.phase !== 'OUT' && st.status === 'PLAYING'"
-                class="btn small ghost warn" @click.stop="removePlayer(p)">移除玩家</button>
-      </div>
+      <!-- 卡片到此为止：这一页是读物，整卡可点 = 打开这个人的详情，一个手势一个意思。
+           房主的「移除玩家」搬进了那张详情卡的底部（见下面的 BaseModal） -->
+      <div class="muted" style="margin-top:6px;font-size:12px">📋 查看记录卡 ›</div>
     </div>
 
-    <div v-if="!isHost" class="card" style="border-color:var(--red)">
-      <h2>退出对局</h2>
-      <p class="muted">退出后不能自行接管该座位；误退出请联系房主在日志中撤销。</p>
-      <button class="btn block warn" @click="leaveGame">退出对局</button>
-    </div>
-
-    <div v-if="isHost" class="card" style="border-color:var(--red)">
-      <h2>房主操作</h2>
-      <p class="muted">结束对局后所有玩家自动返回首页；重开一局请重新创建房间。</p>
-      <button class="btn block warn" @click="endGame">🛑 结束对局</button>
+    <!-- 退出 / 结束：**危险画在闸门上，不画在入口上**（design/09 §7）。
+         从前这里是一到两块整块红框卡 + 红实心按钮，而二次确认里那句「此操作不可撤销」
+         本来就是红的——同一件事说了三遍，屏上最扎眼的颜色给了一局最多点一次的操作。
+         入口退回一行安静的文字链：它不需要被找到得很快，只需要找得到。 -->
+    <div class="quiet-links">
+      <button v-if="!isHost" @click="leaveGame">退出对局</button>
+      <button v-else @click="endGame">结束对局</button>
     </div>
 
     <BaseModal v-if="detailPlayer" :title="`${detailPlayer.nickname} 的记录卡`"
@@ -121,6 +123,10 @@ async function leaveGame() {
       <StatementTab :player="detailPlayer" />
       <template #actions>
         <button class="btn ghost grow" @click="detailPlayer = null">关闭</button>
+        <!-- 移除某人是**针对这个人**的处置，上下文就是他的记录卡；
+             而且它只有房主看得见、一局最多点一次，藏一层正合适 -->
+        <button v-if="canRemove(detailPlayer)" class="btn ghost warn"
+                @click="removePlayer(detailPlayer)">移除玩家</button>
       </template>
     </BaseModal>
   </div>

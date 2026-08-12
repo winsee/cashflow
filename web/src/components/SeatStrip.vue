@@ -14,6 +14,8 @@ import { useGame } from '../store'
 const props = defineProps<{
   /** 可点：点开抽屉里的牌桌 */
   clickable?: boolean
+  /** 牌桌此刻正开着——给一圈选中光晕，让「这枚控件管的是那一屏」看得出来 */
+  active?: boolean
 }>()
 const emit = defineEmits<{ (e: 'open'): void }>()
 
@@ -48,7 +50,9 @@ const seats = computed(() => {
 
 <template>
   <component :is="props.clickable ? 'button' : 'span'" class="seat-strip"
-             :title="props.clickable ? '看牌桌' : undefined"
+             :class="{ on: props.active }"
+             :title="props.clickable ? (props.active ? '收起牌桌' : '看牌桌') : undefined"
+             :aria-pressed="props.clickable ? String(!!props.active) : undefined"
              @click="props.clickable && emit('open')">
     <span v-for="s in seats" :key="s.id" class="seat-dot"
           :class="{ now: s.now, done: s.done, out: s.out }" :title="s.title">
