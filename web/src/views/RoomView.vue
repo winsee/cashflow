@@ -41,6 +41,11 @@ function showModeLock() {
  *  **重连不补播**：`revealing` 只由这次点击置位，刷新回来直接是翻开态。 */
 const drawing = ref(false)
 const revealing = ref(false)
+/** 帘幕里那张牌的**起飞矩形** = 玩家刚点的这张牌背此刻在屏上的位置与大小（design/09 §5.4 v0.12）。
+ *  不给锚点的话两张牌背对不上：页内这张是 `76% × (页宽 − 24px)`，帘幕那张是 `76% × 视口宽`
+ *  且钉在屏心——390px 手机上是 278px 与 296px，位置也不同，交接时就是一次尺寸突变。 */
+const profBackEl = ref<HTMLElement | null>(null)
+const profFrom = ref<DOMRect | null>(null)
 const myProfession = computed(() =>
   professions.value.find(p => p.id === game.me?.professionId) ?? null)
 
@@ -53,6 +58,8 @@ async function drawProfession() {
     drawing.value = false
     return
   }
+  // 起飞矩形要在**帘幕落下之前**量：一落下这张牌背就交班藏起来了
+  profFrom.value = profBackEl.value?.getBoundingClientRect() ?? null
   // 帘幕**先落下**再发请求：等 act 返回才置位的话，服务端的状态会抢在帘幕前面到，
   // 页面先把整张职业卡摆出来（`v-if="game.me?.professionId"` 那一支），
   // 帘幕这才盖上去重新翻一遍——试玩里看到的「闪现一下正面」就是这半帧。
@@ -265,10 +272,13 @@ async function copyUrl() {
           <!-- 还没抽：一张牌背。不做「进页自动发」——进页那一瞬 WS 可能还没连上，
                会先闪一屏空白再蹦出一张卡；让玩家自己揭这一下，也把"这张是我抽的"落到实处 -->
           <template v-else>
-            <!-- `waiting` 的轻晃是「请求还在路上」的提示，**帘幕落下就没有观众了**：
-                 揭牌期间它只会在淡入的那几帧里从帘幕底下透出来，和帘幕里那张牌背
-                 （屏心、scale .55、静止）一大一小地打架。所以 `&& !revealing`。 -->
-            <div class="prof-back card-back" :class="{ waiting: drawing && !revealing }"
+            <!-- `waiting` 的轻晃是「请求还在路上」的提示，**帘幕落下就没有观众了**。
+                 `handoff` 则是把这张牌背整个交班给帘幕里那张（v0.12）：帘幕里那张此刻正好
+                 压在这张的位置、这张的大小上（`profFrom` 锚点），两张同时在场只会在 180ms
+                 淡入里叠成重影。**藏用 visibility 不用 v-if**——留着占位，页面才不会在帘幕
+                 底下重排一次。 -->
+            <div ref="profBackEl" class="prof-back card-back"
+                 :class="{ waiting: drawing && !revealing, handoff: revealing }"
                  :style="{ color: DECK_COLOR.PROFESSION }" @click="drawProfession">
               {{ DECK_LABEL.PROFESSION }}
             </div>
@@ -387,7 +397,7 @@ async function copyUrl() {
     <!-- 卡还没到（帘幕先落下、请求还在路上）时**不给默认插槽**，让 DealCurtain 用它自己的
          占位卡面兜住高度——插槽给了但内容为空的话，牌面高度塌成 0，连牌背都看不见了 -->
     <DealCurtain v-if="revealing" variant="reveal" deck="PROFESSION" title="职业卡"
-                 @skip="revealing = false">
+                 :from="profFrom" @skip="revealing = false">
       <template v-if="myProfession" #default>
         <ProfessionCard :card="myProfession" />
       </template>

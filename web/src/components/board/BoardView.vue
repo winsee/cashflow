@@ -8,7 +8,7 @@
  *  板底走 --panel/--panel2：进快车道换 .skin-ft 金箔肤时，这块板自己会跟着变金，
  *  一行都不用为它另写。
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import {
   MARKER_ANGLE, RINGS, V, markerLanePoint, outerLabelRadius, polar, sectorPath, slotPoint,
 } from './geom'
@@ -42,6 +42,11 @@ const emit = defineEmits<{ (e: 'tap', sq: BoardSquare): void }>()
 
 const ring = computed(() => RINGS[props.track])
 const n = computed(() => props.squares.length || 1)
+
+/** 发牌帘幕要拿某一格的屏幕位置当飞入起点（`geom.squareViewportRect`），而那把尺子是
+ *  这只 `<svg>` 的外接矩形。露出元素本身、不在这里替调用方算——**几何只在 geom.ts 一处定义**。 */
+const disc = ref<SVGSVGElement | null>(null)
+defineExpose({ disc })
 
 /** 格子色：直接取既有的牌堆色变量——它们本来就是「取自实体棋盘的格子」。
  *  这套色不参与阶段换肤：桌上那张牌不会因为你换了赛道就变色。 */
@@ -162,7 +167,7 @@ const markerText = computed(() => props.track === 'FAST_TRACK' ? '在此进入' 
       <span class="sub">{{ track === 'FAST_TRACK' ? '快车道' : '老鼠赛跑' }}</span>
     </div>
     <div class="wheel plate" :class="{ 'offline-dim': offline }">
-    <svg class="disc" :viewBox="`0 0 ${V} ${V}`" role="img"
+    <svg ref="disc" class="disc" :viewBox="`0 0 ${V} ${V}`" role="img"
          :aria-label="`${track === 'FAST_TRACK' ? '快车道' : '老鼠赛跑'}棋盘`">
       <!-- 格子：底色一层 + 外缘实心弧 + 压印边 -->
       <g v-for="sq in squares" :key="sq.index" class="board-sq tappable"

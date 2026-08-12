@@ -71,6 +71,26 @@ export function slotPoint(index: number, n: number, ring: Ring, lane = 0): [numb
   return polar(ring.RMID + lane * spread, slotAngle(index - 1, n))
 }
 
+/** 第 index 格（**1-based**）在**视口坐标**里的外接矩形——发牌帘幕的「飞入」拍要拿它当起点
+ *  （design/09 §5.1 拍 6：牌背**从格子位置**飞向屏心）。
+ *
+ *  viewBox 是 `0 0 V V` 的正方形、随板宽等比缩放，所以一次线性换算就够，不必动 `getScreenCTM()`。
+ *  边长取一格的弧宽（`2π·RMID/n`），同一把尺子换算过去——飞入的起点大小该由格子说了算。
+ *
+ *  **量不到就返回 `null`**（棋盘在 full 档被压成一条、或还没挂上）：调用方据此退回不带锚点的
+ *  老行为，而不是拿一个 0×0 的矩形去算出满屏乱飞的位移。 */
+export function squareViewportRect(
+  svg: SVGSVGElement | null | undefined, index: number, n: number, ring: Ring,
+): DOMRect | null {
+  if (!svg || index < 1 || index > n) return null
+  const box = svg.getBoundingClientRect()
+  if (box.width < 1 || box.height < 1) return null
+  const k = box.width / V
+  const [x, y] = slotPoint(index, n, ring)
+  const side = (2 * Math.PI * ring.RMID / n) * k
+  return new DOMRect(box.left + x * k - side / 2, box.top + y * k - side / 2, side, side)
+}
+
 /** 起点/入口标记的角度：**它不是格子**（位置 0），落在最后一格与第 1 格之间的接缝上，
  *  也就是 12 点方向——第 1 格从这里开始数。 */
 export const MARKER_ANGLE = 0
