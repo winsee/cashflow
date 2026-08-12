@@ -960,11 +960,12 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 /* 档位切换缩的是棋盘**自身的宽度变量**，不是 transform: scale——
    stage 有 overflow:hidden，缩 stage 会连裁切框一起缩，等于白缩一场。 */
 .board-stage .wheel { width: var(--bw, 332px); max-width: 100%; }
-/* 板本身。顶上留出工具带那 46px：peek 档棋盘 332px，右上角正好顶到圆钮。
-   **half / full 档不用留**——板只有 230 / 150px，左右各空 60 / 100px，圆钮天然碰不到它
-   （375 屏实测：half 档板右缘 302px、钮左缘 317px）。 */
-.board-wrap { display: flex; flex-direction: column; align-items: center; min-height: 0; }
-.board-wrap:not(.compact) { padding-top: 46px; }
+/* 板本身。顶上那 46px 是给工具带留的，**每一档都留**。
+   一度只在 peek 档留：当时算的是「half / full 档板只有 230 / 150px，左右各空 60 / 100px，
+   圆钮天然碰不到」——那是按**一枚** 46px 的钮算的。改成横排之后那一列 3×38+2×6 = 126px 宽，
+   而板是居中的：要让 400px 宽的屏上一块居中的板让开右边 126px，板得窄到 124px 以下。
+   横向根本让不开，只能纵向让——ui-smoke 27e 那条断言就是这么逮到的。 */
+.board-wrap { display: flex; flex-direction: column; align-items: center; min-height: 0; padding-top: 46px; }
 
 /* 悬浮工具挂在 stage 内部的右上角：挂在页面根上要用魔数避开 HUD，HUD 一加高就被挡住。
    而 stage 的上沿由 HUD 决定、HUD 是 `flex:none` 的定高信息条，所以**抽屉拉到任何档位，
