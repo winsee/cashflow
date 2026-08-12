@@ -384,6 +384,24 @@ async function main() {
   await pb.evaluate(() => document.querySelectorAll('.tabbar button')[2].click())
   await shot(pb, '03j-线下-总览-别人的持续状态', '.badge-row .badge')
   await expectText(pb, '03j-线下-总览-别人的持续状态', { has: ['慈善生效中'] })
+  // 03k 总览页去红（v0.12，房主：「那个红色菜单好丑」）：**危险画在闸门上，不画在入口上**。
+  // 页尾两块红框卡改成一行安静的文字链，红只留给二次确认的确认键
+  await shot(pb, '03k-线下-总览-安静的出口', '.quiet-links button')
+  const reds = await pb.evaluate(() => ({
+    framed: [...document.querySelectorAll('.card')]
+      .filter(c => (c.getAttribute('style') ?? '').includes('--red')).length,
+    warn: [...document.querySelectorAll('#app .btn.warn')].filter(b => !b.classList.contains('ghost')).length,
+    links: [...document.querySelectorAll('.quiet-links button')].map(b => b.textContent.trim()),
+  }))
+  if (reds.framed) failures.push(`03k-线下-总览-安静的出口: 还有 ${reds.framed} 块红框卡`)
+  if (reds.warn) failures.push(`03k-线下-总览-安静的出口: 还有 ${reds.warn} 枚红实心按钮`)
+  if (!reds.links.length) failures.push('03k-线下-总览-安静的出口: 页尾没有退出/结束对局的出口')
+  // 03l 移除玩家搬进了记录卡弹层：它是针对这个人的处置，上下文就是他的记录卡。
+  // pb 不是房主，所以他点开谁的记录卡都不该有这枚按钮
+  await pb.evaluate(() => document.querySelector('.card')?.click())
+  await shot(pb, '03l-线下-记录卡弹层-非房主', '.modal .fin')
+  await expectText(pb, '03l-线下-记录卡弹层-非房主', { noButtons: ['移除玩家'] })
+  await clickText(pb, '.modal .btn', '关闭')
   await pb.evaluate(() => document.querySelectorAll('.tabbar button')[1].click())
 
   // 「人人可买」的股票卡：无持仓的人也弹（卡面写明每个人都能买），但一个字都不该问他卖不卖
@@ -770,6 +788,11 @@ async function main() {
     failures.push(`22-纯线上-棋盘待掷骰: 悬浮圆钮 ${floats.n} 枚、完整可见 ${floats.whole} 枚`)
   if (!floats.text.includes('🏦'))
     failures.push('22-纯线上-棋盘待掷骰: 没有资金入口（🏦）')
+  // HUD 资产条的**反例**：开局一项资产都没有，那一行就该整个不在。
+  // 摆一句「暂无资产」是废话，还白占 HUD 一行——正例见 26e（买成了才有）
+  const emptyAssets = await pMe.evaluate(() => document.querySelectorAll('.hud-assets').length)
+  if (emptyAssets)
+    failures.push('22b-纯线上-开局无资产: 名下一项资产都没有，HUD 却画了资产条')
 
   // 24 观战：别人的回合是只读骰盘（平面 `?`，不摆点数）+ 一行「他走到哪一步」
   await shot(pOther, '23-纯线上-观战', '.drawer-peek')
@@ -779,10 +802,23 @@ async function main() {
   }))
   if (!otherDice.flat || otherDice.cube)
     failures.push(`23-纯线上-观战: 别人还没掷时骰盘不该摆点数（平面 ${otherDice.flat} / 立方 ${otherDice.cube}）`)
-  // 点头像列展开牌桌：每位玩家的昵称、回合步骤、现金与月现金流
+  // 点头像列展开牌桌：每位玩家的昵称、回合步骤、现金与月现金流，
+  // v0.12 起还有进度条与分子分母（房主：「和总览里面一样，要有进度条」）
   await pOther.evaluate(() => document.querySelector('.drawer-peek .seat-strip')?.click())
   await shot(pOther, '23a-纯线上-观战牌桌', '.drawer-body .avatar-lg')
-  await expectText(pOther, '23a-纯线上-观战牌桌', { has: ['牌桌', '行动中', '月现金流'] })
+  await expectText(pOther, '23a-纯线上-观战牌桌', {
+    has: ['牌桌', '行动中', '月现金流', '离快车道'],
+  })
+  const tableRow = await pOther.evaluate(() => ({
+    rows: document.querySelectorAll('.drawer-body .ptrow').length,
+    prog: document.querySelectorAll('.drawer-body .ptrow .progress').length,
+    on: document.querySelectorAll('.drawer-peek .seat-strip.on').length,
+  }))
+  if (tableRow.prog !== tableRow.rows)
+    failures.push(`23a-纯线上-观战牌桌: ${tableRow.rows} 行只画了 ${tableRow.prog} 条进度条`)
+  // 座次条从「点开半档抽屉」变成了「开关那一屏」，开关就得看得出自己是开是关
+  if (tableRow.on !== 1)
+    failures.push('23a-纯线上-观战牌桌: 牌桌开着，座次条却没有选中态')
   // 23b 点击只有把手认（§2.2：手势铺到整块抽屉，点击仍归把手一个主人）：
   // 手动拉起来看牌桌之后，点一下把手就该退回 peek。
   // 从前这里一个收起控件都没有，只能再点一次头像列（design/09 §2.2 v0.5）
@@ -948,15 +984,57 @@ async function main() {
     await shot(pMe, '26a-纯线上-卡面决策（抽屉 half）', '.drawer-cta .btn')
     await expectText(pMe, '26a-纯线上-卡面决策（抽屉 half）', { has: ['第 2 步 / 3'] })
     await shot(pOther, '26b-纯线上-旁观者看到同一张卡', '.gcard-title')
+
+    // 26d 牌桌是**显式内容态**（v0.12）：卡面正占着抽屉，点座次条照样能把牌桌调出来。
+    // 修之前这里是 `!isMyTurn && !activeCardInfo` 的兜底渲染，而 activeCard 活到回合结束——
+    // 别人一抽卡，牌桌到回合结束都不会再出现（房主：「基本上就没有机会看到」）
+    await pOther.evaluate(() => document.querySelector('.drawer-peek .seat-strip')?.click())
+    await sleep(600)
+    await shot(pOther, '26d-纯线上-牌桌压过卡面', '.drawer-body .ptrow')
+    const over = await pOther.evaluate(() => ({
+      rows: document.querySelectorAll('.drawer-body .ptrow').length,
+      card: document.querySelectorAll('.drawer-body .gcard').length,
+    }))
+    if (!over.rows) failures.push('26d-纯线上-牌桌压过卡面: 卡面在场时点座次条没调出牌桌')
+    if (over.card) failures.push('26d-纯线上-牌桌压过卡面: 牌桌开着，卡面还压在里面')
+    // 收回去，别把状态留给后面几屏
+    await pOther.evaluate(() => document.querySelector('.drawer-peek .seat-strip')?.click())
+    await sleep(500)
+
     // 决策完 → 第 ③ 步，主 CTA 变成结束回合。
-    // 抽到哪一张由服务端牌堆决定，所以按钮文案不能写死——点掉那一排里的「不要 / 付掉」那个
-    await pMe.evaluate(() => {
-      const want = ['放弃', '我不买', '执行', '支付', '确认']
+    // 抽到哪一张由服务端牌堆决定，所以按钮文案不能写死。
+    // **买得起就买**：这是 26e 那两屏（HUD 资产条）唯一的来料——纯线上抽到哪张牌由服务端
+    // 定，没有别的路能让玩家名下确定地长出一项资产。买不了就照旧点「不要 / 付掉」那个
+    const bought = await pMe.evaluate(() => {
       const btns = [...document.querySelectorAll('.drawer-cta .btn')]
+      const buy = btns.find(b => b.textContent.includes('买入') && !b.disabled)
+      if (buy) { buy.click(); return true }
+      const want = ['放弃', '我不买', '执行', '支付', '确认']
       const el = btns.find(b => want.some(w => b.textContent.includes(w))) ?? btns[0]
       el?.click()
+      return false
     })
     await sleep(900)
+
+    // 26e HUD 资产条（走到才截，同 24a 那一类）：买成了才有家底可报
+    if (bought && await pMe.$('.hud-assets')) {
+      await shot(pMe, '26e-纯线上-HUD资产条', '.hud-assets')
+      const stageH = await pMe.evaluate(() => document.querySelector('.board-stage').offsetHeight)
+      await pMe.evaluate(() => document.querySelector('.hud-assets')?.click())
+      await sleep(400)
+      await shot(pMe, '26e2-纯线上-资产明细浮层', '.asset-pop')
+      // 展开是**浮层**不是把 HUD 撑高：棋盘 stage 的高度一个像素都不许变
+      // （stage 的 flex-basis 是 0，HUD 一长高先被挤没的就是它）
+      const after = await pMe.evaluate(() => ({
+        h: document.querySelector('.board-stage').offsetHeight,
+        pop: document.querySelectorAll('.asset-pop').length,
+      }))
+      if (!after.pop) failures.push('26e-纯线上-HUD资产条: 点了没展开明细浮层')
+      if (Math.abs(after.h - stageH) > 1)
+        failures.push(`26e-纯线上-HUD资产条: 展开把棋盘挤了（${stageH}px → ${after.h}px）`)
+      await pMe.evaluate(() => document.querySelector('.board-stage')?.click())
+      await sleep(400)
+    }
     await shot(pMe, '26c-纯线上-结束回合', '.drawer-cta .btn')
     await expectText(pMe, '26c-纯线上-结束回合', { has: ['第 3 步 / 3', '结束回合'] })
   } else {
@@ -1025,7 +1103,7 @@ async function main() {
   if (!closed) failures.push('27c-纯线上-账本收起: 点把手没有把账本关掉')
   await shot(pMe, '27c-纯线上-账本收起-把手', '.drawer-peek')
 
-  // 27d 资金弹层：银行 / 转账 / 破产入口 / 显示设置，一枚悬浮圆钮直开。
+  // 27d 资金弹层：银行 / 转账 / 破产入口，一枚悬浮圆钮直开。
   // 它就是试玩里那个死局的出口——现金不足既买不了、又结束不了回合，是因为纯线上
   // 根本没有银行；v0.4 之前它埋在「账本 → 更多」第三层，试玩反馈「太深了」
   await pMe.evaluate(() => {
@@ -1034,18 +1112,13 @@ async function main() {
   })
   await shot(pMe, '27d-纯线上-资金弹层', '.modal input[step="1000"]')
   await expectText(pMe, '27d-纯线上-资金弹层', {
-    // 「跳过动画」是这台设备的偏好、不是账本的一页，收在这儿而不是占一格分段
-    has: ['资金', '🏦 银行', '玩家间转账', '月息 10%', '跳过动画'],
+    has: ['资金', '🏦 银行', '玩家间转账', '月息 10%'],
+    // v0.12 撤销「跳过动画」：这一层只放此刻要动手的三件事。
+    // 连 localStorage 的读取也一起停了，所以全仓库不该再有任何一个勾选框
+    hasNot: ['跳过动画', '显示设置'],
   })
-  // 「跳过动画」是个开关，不是一个铺满整行的巨大方框——通用表单样式（width:100% +
-  // 44px 热区）说的是文本输入框，复选框套上去就是真机试玩里那一屏。修之前这里是整行宽
-  const sw = await pMe.evaluate(() => {
-    const el = document.querySelector('.modal input[type="checkbox"]')
-    return el ? { w: el.offsetWidth, h: el.offsetHeight, sw: el.classList.contains('switch') } : null
-  })
-  if (!sw) failures.push('27d-纯线上-资金弹层: 找不到「跳过动画」的复选框')
-  else if (!sw.sw) failures.push('27d-纯线上-资金弹层: 复选框没有走 .switch 样式')
-  else if (sw.w > 60) failures.push(`27d-纯线上-资金弹层: 复选框被撑成 ${sw.w}×${sw.h}px`)
+  const boxes = await pMe.evaluate(() => document.querySelectorAll('input[type="checkbox"]').length)
+  if (boxes) failures.push(`27d-纯线上-资金弹层: 还剩 ${boxes} 个勾选框，「跳过动画」没删干净`)
   await pMe.evaluate(() => document.querySelector('.modal-mask')?.click())
   await sleep(400)
 

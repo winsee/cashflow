@@ -9,7 +9,7 @@
  *  ① **自动消散**，不给「知道了」按钮。`FasttrackCheer` 和胜利屏一局只看几次，可以要求确认；
  *     这一屏一局要看十几次，每次逼人点一下就是骚扰。
  *  ② **点任意处跳过**（照 `DealCurtain`）：终止整条演出序列到终态，不是加速。
- *  ③ `skipAnim` / `prefers-reduced-motion` 下根本不弹——`store.ingestStage` 那条整条丢弃的
+ *  ③ `prefers-reduced-motion` 下根本不弹——`store.ingestStage` 那条整条丢弃的
  *     出口天然覆盖，这里一行都不用写。
  *
  *  屏上的数**全部来自 `step`**（排队时从结算前的快照焊死，见 stage.ts），不读实时 store：

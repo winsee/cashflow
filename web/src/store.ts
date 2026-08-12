@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { buildCardImpact, buildReceipts, type CardImpact, type Receipt } from './receipts'
 import {
-  buildStage, loadSkipAnim, prefersReducedMotion, saveSkipAnim, setStageBoard,
+  buildStage, prefersReducedMotion, setStageBoard,
   type StageStep,
 } from './stage'
 import type {
@@ -146,11 +146,9 @@ export const useGame = defineStore('game', {
     /** 中央飘字（牌堆洗回这类通知，不是待办） */
     stageFlash: '' as string,
     /** 最近一次掷出的点数（服务端摇的那一组）。
-     *  存在 store 而不是视图里：开了「跳过动画」时演出队列会被整条丢掉，
+     *  存在 store 而不是视图里：系统「减少动态效果」下演出队列会被整条丢掉，
      *  点数却仍然要显示——它是结果，不是动画。 */
     lastRolls: [] as number[],
-    /** 本机偏好：跳过动画。不进房间状态——这是这台设备的事 */
-    skipAnim: loadSkipAnim(),
   }),
   getters: {
     me(): Player | null {
@@ -468,10 +466,10 @@ export const useGame = defineStore('game', {
       if (!this.isOnline) return
       const steps = buildStage(events, this.state)
       if (!steps.length) return
-      // 点数先记下来再决定演不演：跳过动画的人也得看见服务端摇出了几点
+      // 点数先记下来再决定演不演：不播动画的人也得看见服务端摇出了几点
       for (const s of steps) if (s.kind === 'dice') this.lastRolls = s.rolls
-      if (this.skipAnim || prefersReducedMotion()) {
-        // 三条出口同一个收口：清空队列 + 直接刷到终态（见 skipStage）
+      if (prefersReducedMotion()) {
+        // 两条出口同一个收口：清空队列 + 直接刷到终态（见 skipStage）
         this.skipStage()
         return
       }
@@ -501,18 +499,13 @@ export const useGame = defineStore('game', {
         ? `${DECK_FLASH[next.deck] ?? next.deck} · 已洗回牌堆` : ''
       this.stageTimer = setTimeout(() => this.advanceStage(), next.ms)
     },
-    /** 跳过：**终止到终态**，不是加速。点击任意处、reduce 偏好、设置开关走的都是这一条。 */
+    /** 跳过：**终止到终态**，不是加速。点击任意处与 reduce 偏好走的都是这一条。 */
     skipStage() {
       clearTimeout(this.stageTimer)
       this.stageQueue = []
       this.stageNow = null
       this.stagePos = {}
       this.stageFlash = ''
-    },
-    setSkipAnim(v: boolean) {
-      this.skipAnim = v
-      saveSkipAnim(v)
-      if (v) this.skipStage()
     },
     /** 棋盘数据：两条轨道一次取全，进纯线上房间时拉一次 */
     async fetchBoard(): Promise<BoardDto> {
