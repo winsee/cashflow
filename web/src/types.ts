@@ -114,7 +114,13 @@ export interface RoomStateDto {
     stockOffer?: { symbol: string; price: number; buyerScope: 'DRAWER_ONLY' | 'ALL' } | null
   } | null
   prompts: Prompt[]
-  ftSoldSquares: string[]
+  /** square_id → player_id：已被买断的快车道绿格**连买主一起记**（v0.15）。
+   *  从前是 `string[]`，只说「卖掉了」不说被谁买——一次性收益型企业
+   *  （`ft-b-software`/`ft-b-biotech`，cashflow 为 0）不进 `businesses`，于是板上查不到主人。 */
+  ftSoldSquares: Record<string, string>
+  /** square_id → player_id：被「买下占位」的梦想（FT_CLAIM_DREAM）。
+   *  不能拿 `dreamId` 顶替：那记的是「谁选它当梦想」，不是「谁掏钱占了这块地」。 */
+  ftClaimedDreams: Record<string, string>
   dreamPriceBumps: Record<string, number>
   winnerId: string | null
 }

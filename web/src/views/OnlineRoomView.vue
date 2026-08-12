@@ -14,8 +14,10 @@ import { fmt, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
 import type { CardDto, Player } from '../types'
 import BoardView from '../components/board/BoardView.vue'
 import Die3d from '../components/board/Die3d.vue'
-import { RINGS, squareViewportRect } from '../components/board/geom'
-import type { BoardSquare } from '../components/board/geom'
+import { squareViewportRect } from '../components/board/geom'
+import type { BoardSquare, Spot, SquareToken, Track } from '../components/board/geom'
+import { seatColor } from '../playercolor'
+import { homeTrack } from '../stage'
 import FtSquareCard from '../components/cards/FtSquareCard.vue'
 import DealCurtain from '../components/board/DealCurtain.vue'
 import OnlineCardPanel from '../components/board/OnlineCardPanel.vue'
@@ -158,6 +160,14 @@ const FT_TYPE: Record<string, string> = {
   'ft-s-lawsuit': 'FT_LAWSUIT',
 }
 
+/** 快车道只有这 7 个格写字（3 个现金流量日 + 4 个特殊格）。
+ *  18 个企业格与 23 个梦想格写满名字就是一堵墙，跟内圈 12 个机会格不写字同一条规矩；
+ *  一格 23.5px 也放不下「汽车修理店」，它们印图标、名字点开就有。 */
+const FT_LABEL: Record<string, string> = {
+  'ft-s-cashflow-day': '结算', 'ft-s-charity': '慈善',
+  'ft-s-tax-audit': '税审', 'ft-s-divorce': '离婚', 'ft-s-lawsuit': '官司',
+}
+
 /** 快车道格子的类型由 ref 前缀给出（和服务端 `_ft_square_type` 同一条规则） */
 function ftType(ref: string): string {
   if (ref.startsWith('ft-b-')) return 'FT_BUSINESS'
@@ -165,45 +175,108 @@ function ftType(ref: string): string {
   return FT_TYPE[ref] ?? 'FT_LAWSUIT'
 }
 
-function hue(seat: number): number { return (seat * 67 + 120) % 360 }
+/** 快车道每一格的占位道具：**遍历一次全员建表，铺格子时按 ref 查**。
+ *
+ *  三种归属都能从状态推出来（`ftSoldSquares` 本轮升成 `square_id → player_id`，
+ *  所以「谁买了这个企业」不再需要遍历全员的 `businesses` 反查）：
+ *  - 奶酪 = 准备阶段选定的梦想（`player.dreamId`）
+ *  - 金币 = 买下的企业 / 买下占位的梦想（两者是同一件事：掏钱把这块地占下）
+ *  - 带杠金币 = 一次性收益型企业（买断了，但没有月现金流） */
+const ftTokens = computed(() => {
+  const m = new Map<string, SquareToken>()
+  const st = game.state
+  if (!st) return m
+  const tok = (pid: string, kind: SquareToken['kind'], verb: string): SquareToken | null => {
+    const p = st.players.find(x => x.id === pid)
+    if (!p) return null
+    return {
+      kind, color: seatColor(p.seat).solid,
+      initial: p.nickname.slice(0, 1), who: `${p.nickname} ${verb}`,
+    }
+  }
+  for (const p of st.players) {
+    if (!p.dreamId) continue
+    const t = tok(p.id, 'cheese', '选定的梦想')
+    if (t) m.set(p.dreamId, t)
+  }
+  // 有月现金流的企业进了 businesses；一次性收益型只进 ftSoldSquares，靠差集认出来
+  const withCashflow = new Set<string>()
+  for (const p of st.players)
+    for (const b of p.fasttrack?.businesses ?? []) withCashflow.add(b.square_id)
+  for (const [ref, pid] of Object.entries(st.ftSoldSquares ?? {})) {
+    const once = !withCashflow.has(ref)
+    const t = tok(pid, once ? 'once' : 'coin', once ? '买断（一次性收益，无月现金流）' : '买下')
+    if (t) m.set(ref, t)
+  }
+  for (const [ref, pid] of Object.entries(st.ftClaimedDreams ?? {})) {
+    const t = tok(pid, 'coin', '买下占位')
+    if (t) m.set(ref, t)
+  }
+  return m
+})
 
-const squares = computed<BoardSquare[]>(() => {
+const ftSquares = computed<BoardSquare[]>(() => {
   const b = game.board
   if (!b) return []
-  if (ft.value) {
-    const claimed = new Map<string, string>()
-    for (const p of game.state?.players ?? [])
-      if (p.dreamId) claimed.set(p.dreamId, `hsl(${hue(p.seat)} 55% 62%)`)
-    return b.fastTrack.squares.map((ref, i) => ({
-      index: i + 1, type: ftType(ref), ref, label: '',
-      faded: (game.state?.ftSoldSquares ?? []).includes(ref),
-      dot: claimed.get(ref),
-    }))
-  }
+  const tokens = ftTokens.value
+  const bumps = game.state?.dreamPriceBumps ?? {}
+  return b.fastTrack.squares.map((ref, i) => {
+    const type = ftType(ref)
+    const token = tokens.get(ref)
+    return {
+      index: i + 1, type, ref,
+      label: FT_LABEL[ref] ?? '',
+      // 买断 = 这格花光了，底色褪到 8%；梦想不褪——有奶酪也照样能被加价、被主人买下
+      faded: type === 'FT_BUSINESS' && !!token,
+      icon: type === 'FT_BUSINESS' ? 'biz' : type === 'FT_DREAM' ? 'dream' : undefined,
+      token,
+      bump: bumps[ref] || undefined,
+    } as BoardSquare
+  })
+})
+
+const rrSquares = computed<BoardSquare[]>(() => {
+  const b = game.board
+  if (!b) return []
   return b.ratRace.squares.map((sq, i) => ({
     index: i + 1, type: sq.type, ref: sq.id, label: RR_LABEL[sq.type] ?? sq.name,
   }))
 })
 
-/** 演出期间按 stagePos 画，播完回到权威位置 */
-const positions = computed<Record<string, number>>(() => {
-  const out: Record<string, number> = {}
-  for (const p of game.state?.players ?? [])
-    out[p.id] = game.stagePos[p.id] ?? (ft.value ? p.ftPosition : p.rrPosition)
+/** 每个玩家画在**他自己 `phase` 对应的那条轨道上**，与观看者是谁无关（design/09 §3.3 v0.15）。
+ *
+ *  v0.14 之前这里读的是观看者自己的 `ft.value`，于是快车道玩家看到的老鼠赛跑同桌
+ *  `ftPosition === 0`，被画到「在此进入」标记旁——**那不是一个位置，是一个假位置**；
+ *  反过来老鼠赛跑玩家读到的是对方逃出那一刻冻结的 `rrPosition`，看着像一个永远不动的人。
+ *
+ *  演出期间以 `stagePos` 为准，它连轨道一起记（`PLAYER_MOVED.payload.track`）——
+ *  「逃出老鼠赛跑」那一批里 `game.state` 的 phase 已经翻成 FAST_TRACK，
+ *  而正在重放的是他最后一次老鼠赛跑的移动，照 phase 取会让棋子在错误的轨道上走完这一段。 */
+const positions = computed<Record<string, Spot>>(() => {
+  const out: Record<string, Spot> = {}
+  for (const p of game.state?.players ?? []) {
+    const staged = game.stagePos[p.id]
+    if (staged) { out[p.id] = staged; continue }
+    const track = homeTrack(p)
+    out[p.id] = { track, index: track === 'FAST_TRACK' ? p.ftPosition : p.rrPosition }
+  }
   return out
 })
 
-const currentIndex = computed(() => {
+const current = computed<Spot | null>(() => {
   const cur = game.state?.currentPlayerId
-  return cur ? positions.value[cur] : undefined
+  return cur ? positions.value[cur] ?? null : null
 })
 
-/** 走过的格子（trail）：本次移动逐格点亮，下一次掷骰清空 */
-const trail = ref<number[]>([])
+/** 走过的格子（trail）：本次移动逐格点亮，下一次掷骰清空。
+ *  **按赛道分开**——两条轨道同屏之后，一个裸 index 会在内圈第 7 格与快车道第 7 格上同时点亮。 */
+const trail = ref<Partial<Record<Track, number[]>>>({})
 watch(() => game.stageNow, (s) => {
   if (!s) return
-  if (s.kind === 'dice') trail.value = []
-  if (s.kind === 'step') trail.value = [...trail.value, s.index]
+  if (s.kind === 'dice') trail.value = {}
+  if (s.kind === 'step') {
+    trail.value = { ...trail.value, [s.track]: [...(trail.value[s.track] ?? []), s.index] }
+  }
 })
 
 const settleStep = computed(() =>
@@ -216,12 +289,18 @@ const paydayStep = computed(() =>
     && settleStep.value.playerId === game.session?.playerId
     && !settleStep.value.bankrupting
     ? settleStep.value : null)
-const pulseIndex = computed(() =>
-  game.stageNow?.kind === 'landing' ? game.stageNow.index : undefined)
+const settleSpot = computed(() => {
+  const s = settleStep.value
+  return s ? { track: s.track, index: s.index, amount: s.amount, mine: !!paydayStep.value } : null
+})
+const pulse = computed<Spot | null>(() =>
+  game.stageNow?.kind === 'landing'
+    ? { track: game.stageNow.track, index: game.stageNow.index } : null)
 
 /** 快车道格面不写字，点任意格弹详情——这是 24px 的弧读不出内容的补偿 */
 const detail = ref<BoardSquare | null>(null)
 function tapSquare(sq: BoardSquare) { detail.value = sq }
+
 const detailBiz = computed(() =>
   game.board?.fastTrack.businesses.find(b => b.id === detail.value?.ref) ?? null)
 const detailDream = computed(() =>
@@ -377,6 +456,9 @@ const dragging = computed(() => dragH.value !== null)
 const drawerH = computed(() =>
   dragH.value !== null ? `${dragH.value}px` : DETENT_H[detent.value])
 /** 档位切换缩的是棋盘**自身的宽度变量**（stage 有 overflow:hidden，缩 stage 等于白缩） */
+/** 抽屉一展开棋盘就收：格面文字与图标退场、名牌隐藏。
+ *  **工具带不看它**——那三枚钮在任何档位都钉在原地（design/09 §3.2.1 v0.15）。 */
+const compactBoard = computed(() => detent.value !== 'peek')
 const boardWidth = computed(() =>
   detent.value === 'full' ? '150px' : detent.value === 'half' ? '230px' : '332px')
 
@@ -601,10 +683,9 @@ const boardRef = ref<InstanceType<typeof BoardView> | null>(null)
 const dealFrom = computed(() => {
   const from = dealStep.value?.fromIndex ?? 0
   if (!from) return null
-  return squareViewportRect(
-    boardRef.value?.disc, from, squares.value.length,
-    RINGS[ft.value ? 'FAST_TRACK' : 'RAT_RACE'],
-  )
+  // 轨道取**这一批事件里**的，不取观看者的 ft——「停在机会格 → 点小生意」那条路径上
+  // 一个移动事件都没有，批内的赛道由 stage.ts 从抽卡人自己的 phase 推出来
+  return squareViewportRect(boardRef.value?.disc, dealStep.value!.track, from)
 })
 
 /** 这张卡此刻要不要给我一排决策按钮（钉在抽屉底） */
@@ -698,19 +779,27 @@ const blockedBy = computed(() => {
            而 stage 的 flex-basis 是 0），三枚圆钮会被 `overflow:hidden` 切成一条边——
            一枚切了一半的圆看着像渲染坏了，而不像一个决定。full 档只在「账本打开」与
            「破产清算」两种情形出现，前者点一下把手就退出来，后者本就只该有清算面板。 -->
-      <div v-if="detent !== 'full'" class="board-tools">
+      <!-- 板抬头：名牌与三枚圆钮都**钉在 stage 顶上那条带里**（design/09 §3.2.1 v0.15）。
+           stage 的上沿由 HUD 决定、HUD 是 `flex:none` 的定高信息条，所以抽屉拉到任何档位，
+           这三枚钮一个像素都不动、也不会跟着名牌一起被 compact 隐藏——
+           而 🏦 正是现金不够时要找的那一个，那是最不该让人满屏找按钮的时刻。
+           **横排**：竖排 3×38+2×6 = 126px 高，得把棋盘推下去 126px 才不压格子。 -->
+      <div v-if="!compactBoard" class="wheel-name">
+        <span class="logo">CA$HFLOW</span>
+        <span class="sub">{{ ft ? '快车道' : '老鼠赛跑' }}</span>
+      </div>
+      <div class="board-tools">
         <button class="board-float" title="资金" @click="funds = true">🏦</button>
         <button class="board-float" title="账本" @click="openLedger()">📋</button>
         <router-link to="/manual" class="board-float" title="说明书">📖</router-link>
       </div>
 
-      <BoardView ref="boardRef" :track="ft ? 'FAST_TRACK' : 'RAT_RACE'" :squares="squares"
+      <BoardView ref="boardRef" :focus="ft ? 'FAST_TRACK' : 'RAT_RACE'"
+                 :rr="rrSquares" :ft="ftSquares"
                  :players="game.state.players" :positions="positions"
                  :me-id="game.session?.playerId ?? ''"
-                 :current-index="currentIndex" :trail="trail"
-                 :settle-index="settleStep?.index" :settle-amount="settleStep?.amount"
-                 :settle-mine="!!paydayStep"
-                 :pulse-index="pulseIndex" :compact="detent !== 'peek'"
+                 :current="current" :trail="trail"
+                 :settle="settleSpot" :pulse="pulse" :compact="compactBoard"
                  :offline="!game.connected" @tap="tapSquare">
         <template #hub>
           <!-- 轮心只放骰盘 + 一行状态提示；轮次归 HUD，进度归 HUD 进度带。
@@ -950,7 +1039,7 @@ const blockedBy = computed(() => {
           <FtSquareCard v-if="detailBiz" kind="biz"
                         :kind-label="detailBiz.dice_rule ? '企业投资 · 需掷骰' : '企业投资'"
                         :name="detailBiz.name"
-                        :taken="(game.state.ftSoldSquares ?? []).includes(detailBiz.id)"
+                        :taken="!!(game.state.ftSoldSquares ?? {})[detailBiz.id]"
                         :nums="[{ label: '首付', value: fmt(detailBiz.down_payment) },
                                 { label: '月现金流', value: '+' + fmt(detailBiz.cashflow) }]" />
           <FtSquareCard v-else-if="detailDream" kind="dream" kind-label="梦想"

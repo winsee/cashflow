@@ -57,7 +57,7 @@ const dreamList = computed(() => {
   return [...dreams.value].sort((a, b) => rank(a) - rank(b))
 })
 
-const sold = (id: string) => st.value.ftSoldSquares.includes(id)
+const sold = (id: string) => !!st.value.ftSoldSquares[id]
 
 // 三步进度：现金流量日 → 停留格 → 结束
 const stepPayday = computed(() => st.value.turnPaydayUsed)

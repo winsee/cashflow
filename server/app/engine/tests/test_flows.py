@@ -655,6 +655,37 @@ def test_ft_claim_unowned_dream_is_pure_cash_sink(duo):
     assert duo.state.turn_square_used is True
 
 
+def test_ft_claim_dream_records_who_took_it(duo):
+    """占位买下的梦想要在**状态里**留痕，否则棋盘上说不出那块地是谁的。
+
+    注意它**不等于换梦想**：A 的 dream_id 仍然是 safari，胜利条件绑的还是那一个
+    （design/02 §11）。这两件事最容易被后人搞混，所以一起钉住。"""
+    _enter_ft(duo, "A")
+    duo.act("A", "FT_CLAIM_DREAM", squareId="ft-d-ski")
+    assert duo.state.ft_claimed_dreams == {"ft-d-ski": "A"}
+    assert duo.player("A").dream_id == "ft-d-safari"
+
+
+def test_ft_claimed_dream_survives_replay(duo):
+    """`_revert` 是从**空 RoomState** 重放事件流的，所以只要 apply 里写了就自动正确。
+    这条钉的就是那句「自动」——把 `_a_ft_dream_claimed` 里那一行删掉，它当场挂。"""
+    _enter_ft(duo, "A")
+    duo.act("A", "FT_CLAIM_DREAM", squareId="ft-d-ski")
+    assert duo.replay().ft_claimed_dreams == {"ft-d-ski": "A"}
+
+
+def test_ft_business_records_buyer_even_without_cashflow(duo):
+    """一次性收益型企业（软件公司股票，掷 6 得 $500,000）**不进 businesses**——
+    `_a_ft_business_bought` 只在 `cashflow` 非 0 时 append。所以「谁买了这一格」
+    只能靠 `ft_sold_squares` 记下来，否则棋盘上那一格永远查不到主人。"""
+    _enter_ft(duo, "A")
+    duo.act("A", "FT_BUY_BUSINESS", squareId="ft-b-software", diceRoll=6)
+    a = duo.player("A")
+    assert duo.state.ft_sold_squares == {"ft-b-software": "A"}
+    assert [b.square_id for b in a.fasttrack.businesses] == []      # 没有月现金流
+    assert duo.replay().ft_sold_squares == {"ft-b-software": "A"}
+
+
 def test_ft_claim_dream_rejects_already_chosen(duo):
     _enter_ft(duo, "A")
     with pytest.raises(EngineError, match="有主") as ei:

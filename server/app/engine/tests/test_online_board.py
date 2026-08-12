@@ -436,7 +436,7 @@ def test_sold_out_green_square_is_a_no_op(online):
     a = online.state.players["A"]
     a.phase = Phase.FAST_TRACK
     a.ft_position = 1
-    online.state.ft_sold_squares.append("ft-b-inn")
+    online.state.ft_sold_squares["ft-b-inn"] = "B"   # v0.15：连买主一起记
     evs = _roll(online, "A", 1)
     assert "LANDING_RESOLVED" in _types(evs)
     assert online.state.landing.resolved

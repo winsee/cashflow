@@ -20,6 +20,8 @@ def test_rematch_full_cycle(duo):
     # 造点会被清空的痕迹：现金、孩子、资产、当前卡
     duo.state.players["A"].cash = 99999
     duo.state.players["A"].child_count = 2
+    duo.state.ft_sold_squares["ft-b-inn"] = "A"          # 房间级痕迹也得清
+    duo.state.ft_claimed_dreams["ft-d-ski"] = "A"
     duo.player("A").real_estates.append(RealEstate(
         id="r1", card_id="x", asset_type="房", name="旧房", cost=100, down_payment=10, cashflow=50))
     _finish(duo, winner="A")
@@ -38,6 +40,7 @@ def test_rematch_full_cycle(duo):
     assert a.phase == Phase.RAT_RACE
     assert s.turn_order == [] and s.turn_index == 0 and s.turn_count == 1
     assert s.winner_id is None and s.active_card is None and s.prompts == []
+    assert s.ft_sold_squares == {} and s.ft_claimed_dreams == {}
     assert sorted(p.seat for p in s.players.values()) == [0, 1]   # 座位重排 0..n
 
     # 能重新完整开一局，并重新发钱

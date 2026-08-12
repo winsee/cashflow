@@ -34,7 +34,7 @@ const dreamOwner = computed(() =>
   game.state?.players.find(p => p.dreamId === dream.value?.id) ?? null)
 const isMyDream = computed(() => dreamOwner.value?.id === me.value?.id)
 const bizSold = computed(() =>
-  !!biz.value && (game.state?.ftSoldSquares ?? []).includes(biz.value.id))
+  !!biz.value && !!(game.state?.ftSoldSquares ?? {})[biz.value.id])
 
 /** 慈善捐款额 = 总收入 10%（与引擎同一口径，四舍五入到美元） */
 const charityCost = computed(() =>

@@ -489,10 +489,13 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center;
   background: var(--brand-soft); color: var(--brand); font-size: 12px; font-weight: 800;
 }
-/* 牌桌上那个人的头像圈（跟着阶段主色换肤） */
+/* 牌桌上那个人的头像圈。玩家色由 `playercolor.colorVars()` 挂成内联变量；
+   **没传玩家时退回主色**（跟着阶段换肤），所以改动不会溢出到任何不认识座位的调用点
+   ——大厅那枚昵称 chip 就是：那儿还没有房间，也就没有座位。 */
 .avatar-lg {
   width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none;
-  background: var(--brand-soft); color: var(--brand); font-size: 12px; font-weight: 800;
+  background: var(--pc-soft, var(--brand-soft)); color: var(--pc-ink, var(--brand));
+  font-size: 12px; font-weight: 800;
 }
 
 /* 大厅两个主入口 */
@@ -942,21 +945,37 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 }
 /* HUD 不参与压缩：它是定高的信息条，抽屉再高也不许把它挤扁 */
 .board-page > .hud { flex: none; }
+/* `min-height` 是给顶上那条工具带留的，**不可协商**：full 档 stage 只剩 16px，
+   三枚圆钮会被 overflow:hidden 整个切掉（v0.7 当初因此干脆隐藏它们）。
+   抽屉是 `flex: 0 1 auto`，给 stage 一个下限它就会自己让出这 46px。 */
+/* `align-items: flex-start`：板**贴着顶上那条工具带**排，不再垂直居中。
+   名牌与圆钮钉死在 stage 顶（见 .wheel-name / .board-tools），板若还居中，
+   屏一高两者之间就空出一两百像素，那条抬头就飘着、读不出它是这块板的抬头。
+   富余的高度全留到板与抽屉之间——抽屉本来就是可以拉上来吃掉它的那个面。 */
 .board-stage {
-  position: relative; flex: 1; min-height: 0;
-  display: flex; align-items: center; justify-content: center;
+  position: relative; flex: 1; min-height: 46px;
+  display: flex; align-items: flex-start; justify-content: center;
   padding: var(--sp-2) var(--sp-3); overflow: hidden;
 }
 /* 档位切换缩的是棋盘**自身的宽度变量**，不是 transform: scale——
    stage 有 overflow:hidden，缩 stage 会连裁切框一起缩，等于白缩一场。 */
 .board-stage .wheel { width: var(--bw, 332px); max-width: 100%; }
-/* 盘面标题在圆盘之外、棋盘之上：圆内没有它的位置（见 BoardView 模板注释） */
+/* 板本身。顶上留出工具带那 46px：peek 档棋盘 332px，右上角正好顶到圆钮。
+   **half / full 档不用留**——板只有 230 / 150px，左右各空 60 / 100px，圆钮天然碰不到它
+   （375 屏实测：half 档板右缘 302px、钮左缘 317px）。 */
 .board-wrap { display: flex; flex-direction: column; align-items: center; min-height: 0; }
+.board-wrap:not(.compact) { padding-top: 46px; }
 
-/* 悬浮工具挂在 stage 内部的右上角：挂在页面根上要用魔数避开 HUD，HUD 一加高就被挡住 */
+/* 悬浮工具挂在 stage 内部的右上角：挂在页面根上要用魔数避开 HUD，HUD 一加高就被挡住。
+   而 stage 的上沿由 HUD 决定、HUD 是 `flex:none` 的定高信息条，所以**抽屉拉到任何档位，
+   这三枚钮的屏幕位置一个像素都不动**，也不跟着名牌一起被 compact 隐藏——
+   🏦 正是现金不够时要找的那一个，那是最不该让人满屏找按钮的时刻。
+
+   **横排**（v0.15）：竖排 3×38+2×6 = 126px 高，方形跑道之后得把棋盘往下推 126px
+   才不压格子；横排只要 38px，正好由名牌那一行的高度吸收掉。 */
 .board-tools {
   position: absolute; top: var(--sp-2); right: var(--sp-3);
-  display: flex; flex-direction: column; gap: 6px; z-index: 2;
+  display: flex; gap: 6px; z-index: 2;
 }
 .board-float {
   width: 38px; height: 38px; border-radius: 999px; border: 1px solid var(--line-2);
@@ -1003,18 +1022,21 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   background:
     repeating-linear-gradient(58deg, rgba(160, 132, 78, .028) 0 2px, transparent 2px 5px),
     linear-gradient(168deg, var(--panel), var(--panel2));
-  border: 1px solid var(--line-2); border-radius: 50%;
+  /* 圆角方，不是正圆：外圈跑道的外边界圆角 = CR + D/2 = 55，板边再外 2 → 57 ÷ 320 ≈ 17.8%。
+     用**百分比**而不是 px，才跟得上 --bw 的三档缩放。 */
+  border: 1px solid var(--line-2); border-radius: 17.8%;
   box-shadow: var(--shadow-sm), 0 0 0 6px color-mix(in srgb, var(--panel2) 60%, transparent),
               inset 0 1px 0 rgba(255, 255, 255, .7);
 }
 /* 卡牌翻开时棋盘压暗一档：同一时刻只有一个东西是亮的 */
 .board-stage.card-open .wheel { filter: brightness(.94) saturate(.92); }
 .disc { display: block; width: 100%; height: 100%; }
-/* 名牌是装饰，不许挡任何一格：排在圆盘**之外**的上方，抽屉一展开（compact）就整块隐藏，
-   把高度让给抽屉。板内版（v0.1 的 bottom:5%）压住了底部三格，已废弃。 */
+/* 名牌是装饰，不许挡任何一格：钉在 stage 顶上那条带里，与三枚工具钮同一行。
+   抽屉一展开（compact）它就隐藏，把高度让给抽屉——**但工具钮不跟着走**（见 .board-tools）。
+   板内版（v0.1 的 bottom:5%）压住了底部三格，已废弃。 */
 .wheel-name {
-  text-align: center; pointer-events: none; line-height: 1.25;
-  margin-bottom: 4px; flex: none;
+  position: absolute; top: var(--sp-2); left: 0; right: 0;
+  text-align: center; pointer-events: none; line-height: 1.25; z-index: 1;
 }
 .wheel-name .logo {
   display: block; font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
@@ -1023,7 +1045,22 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .wheel-name .sub { font-family: var(--font-card); font-size: 12px; color: var(--muted); }
 
 .board-sq.tappable { cursor: pointer; }
-.sq-label { font-size: 10px; font-weight: 700; fill: var(--text); pointer-events: none; }
+/* 两条轨道同一个字号：内圈一格净 21.7 单位、快车道 22.7 单位，9px 两个字 = 18px，都放得下 */
+.sq-label { font-size: 9px; font-weight: 700; fill: var(--text); pointer-events: none; }
+/* 没有占位道具时才印的图标：18 个企业格印店面、23 个梦想格印旗。
+   41/48 格都有图标，满不透明度就是一堵墙——同「12 个机会格不写字」那条，压成质感层 */
+.sq-icon { pointer-events: none; opacity: .52; }
+.sq-icon.biz { fill: #5E8B1E; }
+.sq-icon.biz .hole { fill: var(--panel2); }
+.sq-icon.dream { fill: #8E5C9B; }
+/* 被加价的梦想：**价格不是归属**，所以不上任何人的颜色，走古铜 */
+.sq-bump { font-size: 7px; font-weight: 800; fill: var(--gold-deep); pointer-events: none; }
+/* 金币里那个昵称首字：颜色永远不是唯一线索 */
+.token-ini { font-size: 5.2px; font-weight: 800; pointer-events: none; }
+.ft-token { pointer-events: none; }
+/* 对方赛道降饱和：**只作用在格子上**。人和人的道具不参与「这条赛道不是我的」这种氛围表达，
+   棋子永远满色（它们画在 .board-pawns 里，不在 .track 内）。 */
+.disc .track.dim { filter: saturate(.28); opacity: .72; }
 .marker-label { font-size: 10px; font-weight: 800; fill: var(--muted); }
 /* 旁观者版的过站结算：当事人看到的是全屏发薪帘幕（PaydayCurtain），
    板上这一份是给同桌其余人看的，所以字号从 13px 提到 20px —— 隔着一张桌子也得读得出。
@@ -1051,7 +1088,7 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
 }
 .hub {
-  width: var(--hub, 56%); aspect-ratio: 1; border-radius: 50%;
+  width: var(--hub, 42%); aspect-ratio: 1; border-radius: 50%;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 8px; padding: 8px; text-align: center; pointer-events: auto;
   text-wrap: balance;
@@ -1374,9 +1411,14 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 }
 .seat-dot {
   width: 19px; height: 19px; border-radius: 999px; display: grid; place-items: center;
-  font-size: 10px; font-weight: 800; border: 1px solid var(--line-2); background: var(--panel);
+  font-size: 10px; font-weight: 800; border: 1px solid var(--line-2);
+  background: var(--pc-soft, var(--panel)); color: var(--pc-ink, var(--text));
 }
-.seat-dot.now { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent); border-color: transparent; }
+/* 当前行动者那圈光晕跟着**他自己的**颜色走：从前一律主色，六个人长得一模一样 */
+.seat-dot.now {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc-solid, var(--brand)) 30%, transparent);
+  border-color: transparent;
+}
 .seat-dot.done { opacity: .4; }
 .seat-dot.out { filter: grayscale(1); opacity: .35; }
 /* 持续状态角标：19px 的圆写不下字，就给右下角一个点。

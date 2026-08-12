@@ -9,6 +9,7 @@
  *  全文放进 title。 */
 import { computed } from 'vue'
 import { majorStatus } from '../statuses'
+import { colorVars } from '../playercolor'
 import { useGame } from '../store'
 
 const props = defineProps<{
@@ -40,6 +41,8 @@ const seats = computed(() => {
     const st = p ? majorStatus(p) : null
     return {
       id: pid, initial: p?.nickname.slice(0, 1) ?? '?',
+      // 玩家色：一人一色，靠首字 + 颜色两条线索认人（playercolor.ts 的硬约束②）
+      vars: colorVars(p),
       now: i === s.turnIndex, done: i < s.turnIndex, out: p?.phase === 'OUT',
       mark: st?.tone ?? null,
       title: st ? `${p!.nickname} · ${st.label}` : (p?.nickname ?? ''),
@@ -54,7 +57,7 @@ const seats = computed(() => {
              :title="props.clickable ? (props.active ? '收起牌桌' : '看牌桌') : undefined"
              :aria-pressed="props.clickable ? String(!!props.active) : undefined"
              @click="props.clickable && emit('open')">
-    <span v-for="s in seats" :key="s.id" class="seat-dot"
+    <span v-for="s in seats" :key="s.id" class="seat-dot" :data-pid="s.id" :style="s.vars"
           :class="{ now: s.now, done: s.done, out: s.out }" :title="s.title">
       {{ s.initial }}
       <span v-if="s.mark !== null" class="mark" :class="s.mark || 'plain'"></span>
