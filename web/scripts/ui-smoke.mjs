@@ -843,6 +843,89 @@ async function main() {
     failures.push(`22-纯线上-棋盘待掷骰: 悬浮圆钮 ${floats.n} 枚、完整可见 ${floats.whole} 枚`)
   if (!floats.text.includes('🏦'))
     failures.push('22-纯线上-棋盘待掷骰: 没有资金入口（🏦）')
+  // ── v0.15 两条轨道同在一张板上（design/09 §3） ──
+  // 这一条钉的就是根因：从前 BoardView 靠 `track` prop 只画一条环，
+  // 退回那个版本必然有一条是 0 格。
+  const tracks = await pMe.evaluate(() => ({
+    rr: document.querySelectorAll('.track-rr .board-sq').length,
+    ft: document.querySelectorAll('.track-ft .board-sq').length,
+    dimRR: document.querySelectorAll('.track-rr.dim').length,
+    dimFT: document.querySelectorAll('.track-ft.dim').length,
+  }))
+  if (tracks.rr !== 24 || tracks.ft !== 48)
+    failures.push(`22-纯线上-棋盘待掷骰: 两条轨道该是 24 + 48 格，实际 ${tracks.rr} + ${tracks.ft}`)
+  // 满对比的永远是**我自己**那条赛道。我在老鼠赛跑，所以内圈不许降饱和、外圈必须降
+  if (tracks.dimRR !== 0 || tracks.dimFT !== 1)
+    failures.push(`22-纯线上-棋盘待掷骰: 焦点该跟着我走（内圈 dim=${tracks.dimRR}、外圈 dim=${tracks.dimFT}）`)
+
+  // 板是圆角方，不是正圆——外圈跑道住在四个角上
+  const plateR = await pMe.evaluate(() => {
+    const el = document.querySelector('.plate')
+    // border-radius 写的是百分比，computed style 原样返回 "17.8%"——按单位换算，
+    // 直接 parseFloat 会把 17.8 当成 px（第一版就是这么误报的）
+    const raw = getComputedStyle(el).borderTopLeftRadius
+    const w = el.getBoundingClientRect().width
+    return { pct: raw.endsWith('%') ? parseFloat(raw) : parseFloat(raw) / w * 100, raw, w }
+  })
+  if (!(plateR.pct > 10 && plateR.pct < 30))
+    failures.push(`22-纯线上-棋盘待掷骰: 板圆角 ${plateR.raw}（= 板宽的 ${plateR.pct.toFixed(1)}%）不在 10%~30% 之间`)
+
+  // 快车道格面：**只有 7 个格写字**（3 个现金流量日 + 4 个特殊格），
+  // 剩下 41 格（18 企业 + 23 梦想）印图标。退回「快车道不写字」这一条当场挂。
+  const ftFace = await pMe.evaluate(() => ({
+    labels: [...document.querySelectorAll('.track-ft .sq-label')].map(t => t.textContent.trim()),
+    icons: document.querySelectorAll('.track-ft .sq-icon').length,
+  }))
+  const wantLabels = ['结算', '结算', '结算', '慈善', '税审', '离婚', '官司'].sort().join()
+  if (ftFace.labels.slice().sort().join() !== wantLabels)
+    failures.push(`22-纯线上-棋盘待掷骰: 快车道该有 7 个写字的格，实际 ${ftFace.labels.join('/')}`)
+  if (ftFace.icons !== 41)
+    failures.push(`22-纯线上-棋盘待掷骰: 企业与梦想格该印 41 枚图标，实际 ${ftFace.icons}`)
+
+  // 一格 22.66 单位 × 板宽/320：正圆环时代只有 17.2px，方形跑道 23.5px。
+  // 断言 > 20px —— 退回正圆环当场挂
+  const cellW = await pMe.evaluate(() => {
+    const sq = document.querySelector('.track-ft .board-sq path')
+    return sq ? sq.getBoundingClientRect().width : 0
+  })
+  if (!(cellW > 20))
+    failures.push(`22-纯线上-棋盘待掷骰: 快车道一格只有 ${cellW.toFixed(1)}px，方形跑道该有 23.5px`)
+
+  // 占位道具：准备阶段全员都选了梦想，所以盘上该有**和玩家数一样多**的奶酪，
+  // 每一枚的 <title> 写着是谁的。退回「梦想画成一枚 5px 圆点」当场挂
+  const cheese = await pMe.evaluate(() => ({
+    n: document.querySelectorAll('.track-ft .ft-token.cheese').length,
+    who: [...document.querySelectorAll('.track-ft .ft-token.cheese title')].map(t => t.textContent),
+    dots: document.querySelectorAll('.track-ft circle[r="5"]').length,
+  }))
+  if (cheese.n !== 2)
+    failures.push(`22-纯线上-棋盘待掷骰: 两人各选了一个梦想，盘上该有 2 块奶酪，实际 ${cheese.n}`)
+  if (!cheese.who.every(t => /选定的梦想/.test(t)))
+    failures.push('22-纯线上-棋盘待掷骰: 奶酪缺少「谁的梦想」那句无障碍文本')
+
+  // 玩家色**只有一个源**（playercolor.ts）：同一个人的棋子与座次点必须是同一个颜色，
+  // 不同人之间必须不同。退回旧代码时棋子是 hsl(...)、座次点是 --panel，三处互不相等
+  const colors = await pMe.evaluate(() => {
+    const out = {}
+    for (const el of document.querySelectorAll('.board-pawn[data-pid]')) {
+      const pid = el.dataset.pid
+      out[pid] = { pawn: getComputedStyle(el.querySelector('circle')).fill }
+    }
+    for (const el of document.querySelectorAll('.seat-dot[data-pid]')) {
+      const pid = el.dataset.pid
+      if (out[pid]) out[pid].dot = getComputedStyle(el).backgroundColor
+    }
+    return out
+  })
+  const rows = Object.values(colors)
+  for (const [pid, c] of Object.entries(colors)) {
+    if (!c.dot) { failures.push(`22-纯线上-棋盘待掷骰: 座次条上找不到 ${pid}`); continue }
+    if (c.pawn !== c.dot)
+      failures.push(`22-纯线上-棋盘待掷骰: ${pid} 的棋子(${c.pawn})与座次点(${c.dot})不同色——玩家色该只有一个源`)
+  }
+  if (rows.length >= 2 && rows[0].pawn === rows[1].pawn)
+    failures.push('22-纯线上-棋盘待掷骰: 两个玩家的棋子同色，一人一色没生效')
+
   // HUD 资产条的**反例**：开局一项资产都没有，那一行就该整个不在。
   // 摆一句「暂无资产」是废话，还白占 HUD 一行——正例见 26f（买成了才有）
   const emptyAssets = await pMe.evaluate(() => document.querySelectorAll('.hud-assets').length)
@@ -1228,6 +1311,80 @@ async function main() {
   })
   if (!closed) failures.push('27c-纯线上-账本收起: 点把手没有把账本关掉')
   await shot(pMe, '27c-纯线上-账本收起-把手', '.drawer-peek')
+
+  // 27e 三枚圆钮**钉死**（design/09 §3.2.1 v0.15，房主定案）：抽屉拉到任何档位，
+  // 它们的屏幕位置一个像素都不许动，也不许消失。
+  // stage 的上沿由 HUD 决定、HUD 是 flex:none 的定高条，所以只要圆钮绝对定位在 stage 上、
+  // 而不是塞进 `.wheel-name` 那个跟着板走的块里，这条就成立。
+  // 负向对照：把 `.board-tools` 挪进 `.board-wrap`，或把 `v-if="detent !== 'full'"` 加回来，
+  // 这条当场挂。
+  const toolsAt = async (label) => pMe.evaluate(() => {
+    const b = [...document.querySelectorAll('.board-float')]
+    const stage = document.querySelector('.board-stage')?.getBoundingClientRect()
+    const sq = [...document.querySelectorAll('.board-sq path')]
+    let hit = null
+    for (const x of b) {
+      const r = x.getBoundingClientRect()
+      for (const p of sq) {
+        const q = p.getBoundingClientRect()
+        if (r.left < q.right - 1 && r.right > q.left + 1
+          && r.top < q.bottom - 1 && r.bottom > q.top + 1) {
+          hit = `钮[${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)}]`
+            + ` × 格[${Math.round(q.left)},${Math.round(q.top)},${Math.round(q.right)},${Math.round(q.bottom)}]`
+          break
+        }
+      }
+      if (hit) break
+    }
+    return {
+      n: b.length,
+      top: b.length ? Math.round(b[0].getBoundingClientRect().top) : -1,
+      whole: b.filter(x => x.getBoundingClientRect().bottom <= (stage?.bottom ?? 0) + 1).length,
+      hit,
+      // 抽屉高度一起记：档位没真的切过去时，三个样本会长得一模一样，
+      // 光看 top 相等反而会误判成「钉住了」
+      dh: Math.round(document.querySelector('.board-drawer')?.getBoundingClientRect().height ?? 0),
+    }
+  }).then(r => ({ ...r, label }))
+  // 先确保回到 peek：27c 那一下把账本关了，但抽屉停在 half
+  await pMe.evaluate(async () => {
+    const el = document.querySelector('.board-drawer .sheet-grab')
+    for (const t of ['pointerdown', 'pointerup'])
+      el.dispatchEvent(new PointerEvent(t, { bubbles: true, clientY: 300, pointerId: 1 }))
+    await new Promise(r => setTimeout(r, 700))
+  })
+  const pinned = [await toolsAt('peek')]
+  // half：peek 档点把手就是展开（§2.2「向上 = 进一步」）。
+  // 这里不能点座次条——轮到我时 peek 条上根本没有它（那一支只写「第 N 步 / 3」）
+  const tapGrab = async () => {
+    await pMe.evaluate(async () => {
+      const el = document.querySelector('.board-drawer .sheet-grab')
+      for (const t of ['pointerdown', 'pointerup'])
+        el.dispatchEvent(new PointerEvent(t, { bubbles: true, clientY: 300, pointerId: 1 }))
+      await new Promise(r => setTimeout(r, 700))
+    })
+    await sleep(200)
+  }
+  await tapGrab()
+  pinned.push(await toolsAt('half'))
+  // full：账本
+  await pMe.evaluate(() =>
+    [...document.querySelectorAll('.board-float')].find(b => b.textContent.includes('📋'))?.click())
+  await sleep(700)
+  pinned.push(await toolsAt('full'))
+  for (const p of pinned) {
+    if (p.n !== 3) failures.push(`27e-圆钮钉死: ${p.label} 档只剩 ${p.n} 枚圆钮`)
+    if (p.whole !== 3) failures.push(`27e-圆钮钉死: ${p.label} 档有圆钮被裁（完整 ${p.whole} 枚）`)
+    if (p.hit) failures.push(`27e-圆钮钉死: ${p.label} 档圆钮压在格子上了 —— ${p.hit}`)
+  }
+  if (new Set(pinned.map(p => p.top)).size !== 1)
+    failures.push(`27e-圆钮钉死: 三档的 top 不一样（${pinned.map(p => `${p.label} ${p.top}`).join('、')}）`)
+  // 三个样本必须真的是三个不同的档位，否则「top 都一样」这句话什么也没证明
+  if (new Set(pinned.map(p => p.dh)).size !== 3)
+    failures.push(`27e-圆钮钉死: 三档没真的切过去（抽屉高 ${pinned.map(p => `${p.label} ${p.dh}`).join('、')}）`)
+  await shot(pMe, '27e-纯线上-圆钮三档钉死', '.board-float')
+  // 收回 peek，别把状态留给后面的屏
+  await tapGrab()
 
   // 27d 资金弹层：银行 / 转账 / 破产入口，一枚悬浮圆钮直开。
   // 它就是试玩里那个死局的出口——现金不足既买不了、又结束不了回合，是因为纯线上

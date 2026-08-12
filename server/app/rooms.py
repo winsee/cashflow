@@ -341,6 +341,7 @@ class RoomSession:
                       for deck, ids in s.decks.items()},
             "prompts": [p.model_dump() for p in s.prompts],
             "ftSoldSquares": s.ft_sold_squares,
+            "ftClaimedDreams": s.ft_claimed_dreams,
             "dreamPriceBumps": s.dream_price_bumps,
             "winnerId": s.winner_id,
         }

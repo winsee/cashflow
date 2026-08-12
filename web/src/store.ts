@@ -4,6 +4,7 @@ import {
   buildStage, prefersReducedMotion, setStageBoard,
   type StageStep,
 } from './stage'
+import type { Spot } from './components/board/geom'
 import type {
   BoardDto, CardDto, GameMode, LogEntry, Player, Prompt, RoomListItem, RoomSeats, RoomStateDto,
 } from './types'
@@ -141,8 +142,8 @@ export const useGame = defineStore('game', {
     stageQueue: [] as StageStep[],
     stageNow: null as StageStep | null,
     stageTimer: 0 as any,
-    /** 演出期间的棋子位置覆盖（playerId → 格索引）；队列播完即清空 */
-    stagePos: {} as Record<string, number>,
+    /** 演出期间的棋子位置覆盖（playerId → 落点，**带赛道**）；队列播完即清空 */
+    stagePos: {} as Record<string, Spot>,
     /** 中央飘字（牌堆洗回这类通知，不是待办） */
     stageFlash: '' as string,
     /** 最近一次掷出的点数（服务端摇的那一组）。
@@ -477,8 +478,17 @@ export const useGame = defineStore('game', {
       // 先把棋子钉回移动**之前**那一格（`PLAYER_MOVED` 自带 `from`），否则骰子还在翻滚时
       // 棋子就瞬移到了目的格，等 step 拍开始又跳回起点重走一遍。
       // `from` 可能是 0（起点标记）；`positions` 用的是 `??` 不是 `||`，0 不会被误 fallback。
+      // **连轨道一起记**：这一批可能是「逃出老鼠赛跑」那一次——`game.state` 里那个人的
+      // phase 已经翻成 FAST_TRACK，而正在重放的是他最后一次老鼠赛跑的移动。
+      // `positions` 的优先级链是 `stagePos ?? 权威位置`，所以只要这里记的是事件里的
+      // `track`，棋子就会在内圈走完这一段，队列播完才跳到快车道入口——
+      // 那一跳正好是「逃出去」这件事该有的画面，一行特例都不用写。
       for (const ev of events)
-        if (ev.type === 'PLAYER_MOVED') this.stagePos[ev.payload.player_id] = ev.payload.from
+        if (ev.type === 'PLAYER_MOVED')
+          this.stagePos[ev.payload.player_id] = {
+            track: ev.payload.track === 'FAST_TRACK' ? 'FAST_TRACK' : 'RAT_RACE',
+            index: ev.payload.from,
+          }
       this.stageQueue.push(...steps)
       if (!this.stageNow) this.advanceStage()
     },
@@ -492,8 +502,8 @@ export const useGame = defineStore('game', {
         return
       }
       this.stageNow = next
-      if (next.kind === 'step' || next.kind === 'settle' || next.kind === 'landing') {
-        if (next.kind !== 'landing') this.stagePos[next.playerId] = next.index
+      if (next.kind === 'step' || next.kind === 'settle') {
+        this.stagePos[next.playerId] = { track: next.track, index: next.index }
       }
       this.stageFlash = next.kind === 'reshuffle'
         ? `${DECK_FLASH[next.deck] ?? next.deck} · 已洗回牌堆` : ''

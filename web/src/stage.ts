@@ -43,11 +43,11 @@ export type StageStep =
     bankrupting?: boolean
   }
   /** 拍 5：落点脉冲 */
-  | { kind: 'landing'; ms: number; index: number }
+  | { kind: 'landing'; ms: number; track: Track; index: number }
   /** 边界态：牌堆洗回，中央飘一行，不弹层 */
   | { kind: 'reshuffle'; ms: number; deck: string }
   /** 拍 6–9：全屏发牌翻牌（帘幕组件负责四小段的 CSS 时序） */
-  | { kind: 'deal'; ms: number; deck: string; cardId: string; title: string; fromIndex: number }
+  | { kind: 'deal'; ms: number; deck: string; cardId: string; title: string; track: Track; fromIndex: number }
 
 export interface StageEvent {
   type: string
@@ -82,7 +82,7 @@ export function buildStage(events: StageEvent[], prev: RoomStateDto | null): Sta
   let track: Track = 'RAT_RACE'
   let mover = ''
   /** 这一批里谁走到了哪一格：发牌帘幕的起飞格取它（见 `landingIndexOf`） */
-  const landedAt: Record<string, number> = {}
+  const landedAt: Record<string, LandedAt> = {}
   // 过站结算的事件排在 PLAYER_MOVED 之前（服务端按「先结算再落位」产出），
   // 先攒着，等拿到 path 才知道该把橙光打在哪一格上。
   type Settle = Extract<StageStep, { kind: 'settle' }>
@@ -148,8 +148,8 @@ export function buildStage(events: StageEvent[], prev: RoomStateDto | null): Sta
           }
         }
         if (path.length) {
-          landedAt[p.player_id] = path[path.length - 1]
-          out.push({ kind: 'landing', ms: BEAT.landing, index: path[path.length - 1] })
+          landedAt[p.player_id] = { track, index: path[path.length - 1] }
+          out.push({ kind: 'landing', ms: BEAT.landing, track, index: path[path.length - 1] })
         }
         break
       }
@@ -159,7 +159,7 @@ export function buildStage(events: StageEvent[], prev: RoomStateDto | null): Sta
       case 'CARD_DRAWN':
         out.push({
           kind: 'deal', ms: BEAT.deal, deck: p.deck, cardId: p.card_id,
-          title: p.title ?? '', fromIndex: landingIndexOf(prev, p.player_id ?? mover, landedAt),
+          title: p.title ?? '', ...landingSpotOf(prev, p.player_id ?? mover, landedAt),
         })
         break
     }
@@ -206,14 +206,25 @@ function settlementIndexes(path: number[], track: Track, prev: RoomStateDto | nu
  *  ② 「你停在机会格 → 点小生意/大生意」那一批里只有 `CARD_DRAWN`，一个移动事件都没有，
  *     这时才该回 `prev` 取位置。
  *  赛道也取玩家自己的 `phase`，不取批内那个由 `PLAYER_MOVED` 才置位的变量——②那条路径上它没被置过。 */
-function landingIndexOf(
-  prev: RoomStateDto | null, playerId: string, landedAt: Record<string, number>,
-): number {
-  if (!playerId) return 0
-  if (landedAt[playerId]) return landedAt[playerId]
+function landingSpotOf(
+  prev: RoomStateDto | null, playerId: string, landedAt: Record<string, LandedAt>,
+): { track: Track; fromIndex: number } {
+  if (!playerId) return { track: 'RAT_RACE', fromIndex: 0 }
+  const at = landedAt[playerId]
+  if (at) return { track: at.track, fromIndex: at.index }
   const pl = prev?.players.find(x => x.id === playerId)
-  if (!pl) return 0
-  return pl.phase === 'FAST_TRACK' ? pl.ftPosition : pl.rrPosition
+  if (!pl) return { track: 'RAT_RACE', fromIndex: 0 }
+  const track = homeTrack(pl)
+  return { track, fromIndex: track === 'FAST_TRACK' ? pl.ftPosition : pl.rrPosition }
+}
+
+interface LandedAt { track: Track; index: number }
+
+/** 这个人属于哪条轨道。**出局的人 `phase` 既不是 RAT_RACE 也不是 FAST_TRACK**，
+ *  但 `fasttrack.entered_turn` 一进快车道就永久非空，拿它兜底比让棋子消失或堆在起点诚实。
+ *  三处共用（位置、演出、发牌锚点），别再各写一份。 */
+export function homeTrack(p: { phase: string; fasttrack?: { entered_turn?: number | null } }): Track {
+  return p.phase === 'FAST_TRACK' || p.fasttrack?.entered_turn != null ? 'FAST_TRACK' : 'RAT_RACE'
 }
 
 /** 棋盘数据在演出层里只用来判「哪一格是结算格」，由 store 拉到后塞进来，省得逐拍再取一次。 */

@@ -18,6 +18,7 @@ import { computed } from 'vue'
 import { fmt, ftWinProgress, FT_WIN_INCREMENT } from '../store'
 import type { Player } from '../types'
 import StatusChips from './StatusChips.vue'
+import { colorVars } from '../playercolor'
 
 const props = defineProps<{
   player: Player
@@ -77,7 +78,7 @@ const assets = computed<{ icon: string; text: string }[]>(() => {
   <div class="card ptrow" :class="{ inner: props.inner }">
     <div class="row between">
       <div class="row" style="gap:8px">
-        <span class="avatar-lg">{{ props.player.nickname.slice(0, 1) }}</span>
+        <span class="avatar-lg" :data-pid="props.player.id" :style="colorVars(props.player)">{{ props.player.nickname.slice(0, 1) }}</span>
         <div>
           <b style="font-size:13px">{{ props.player.nickname
             }}<span v-if="props.self">（你）</span></b>

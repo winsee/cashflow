@@ -2053,7 +2053,9 @@ def _a_ft_business_bought(s: RoomState, p) -> None:
     pl.cash -= p["down_payment"]
     _use_square(s)
     if p["success"]:
-        s.ft_sold_squares.append(p["square_id"])   # 独占；掷骰格成功前保持开放
+        # 独占；掷骰格成功前保持开放。记的是 square_id -> 买主，
+        # 一次性收益型企业（cashflow 为 0，不进 businesses）也因此在棋盘上说得出主人。
+        s.ft_sold_squares[p["square_id"]] = p["player_id"]
         if p.get("lump_sum"):
             pl.cash += p["lump_sum"]               # 一次性现金收益，不计入胜利进度
         if p.get("cashflow"):
@@ -2081,6 +2083,10 @@ def _a_ft_dream_doubled(s: RoomState, p) -> None:
 def _a_ft_dream_claimed(s: RoomState, p) -> None:
     pl = s.players[p["player_id"]]
     pl.cash -= p["price"]
+    # 谁掏钱占了这块地。纯追加、可重放——`_revert` 从空 RoomState 重放事件流，
+    # 只要这里写了就自动正确。（`_d_ft_claim_dream` 目前不挡「已被别人占位」，
+    # 所以同一格被占两次是后来者覆盖前者，那是引擎裁决，本轮不动。）
+    s.ft_claimed_dreams[p["square_id"]] = p["player_id"]
     _use_square(s)
 
 
@@ -2185,7 +2191,8 @@ def _a_rematch(s: RoomState, p) -> None:
     s.decks = {}                 # 新一局在 START_GAME 时重新洗
     s.discards = {}
     s.prompts = []
-    s.ft_sold_squares = []
+    s.ft_sold_squares = {}
+    s.ft_claimed_dreams = {}
     s.dream_price_bumps = {}
     s.winner_id = None
 

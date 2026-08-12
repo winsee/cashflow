@@ -244,7 +244,14 @@ class RoomState(BaseModel):
     decks: dict[str, list[str]] = Field(default_factory=dict)
     discards: dict[str, list[str]] = Field(default_factory=dict)
     prompts: list[Prompt] = Field(default_factory=list)
-    ft_sold_squares: list[str] = Field(default_factory=list)   # 已被买断的快车道绿格
+    # square_id -> player_id：已被买断的快车道绿格，**连买主一起记**。
+    # 从前是 list[str]，只说「卖掉了」不说被谁买——而一次性收益型企业
+    # （ft-b-software / ft-b-biotech，cashflow 为 0）不进 player.fasttrack.businesses，
+    # 于是棋盘上那一格查不到主人。成员判断（`in`）对 dict 一字不用改。
+    ft_sold_squares: dict[str, str] = Field(default_factory=dict)
+    # square_id -> player_id：被「买下占位」的梦想（FT_CLAIM_DREAM，房主裁决 design/02 §10）。
+    # 不能拿 player.dream_id 顶替：那记的是「谁选它当梦想」，与「谁掏钱占了这块地」是两件事。
+    ft_claimed_dreams: dict[str, str] = Field(default_factory=dict)
     dream_price_bumps: dict[str, int] = Field(default_factory=dict)  # square_id -> 加价次数
     winner_id: str | None = None
 
