@@ -460,11 +460,15 @@ const drawerH = computed(() =>
  *  **工具带不看它**——那三枚钮在任何档位都钉在原地（design/09 §3.2.1 v0.15）。 */
 const compactBoard = computed(() => detent.value !== 'peek')
 
-/** 棋盘不能只按档位给固定宽度——那是按"典型 HUD 高度"估的数，HUD 一变高（资产条展开、
+/** 棋盘宽度只有两档上限——大档（peek，文字齐全）与 compact 档（half/full 共用，已经隐了
+ *  格子文字，没道理宽度上限还不一样）。`compactBoard` 已经是这个二元状态的权威。
+ *
+ *  上限之外还叠一层实测防裁切：固定值是按"典型 HUD 高度"估的数，HUD 一变高（资产条展开、
  *  状态徽章变多）或设备可视高度更矮，固定值就会比 `.board-stage` 实测可用高度还高，
  *  超出的一截被 stage 自己的 `overflow:hidden` 咬掉（棋盘底边贴着抽屉那个问题）。
  *  改成量出 stage 实测高度倒推棋盘能有多宽，固定值只留作"够用时"的上限。 */
-const BOARD_MAX: Record<Detent, number> = { peek: 332, half: 230, full: 150 }
+const BOARD_MAX_FULL = 332
+const BOARD_MAX_COMPACT = 230
 const BOARD_MIN = 120
 const stageEl = ref<HTMLElement | null>(null)
 const stageAvailH = ref<number | null>(null)
@@ -479,7 +483,7 @@ onMounted(() => {
 onUnmounted(() => stageObserver?.disconnect())
 
 const boardWidth = computed(() => {
-  const cap = BOARD_MAX[detent.value]
+  const cap = compactBoard.value ? BOARD_MAX_COMPACT : BOARD_MAX_FULL
   // 46 = BoardView 根元素 `.board-wrap` 的 padding-top，给钉在 stage 顶的名牌+圆钮留白，
   // ResizeObserver 的 contentRect 已经排除了 stage 自身的 padding，这里只用再减这一层
   const avail = stageAvailH.value != null ? stageAvailH.value - 46 : cap
