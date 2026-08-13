@@ -8,7 +8,7 @@
 import { computed } from 'vue'
 import { askBankLoan } from '../../bankrequest'
 import { confirmAction } from '../../confirm'
-import { fmt, useGame } from '../../store'
+import { fmt, ftBizNums, useGame } from '../../store'
 import FtSquareCard from '../cards/FtSquareCard.vue'
 
 const game = useGame()
@@ -193,9 +193,7 @@ const done = computed<{ icon: string; title: string; why: string; amount?: numbe
     <!-- 快车道绿格 -->
     <template v-else-if="landing.type === 'FT_BUSINESS' && biz">
       <FtSquareCard kind="biz" :kind-label="biz.dice_rule ? '企业投资 · 需掷骰' : '企业投资'"
-                    :name="biz.name" :taken="bizSold"
-                    :nums="[{ label: '首付', value: fmt(biz.down_payment) },
-                            { label: '月现金流', value: '+' + fmt(biz.cashflow) }]"
+                    :name="biz.name" :taken="bizSold" :nums="ftBizNums(biz)"
                     :tip="biz.dice_rule ? `掷 1 粒骰，${biz.dice_rule.threshold} 点及以上才成功（骰子由服务端摇）` : ''" />
       <p v-if="!bizSold && ftShort > 0" class="muted" style="color:var(--red);margin:0">
         现金还差 {{ fmt(ftShort) }}。快车道没有银行贷款，现金不够就买不了，可以直接结束回合。

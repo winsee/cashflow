@@ -5,7 +5,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { confirmAction } from '../confirm'
 import { COLOR_DREAM, COLOR_FASTTRACK } from '../decks'
-import { FT_WIN_INCREMENT, fmt, useGame } from '../store'
+import { FT_WIN_INCREMENT, fmt, ftBizNums, useGame } from '../store'
 import type { FtBusiness, FtDream } from '../types'
 import BaseModal from './base/BaseModal.vue'
 import StatRow from './base/StatRow.vue'
@@ -73,20 +73,6 @@ async function ftPayday() {
     lines: [`${fmt(me.value.fasttrack.current_income)} × ${t} = ${fmt(amount)}`],
   })
   if (ok && await game.act('FT_PAYDAY', { times: t })) game.flash(`已收款 ${fmt(amount)}`)
-}
-
-/** 掷骰格的数值口径：成功后拿到的是月现金流还是一次性现金，卡面上要分清 */
-function bizNums(b: FtBusiness) {
-  const nums = [{ label: '首期', value: fmt(b.down_payment) }]
-  if (b.dice_rule) {
-    nums.push(b.dice_rule.lumpSum
-      ? { label: '成功后', value: fmt(b.dice_rule.lumpSum) + ' 现金' }
-      : { label: '成功后', value: '+' + fmt(b.dice_rule.successCashflow ?? 0) + '/月' })
-    nums.push({ label: '需掷出', value: `≥ ${b.dice_rule.threshold}` })
-  } else {
-    nums.push({ label: '月现金流', value: '+' + fmt(b.cashflow) })
-  }
-  return nums
 }
 
 function bizLabel(b: FtBusiness): string {
@@ -241,7 +227,7 @@ async function ftHit(action: string, title: string, desc: string, amount: number
       <div class="stack">
         <FtSquareCard v-for="b in businesses" :key="b.id" kind="biz"
                       :kind-label="b.dice_rule ? '企业投资 · 需掷骰' : '企业投资'"
-                      :name="b.name" :nums="sold(b.id) ? [{ label: '状态', value: '已被买断' }] : bizNums(b)"
+                      :name="b.name" :nums="sold(b.id) ? [{ label: '状态', value: '已被买断' }] : ftBizNums(b)"
                       :taken="sold(b.id)" :poor="me.cash < b.down_payment"
                       :tip="b.dice_rule && !sold(b.id)
                         ? `失败则不退款，但这一格对你保持开放。` : undefined">
