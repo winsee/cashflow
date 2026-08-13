@@ -1237,16 +1237,30 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   height: var(--dh, 180px); transition: height var(--dur-slow) var(--ease);
   z-index: var(--z-hud);
 }
-/* 跟手期间必须把那条 transition 关掉，否则抽屉永远慢手指 420ms，拖起来像在拉皮筋 */
+/* 跟手期间必须把那条 transition 关掉，否则抽屉永远慢手指 420ms，拖起来像在拉皮筋。
+   同样，跟手期间只认 `--dh`——下面那条内容贴合规则专门排除了 `.dragging`。 */
 .board-drawer.dragging { transition: none; }
+/* 内容贴合：`--dh` 仍是「这一档最多能有多高」，`--content-h`（JS 实测，见
+   OnlineRoomView.vue 的 `contentHVar`）是「内容实际要多高」，取小的那个——短内容
+   （比如就两行选项）不该把抽屉撑到档位的目标高度，让出来的空间归 `.board-stage`
+   （它是 flex:1，抽屉让多少它就能长多少）。账本/破产清算这两屏想要的是「撑满」，
+   `contentHVar` 对它们恒为 null，`min()` 退化成裸的 `--dh`，跟今天一样。 */
+.board-drawer:not(.dragging) {
+  height: min(var(--dh, 180px), var(--content-h, 9999px));
+}
 .drawer-body {
   flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
-  padding: 0 var(--sp-3) var(--sp-2);
-  display: flex; flex-direction: column; gap: var(--sp-2);
   /* 滚动链不外溢：正文滚到顶还继续下拉时，浏览器不该接手去刷新整页。
      `pan-y` 声明这里只有纵向滚动，横向/缩放手势不参与（下拉收抽屉那一支
      由 JS 在 scrollTop===0 时 preventDefault 抢下来） */
   overscroll-behavior-y: contain; touch-action: pan-y;
+}
+/* 内容的实际高度由这一层报——`.drawer-body` 本身是 flex:1 的滚动视口，
+   会被拉伸到抽屉剩余的所有空间，量它自己量不出「内容真正要多高」，
+   必须另起一层不受 flex 拉伸影响的包裹给 ResizeObserver 测 */
+.drawer-body-inner {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  padding: 0 var(--sp-3) var(--sp-2);
 }
 /* 决策按钮钉底：一张牌堆卡加上前后对比就超过 half 档的高度，内容必须能滚，
    但「买入 / 放弃」不能跟着滚走。按钮条上方压一道渐变，内容从它下面划过去。 */
