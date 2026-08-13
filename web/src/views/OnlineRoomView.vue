@@ -410,7 +410,15 @@ async function endTurn() {
 
 type Detent = 'peek' | 'half' | 'full'
 type LedgerPage = 'statement' | 'overview' | 'log'
-const DETENT_H: Record<Detent, string> = { peek: '128px', half: '46dvh', full: '88dvh' }
+/** peek 的 128px 是量出来不够用的旧值：把手 12（含下边距）+ 状态条一行 22 + 正文底内边距 8
+ *  + 按钮区两行 115（掷骰/结束回合，或买入/放弃 + 结束回合）= 157px 才是实际最小值，
+ *  差的 29px 由 `.drawer-cta` 的 `position:sticky;bottom:0` 垫上——但它的最近滚动祖先是
+ *  `.board-page`（`.board-drawer` 自己没设 `overflow`，不构成滚动容器），于是按钮条整块贴着
+ *  页面真实底边定住，而不是排在状态条下面，视觉上直接盖住了状态条（真机复现：状态条文字
+ *  一个字都不出现，只剩把手）。改成 180px（157 再加约 20px 余量，覆盖状态条换行到两行的情形
+ *  ——「XXXXX 正在行动」+ 头像列可能换行）。三处必须一起改：这里、下面 `detentPx()` 里的
+ *  同一个数字、以及 `moveDrag()` 借的下限。 */
+const DETENT_H: Record<Detent, string> = { peek: '180px', half: '46dvh', full: '88dvh' }
 const RANK: Record<Detent, number> = { peek: 0, half: 1, full: 2 }
 const ORDER: Detent[] = ['peek', 'half', 'full']
 const detent = ref<Detent>('peek')
@@ -529,7 +537,7 @@ function lower() {
 /** 三档的像素高。full 实际被 `flex: 0 1 auto` 压过，但标称值单调，够拿来就近吸附 */
 function detentPx(): Record<Detent, number> {
   const vh = window.innerHeight
-  return { peek: 128, half: vh * 0.46, full: vh * 0.88 }
+  return { peek: 180, half: vh * 0.46, full: vh * 0.88 }   // 180 必须跟上面 DETENT_H.peek 一致
 }
 function nearestDetent(h: number): Detent {
   const px = detentPx()
