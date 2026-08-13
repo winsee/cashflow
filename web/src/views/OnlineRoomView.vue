@@ -10,7 +10,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { bankRequest } from '../bankrequest'
 import { confirmAction } from '../confirm'
 import { majorStatus } from '../statuses'
-import { fmt, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
+import { fmt, ftBizNums, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
 import type { CardDto, Player } from '../types'
 import BoardView from '../components/board/BoardView.vue'
 import Die3d from '../components/board/Die3d.vue'
@@ -1040,13 +1040,12 @@ const blockedBy = computed(() => {
                         :kind-label="detailBiz.dice_rule ? '企业投资 · 需掷骰' : '企业投资'"
                         :name="detailBiz.name"
                         :taken="!!(game.state.ftSoldSquares ?? {})[detailBiz.id]"
-                        :nums="[{ label: '首付', value: fmt(detailBiz.down_payment) },
-                                { label: '月现金流', value: '+' + fmt(detailBiz.cashflow) }]" />
+                        :nums="ftBizNums(detailBiz)" />
           <FtSquareCard v-else-if="detailDream" kind="dream" kind-label="梦想"
                         :name="detailDream.name"
                         :mine="me.dreamId === detailDream.id"
                         :nums="[{ label: '价格', value: fmt(detailDream.price) }]" />
-          <p v-else class="muted">{{ detail.ref }}</p>
+          <p v-else class="muted">{{ detail.type === 'OPPORTUNITY' ? '机会格' : (detail.label || detail.ref) }}</p>
           <button class="btn block ghost" @click="detail = null">知道了</button>
         </div>
       </div>

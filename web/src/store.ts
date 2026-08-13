@@ -6,7 +6,8 @@ import {
 } from './stage'
 import type { Spot } from './components/board/geom'
 import type {
-  BoardDto, CardDto, GameMode, LogEntry, Player, Prompt, RoomListItem, RoomSeats, RoomStateDto,
+  BoardDto, CardDto, FtBusiness, GameMode, LogEntry, Player, Prompt, RoomListItem, RoomSeats,
+  RoomStateDto,
 } from './types'
 
 /** 结算日存根：帘幕散场后留在抽屉里的那张摘要卡的数据。
@@ -636,4 +637,19 @@ export function ftWinProgress(f: { initial_income: number; current_income: numbe
 export function fmt(n: number | undefined | null): string {
   if (n === undefined || n === null) return '0'
   return '$' + n.toLocaleString('en-US')
+}
+
+/** 快车道企业格的卡面数字。掷骰格的数值口径：成功后拿到的是月现金流还是一次性现金，
+ *  卡面上要分清——`cashflow` 只在不掷骰的企业上才有意义，掷骰企业的收益写在 `dice_rule` 里。 */
+export function ftBizNums(b: FtBusiness): { label: string; value: string }[] {
+  const nums = [{ label: '首付', value: fmt(b.down_payment) }]
+  if (b.dice_rule) {
+    nums.push(b.dice_rule.lumpSum
+      ? { label: '成功后', value: fmt(b.dice_rule.lumpSum) + ' 现金' }
+      : { label: '成功后', value: '+' + fmt(b.dice_rule.successCashflow ?? 0) + '/月' })
+    nums.push({ label: '需掷出', value: `≥ ${b.dice_rule.threshold}` })
+  } else {
+    nums.push({ label: '月现金流', value: '+' + fmt(b.cashflow) })
+  }
+  return nums
 }
