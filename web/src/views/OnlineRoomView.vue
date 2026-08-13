@@ -450,11 +450,15 @@ const wantDetent = computed<Detent>(() => {
   return 'peek'
 })
 /** 用户可以拖动覆盖，但下一次系统事件会重新提档，且**提档只升不降**——
- *  别人抽的市场卡要我答复时，不能因为我刚把抽屉推下去就把这件事藏起来。 */
+ *  别人抽的市场卡要我答复时，不能因为我刚把抽屉推下去就把这件事藏起来。
+ *  `immediate: true`——组件挂载/WS 重连那一刻，`wantDetent` 可能一开始算出来就是
+ *  `half`/`full`（比如重连回来正停在未解决的机会格），这时它没有经历"从别的值变过来"，
+ *  没有 immediate 这个 watch 一次都不会跑，`detent` 就会停留在初值 `peek`，把只该在
+ *  half 档才装得下的两行内容硬塞进 180px 里、按钮被裁掉。 */
 watch(wantDetent, (w) => {
   if (RANK[w] > RANK[detent.value]) detent.value = w
   else if (w === 'peek' && !ledger.value) detent.value = 'peek'
-})
+}, { immediate: true })
 
 /** 跟手期间抽屉的实时像素高（null = 没在拖，交回档位说了算） */
 const dragH = ref<number | null>(null)
@@ -522,7 +526,13 @@ onMounted(() => {
     // 演出没播完时先按住：等 held 翻回 false、内容真正定型，DOM 变化会自然再触发一次测量
     if (held.value) return
     for (const entry of entries) {
-      const h = entry.contentRect.height
+      // `entry.contentRect` 是内容盒，不含 padding——而这三个元素自己都有上下 padding
+      // （`.drawer-peek`/`.drawer-body-inner`/`.drawer-cta`，见 style.css），
+      // 三处漏算的 padding 加起来会让 `naturalH` 比实际渲染高度矮了二十几像素，
+      // 于是「贴合内容高度」贴出来的抽屉比内容本身还矮一截，最后一行按钮被挤到
+      // `.drawer-body` 的可滚动区之外，看着像是「装不下」，其实是量小了。
+      // `entry.borderBoxSize` 量的是边框盒（含 padding），才是这几个元素真正占的高度。
+      const h = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height
       if (entry.target === peekEl.value) peekH.value = h
       else if (entry.target === bodyInnerEl.value) bodyContentH.value = h
       else if (entry.target === ctaEl.value) ctaH.value = h
