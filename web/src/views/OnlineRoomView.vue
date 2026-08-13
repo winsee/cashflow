@@ -465,51 +465,71 @@ const dragH = ref<number | null>(null)
 const dragging = computed(() => dragH.value !== null)
 const drawerH = computed(() =>
   dragH.value !== null ? `${dragH.value}px` : DETENT_H[detent.value])
-/** 档位切换缩的是棋盘**自身的宽度变量**（stage 有 overflow:hidden，缩 stage 等于白缩） */
-/** 抽屉一展开棋盘就收：格面文字与图标退场、名牌隐藏。
- *  **工具带不看它**——那三枚钮在任何档位都钉在原地（design/09 §3.2.1 v0.15）。 */
-const compactBoard = computed(() => detent.value !== 'peek')
-
-/** 棋盘宽度只有两档上限——大档（peek，文字齐全）与 compact 档（half/full 共用，已经隐了
- *  格子文字，没道理宽度上限还不一样）。`compactBoard` 已经是这个二元状态的权威。
+/** 棋盘宽度**只由实测出来的可用空间决定**，不再按档位查一张常量表（design/09 §2.2 v0.20）。
  *
- *  上限之外还叠一层实测防裁切：固定值是按"典型 HUD 高度"估的数，HUD 一变高（资产条展开、
- *  状态徽章变多）或设备可视高度更矮，固定值就会比 `.board-stage` 实测可用高度还高，
- *  超出的一截被 stage 自己的 `overflow:hidden` 咬掉（棋盘底边贴着抽屉那个问题）。
- *  改成量出 stage 实测高度倒推棋盘能有多宽，固定值只留作"够用时"的上限。 */
-const BOARD_MAX_FULL = 332
-const BOARD_MAX_COMPACT = 230
+ *  §2.2 那张表写的一直是「等比缩小到**装得下**」，v0.15 的实现却把它做成了两档常量
+ *  （peek 332 / half·full 230）：档位说的是「抽屉想要多高」，不是「棋盘还剩多少地方」。
+ *  v0.19 抽屉改成贴合内容高度之后这两件事彻底脱钩——停在机会格时抽屉只有一百多像素，
+ *  stage 还剩三百多，棋盘却照旧被按在 230 上，格面文字与名牌一并退场
+ *  （试玩截图：大半屏空白 + 一块读不出字的小板）。
+ *
+ *  现在只留一个上限 332（design/09 §3.1 的满宽），实际宽度由 `.board-stage` 实测的
+ *  可用宽高倒推；`--bw` 一变，格子、棋子、轮心与骰子全部按比例跟着走。 */
+const BOARD_MAX = 332
 const BOARD_MIN = 120
+/** 格面文字是 SVG 用户单位 9/320，板宽 300 时渲染出来才 8.4px，再窄就只剩色块了。
+ *  所以「格面文字与名牌退不退场」**是板宽的结果，不是档位的结果**——空间够就写字，
+ *  不够才退场，与抽屉停在哪一档无关。**工具带两种情况都不看它**：那三枚钮在任何
+ *  档位都钉在原地（design/09 §3.2.1 v0.15）。 */
+const BOARD_TEXT_MIN = 300
+/** 46 = BoardView 根元素 `.board-wrap` 的 padding-top，给钉在 stage 顶的名牌 + 圆钮留的那条带 */
+const BOARD_HEAD_H = 46
 const stageEl = ref<HTMLElement | null>(null)
 const stageAvailH = ref<number | null>(null)
+const stageAvailW = ref<number | null>(null)
 let stageObserver: ResizeObserver | null = null
 onMounted(() => {
   if (!stageEl.value) return
   stageObserver = new ResizeObserver((entries) => {
-    stageAvailH.value = entries[0]?.contentRect.height ?? null
+    // contentRect 已经排除了 stage 自身的 padding，正好是板能占的净空间
+    const box = entries[0]?.contentRect
+    stageAvailH.value = box?.height ?? null
+    stageAvailW.value = box?.width ?? null
   })
   stageObserver.observe(stageEl.value)
 })
 onUnmounted(() => stageObserver?.disconnect())
 
-const boardWidth = computed(() => {
-  const cap = compactBoard.value ? BOARD_MAX_COMPACT : BOARD_MAX_FULL
-  // 46 = BoardView 根元素 `.board-wrap` 的 padding-top，给钉在 stage 顶的名牌+圆钮留白，
-  // ResizeObserver 的 contentRect 已经排除了 stage 自身的 padding，这里只用再减这一层
-  const avail = stageAvailH.value != null ? stageAvailH.value - 46 : cap
-  return `${Math.min(cap, Math.max(BOARD_MIN, avail))}px`
+const boardPx = computed(() => {
+  const byH = stageAvailH.value != null
+    ? Math.max(BOARD_MIN, stageAvailH.value - BOARD_HEAD_H) : BOARD_MAX
+  // 横向也按实测收：`max-width:100%` 只能挡住溢出，挡不住「板其实只有 288 宽，
+  // 却按 332 判定成写得下字」——窄屏上那就是一板读不出的字
+  const byW = stageAvailW.value ?? BOARD_MAX
+  return Math.min(BOARD_MAX, byH, byW)
 })
+const boardWidth = computed(() => `${boardPx.value}px`)
+const compactBoard = computed(() => boardPx.value < BOARD_TEXT_MIN)
 
 /** 抽屉贴合内容高度：短内容不该把抽屉撑到当前档位的目标高度，多出来的空间该还给棋盘。
  *  `DETENT_H`/`drawerH`/`--dh` 一律不动——那套拖拽状态机继续原样决定「目标上限」；
  *  这里另起一条独立的 `--content-h`，由 CSS `min()` 跟 `--dh` 组合，只在没有拖拽时生效
- *  （见 style.css 的 `.board-drawer:not(.dragging)` 规则）。 */
-const peekEl = ref<HTMLElement | null>(null)
+ *  （见 style.css 的 `.board-drawer:not(.dragging)` 规则）。
+ *
+ *  **量法是「壳 + 内容」，不是「把几个孩子的高度加起来」**（design/09 §2.2 v0.20）。
+ *  逐个相加已经漏错两回：先是漏了三个孩子各自的 padding（`contentRect` 是内容盒），
+ *  改用 `borderBoxSize` 之后又漏了把手那 4px + 8px 外边距与抽屉自己 1px 的上边框——
+ *  每漏一处，最后一行按钮就被挤出 `.drawer-body` 的可滚动区一截，看着像「装不下」。
+ *  **只要抽屉里再多一个兄弟节点，这份清单就又会过期一次。**
+ *  所以改成量「除正文之外的那一圈壳」：`.drawer-body` 是抽屉里唯一的 `flex: 1`
+ *  （其余全是 `flex: none`，为此把 `.drawer-peek` 也钉死，见 style.css），
+ *  于是 `抽屉高 − 正文高` 恒等于壳的高度，把手/状态条/按钮区/边框一个不漏，
+ *  以后再往抽屉里加东西也不用回来改这里。 */
+const drawerBodyEl = ref<HTMLElement | null>(null)
 const bodyInnerEl = ref<HTMLElement | null>(null)
-const ctaEl = ref<HTMLElement | null>(null)
-const peekH = ref(0)
+/** 「壳」：把手 + 状态条 + 按钮区 + 抽屉自己的边框 */
+const chromeH = ref(0)
 const bodyContentH = ref(0)
-const ctaH = ref(0)
 
 /** 账本、破产清算：这两屏本该占满档位，不跟内容收缩 */
 const spacious = computed(() => !!ledger.value || !!me.value?.inBankruptcy)
@@ -521,38 +541,34 @@ const spacious = computed(() => !!ledger.value || !!me.value?.inBankruptcy)
 const FLOOR_H = 96
 
 let sheetObserver: ResizeObserver | null = null
+/** 量一次：正文自己要多高 + 除正文之外那一圈壳有多高 */
+function measureSheet() {
+  const drawer = drawerEl.value, body = drawerBodyEl.value, inner = bodyInnerEl.value
+  if (!drawer || !body || !inner) return
+  bodyContentH.value = inner.getBoundingClientRect().height
+  const bodyH = body.getBoundingClientRect().height
+  // 正文被压到 0 的那一刻壳自己已经在溢出，这时 `抽屉高 − 正文高` 量出来的是抽屉高、
+  // 比真的壳矮——留着上一次的值，绝不能让抽屉越算越矮
+  if (bodyH > 0.5) chromeH.value = drawer.getBoundingClientRect().height - bodyH
+}
 onMounted(() => {
-  sheetObserver = new ResizeObserver((entries) => {
+  sheetObserver = new ResizeObserver(() => {
     // 演出没播完时先按住：等 held 翻回 false、内容真正定型，DOM 变化会自然再触发一次测量
     if (held.value) return
-    for (const entry of entries) {
-      // `entry.contentRect` 是内容盒，不含 padding——而这三个元素自己都有上下 padding
-      // （`.drawer-peek`/`.drawer-body-inner`/`.drawer-cta`，见 style.css），
-      // 三处漏算的 padding 加起来会让 `naturalH` 比实际渲染高度矮了二十几像素，
-      // 于是「贴合内容高度」贴出来的抽屉比内容本身还矮一截，最后一行按钮被挤到
-      // `.drawer-body` 的可滚动区之外，看着像是「装不下」，其实是量小了。
-      // `entry.borderBoxSize` 量的是边框盒（含 padding），才是这几个元素真正占的高度。
-      const h = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height
-      if (entry.target === peekEl.value) peekH.value = h
-      else if (entry.target === bodyInnerEl.value) bodyContentH.value = h
-      else if (entry.target === ctaEl.value) ctaH.value = h
-    }
+    measureSheet()
   })
-  if (peekEl.value) sheetObserver.observe(peekEl.value)
-  if (bodyInnerEl.value) sheetObserver.observe(bodyInnerEl.value)
+  // 抽屉：档位切换（`--dh` 变）；正文：壳一变高它就跟着变矮（状态条换行、按钮区整块收起
+  // 都只动得了它，动不了外面那个已经定死的 `--content-h`）；正文包裹层：内容本身变了
+  for (const el of [drawerEl.value, drawerBodyEl.value, bodyInnerEl.value])
+    if (el) sheetObserver.observe(el)
 })
 onUnmounted(() => sheetObserver?.disconnect())
-// .drawer-cta 是 v-if="!ledger"，元素会整个换掉，要跟着重新 observe/unobserve
-watch(ctaEl, (el, prev) => {
-  if (prev) sheetObserver?.unobserve(prev)
-  if (el) sheetObserver?.observe(el)
-  else ctaH.value = 0
-})
 
-const naturalH = computed(() => peekH.value + bodyContentH.value + ctaH.value)
+const naturalH = computed(() => chromeH.value + bodyContentH.value)
 const contentHVar = computed<string | undefined>(() => {
   if (spacious.value || !naturalH.value) return undefined   // 交回 --dh，原样撑满
-  return `${Math.max(FLOOR_H, naturalH.value)}px`
+  // 向上取整：两处 rect 都是小数，截断下来的那不到 1px 正好够把一条按钮边框吃掉
+  return `${Math.ceil(Math.max(FLOOR_H, naturalH.value))}px`
 })
 
 /** 抽屉的手势（design/09 §2.2 v0.10）：**整块都接**，不只那根 34×4px 的把手。
@@ -814,6 +830,18 @@ const decisionShownElsewhere = computed(() => {
   if (lg && !lg.resolved && (lg.type === 'OPPORTUNITY' || lg.type === 'UNEMPLOYMENT')) return true
   return false
 })
+
+/** 掷骰那一行（慈善生效时上面还压一排粒数选择器，两者同开同关，见模板） */
+const ctaRollShown = computed(() => game.isMyTurn && step.value === 1 && canRoll.value)
+/** 「结束回合」那一行 */
+const ctaEndShown = computed(() =>
+  game.isMyTurn && !decisionShownElsewhere.value && !ctaRollShown.value)
+/** 一行都排不出来时**整块按钮区不渲染**。`.drawer-cta` 自己带上下内边距 + 安全区，
+ *  空着渲染就是抽屉底下一条谁也点不着的死白——而抽屉现在贴合内容高度，这条死白
+ *  是从棋盘那儿夺来的（试玩截图：停在机会格，两个抽牌按钮已经在正文里给了，
+ *  底下还空着三十来像素）。别人的回合同理，那时这块本来就一行都没有。 */
+const ctaShown = computed(() =>
+  !!me.value?.inBankruptcy || !!cardCta.value || ctaRollShown.value || ctaEndShown.value)
 </script>
 
 <template>
@@ -952,7 +980,7 @@ const decisionShownElsewhere = computed(() => {
               @pointerup="onGrabUp" @pointercancel="onGrabUp"></button>
 
       <!-- 状态条也能拖：整块抽屉都该跟手，而不是只有那根 34×4px 的小横条 -->
-      <div class="drawer-peek" ref="peekEl"
+      <div class="drawer-peek"
            @pointerdown="onPeekDown" @pointermove="onPeekMove"
            @pointerup="onPeekUp" @pointercancel="onPeekUp">
         <!-- 破产清算优先于一切：这时候抽屉里只有清算面板，分段控件让位 -->
@@ -1003,7 +1031,7 @@ const decisionShownElsewhere = computed(() => {
       <!-- 正文的主人是滚动，抽屉只在滚不动的那个方向上接管（见 `onBodyMove` 的判归属）。
            在这儿往下拉从前是把整页交给浏览器去刷新——对局中途的一次误刷新，
            代价远大于一个没收起来的抽屉。 -->
-      <div class="drawer-body"
+      <div class="drawer-body" ref="drawerBodyEl"
            @touchstart="onBodyStart" @touchmove="onBodyMove"
            @touchend="onBodyEnd" @touchcancel="onBodyEnd">
        <div class="drawer-body-inner" ref="bodyInnerEl">
@@ -1083,7 +1111,7 @@ const decisionShownElsewhere = computed(() => {
            只剩「我不买」——试玩里「买不起的 CD」就是这样把出口关掉的，仍旧要留住这一行）；
            强制卡/机会失业落点/还没掷骰这三种情况下，动作已经摆在别处（上一行决策按钮，或
            `OnlineLandingPanel` 正文），这一行整行收起，不再复述一句禁用态文案。 -->
-      <div v-if="!ledger" class="drawer-cta" ref="ctaEl">
+      <div v-if="!ledger && ctaShown" class="drawer-cta">
         <template v-if="me.inBankruptcy">
           <div class="cta-row">
             <button class="btn grow warn" @click="game.act('BANKRUPTCY_RESOLVE')">完成清算</button>
@@ -1113,18 +1141,22 @@ const decisionShownElsewhere = computed(() => {
                  : `支付 ${fmt(cardCta.settlePreview?.due ?? 0)}` }}
             </button>
           </div>
-          <!-- 慈善生效时的粒数选择器：从轮心搬进抽屉，紧贴在掷骰按钮正上方——
-               轮心此后只剩骰盘。不套 `.cta-row`：它不是一对并列决策按钮，是掷骰按钮的
-               前置选项，条件严格是掷骰行的子集（多了 `diceMax > 1`），两行必然同开同关。
-               和上一行的 `cardCta` 同挂一条 v-if/else-if 链——`cardCta` 与「还没掷骰」
-               本就互斥（有待决策的卡说明这一格已经落定），不会同屏抢位置。 -->
-          <div v-else-if="game.isMyTurn && step === 1 && canRoll && diceMax > 1" class="dice-pick">
-            <button v-for="n in diceMax" :key="n" :class="{ on: diceCount === n }"
-                    @click="diceCount = n">{{ n }} 粒</button>
-          </div>
-          <div v-else-if="game.isMyTurn && step === 1 && canRoll" class="cta-row">
-            <button class="btn grow" @click="roll">🎲 掷 {{ diceCount }} 粒骰</button>
-          </div>
+          <!-- 掷骰行 + 慈善生效时压在它正上方的粒数选择器（v0.19 从轮心搬进抽屉，
+               轮心此后只剩骰盘）。选择器**不套 `.cta-row`**：它不是一对并列决策按钮，
+               是掷骰按钮的前置选项。
+               两者必须在**同一支** `v-else-if` 里同开同关——v0.19 把它们写成了同一条
+               else-if 链上的两支，于是慈善一生效（`diceMax > 1`）掷骰按钮就被选择器
+               顶掉了，抽屉里只剩「1 粒 / 2 粒」，掷骰只能去点轮心那颗骰子。
+               与上一行的 `cardCta` 仍然互斥（有待决策的卡说明这一格已经落定）。 -->
+          <template v-else-if="ctaRollShown">
+            <div v-if="diceMax > 1" class="dice-pick">
+              <button v-for="n in diceMax" :key="n" :class="{ on: diceCount === n }"
+                      @click="diceCount = n">{{ n }} 粒</button>
+            </div>
+            <div class="cta-row">
+              <button class="btn grow" @click="roll">🎲 掷 {{ diceCount }} 粒骰</button>
+            </div>
+          </template>
 
           <!-- 下行：结束回合。判据与服务端 `_d_end_turn` 逐项对齐——
                UI 的闸门不许比服务端严，服务端准结束的情形界面就必须准（可选决策时依然如此，
@@ -1133,7 +1165,7 @@ const decisionShownElsewhere = computed(() => {
                与掷骰行的 `v-else-if`），不是禁用，是整行收起。
                停赛（skip_turns>0）不再另开分支：这个状态与 `isMyTurn` 同时成立时只可能是
                停赛刚生效的这一回合（见上方注释），按普通回合结束即可，不必绕开确认弹窗。 -->
-          <div v-if="game.isMyTurn && !decisionShownElsewhere && !(step === 1 && canRoll)" class="cta-row">
+          <div v-if="ctaEndShown" class="cta-row">
             <button class="btn grow" :class="{ ghost: !!cardCta }"
                     :disabled="!!blockedBy" @click="endTurn">
               {{ blockedBy || '✅ 结束回合' }}
