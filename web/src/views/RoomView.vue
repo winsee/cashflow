@@ -38,14 +38,12 @@ function showModeLock() {
 
 /** 纯线上的职业卡：点牌背 → 服务端随机发 → 翻开整张卡（design/09 §1.4.1）。
  *  `drawing` 期间牌背只做无信息的轻晃；`revealing` 是那 0.95s 的全屏揭牌。
- *  **重连不补播**：`revealing` 只由这次点击置位，刷新回来直接是翻开态。 */
+ *  **重连不补播**：`revealing` 只由这次点击置位，刷新回来直接是翻开态。
+ *  **不再飞入**（v0.18）：帘幕里那张牌不再对齐页内 `.prof-back` 的矩形飞过来，
+ *  直接原地翻转，省掉了矩形测量这一整条真机上不稳定的时序链路——见 `DealCurtain.vue`
+ *  文件头「职业卡揭牌 v0.18 起不再飞入」。 */
 const drawing = ref(false)
 const revealing = ref(false)
-/** 帘幕里那张牌的**起飞矩形** = 玩家刚点的这张牌背此刻在屏上的位置与大小（design/09 §5.4 v0.12）。
- *  不给锚点的话两张牌背对不上：页内这张是 `76% × (页宽 − 24px)`，帘幕那张是 `76% × 视口宽`
- *  且钉在屏心——390px 手机上是 278px 与 296px，位置也不同，交接时就是一次尺寸突变。 */
-const profBackEl = ref<HTMLElement | null>(null)
-const profFrom = ref<DOMRect | null>(null)
 const myProfession = computed(() =>
   professions.value.find(p => p.id === game.me?.professionId) ?? null)
 
@@ -58,8 +56,6 @@ async function drawProfession() {
     drawing.value = false
     return
   }
-  // 起飞矩形要在**帘幕落下之前**量：一落下这张牌背就交班藏起来了
-  profFrom.value = profBackEl.value?.getBoundingClientRect() ?? null
   // 帘幕**先落下**再发请求：等 act 返回才置位的话，服务端的状态会抢在帘幕前面到，
   // 页面先把整张职业卡摆出来（`v-if="game.me?.professionId"` 那一支），
   // 帘幕这才盖上去重新翻一遍——试玩里看到的「闪现一下正面」就是这半帧。
@@ -67,8 +63,9 @@ async function drawProfession() {
   const ok = await game.act('SELECT_PROFESSION')
   drawing.value = false
   if (!ok) { revealing.value = false; return }
-  // 翻牌 0.95s + 定格（design/09 §5.4）。卡随后就留在页内，不必在帘幕上读完
-  setTimeout(() => { revealing.value = false }, 2200)
+  // 翻牌 0.95s + 定格（design/09 §5.4 v0.18：不再有飞入那一拍，总时长比之前短 0.3s
+  // 左右）。卡随后就留在页内，不必在帘幕上读完
+  setTimeout(() => { revealing.value = false }, 1900)
 }
 
 /** 「谁认领了哪个梦想」写在下面的出牌顺序里，一人一行。
@@ -273,11 +270,11 @@ async function copyUrl() {
                会先闪一屏空白再蹦出一张卡；让玩家自己揭这一下，也把"这张是我抽的"落到实处 -->
           <template v-else>
             <!-- `waiting` 的轻晃是「请求还在路上」的提示，**帘幕落下就没有观众了**。
-                 `handoff` 则是把这张牌背整个交班给帘幕里那张（v0.12）：帘幕里那张此刻正好
-                 压在这张的位置、这张的大小上（`profFrom` 锚点），两张同时在场只会在 180ms
-                 淡入里叠成重影。**藏用 visibility 不用 v-if**——留着占位，页面才不会在帘幕
-                 底下重排一次。 -->
-            <div ref="profBackEl" class="prof-back card-back"
+                 `handoff` 则是把这张牌背藏起来让位给帘幕里那张——两张同时在场只会在 180ms
+                 淡入里叠成重影（v0.18 起帘幕里那张不再对齐这张的矩形飞过来，只是同一时刻
+                 不该有两张牌背同时在屏上）。**藏用 visibility 不用 v-if**——留着占位，
+                 页面才不会在帘幕底下重排一次。 -->
+            <div class="prof-back card-back"
                  :class="{ waiting: drawing && !revealing, handoff: revealing }"
                  :style="{ color: DECK_COLOR.PROFESSION }" @click="drawProfession">
               {{ DECK_LABEL.PROFESSION }}
@@ -391,9 +388,9 @@ async function copyUrl() {
     <InviteDialog v-if="showInvite" :code="game.state.roomCode" :url="joinUrl"
                   :nickname="game.me?.nickname" @close="showInvite = false" />
 
-    <!-- 揭牌：牌背飞到屏心 → Y 轴翻转 → 露出整张职业卡。与发牌共用 3D 结构与牌背材质，
-         但**节拍表不同**（`variant="reveal"`，design/09 §5.4 v1.0）：牌已经在屏上被点了，
-         没有「飞入放大」那一拍，整 0.95s 都给旋转，尺寸从头到尾不变 -->
+    <!-- 揭牌：原地淡入 → Y 轴翻转 → 露出整张职业卡（`variant="reveal"`，design/09 §5.4 v0.18）：
+         牌已经在屏上被点了，不再对齐页内那张牌背飞过来（真机上这条飞入链路反复出现翻转前的
+         尺寸突变，索性砍掉），`.deal-card` 从第一帧起就是终态尺寸，整 0.95s 都给旋转 -->
     <!-- 卡还没到（帘幕先落下、请求还在路上）时**不给默认插槽**，让 DealCurtain 用它自己的
          占位卡面兜住高度——插槽给了但内容为空的话，牌面高度塌成 0，连牌背都看不见了 -->
     <!-- 退场包一层 Transition：`revealing` 变 false 时页内最终态（上面 267 行那一支）
@@ -402,7 +399,7 @@ async function copyUrl() {
          同步挂载，帘幕自己的 180ms curtain-in 淡入原样播放。 -->
     <Transition name="curtain-fade">
       <DealCurtain v-if="revealing" variant="reveal" deck="PROFESSION" title="职业卡"
-                   :from="profFrom" @skip="revealing = false">
+                   @skip="revealing = false">
         <template v-if="myProfession" #default>
           <ProfessionCard :card="myProfession" />
         </template>

@@ -1313,8 +1313,10 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   0%   { transform: translate(var(--fx, 0px), var(--fy, 0px)) scale(var(--fs, .55)); }
   100% { transform: translate(0, 0) scale(1); }
 }
-/* 职业卡那条的源就在同一屏上、位移只有几十像素，0.43s 会拖成一段无事发生的滑行 */
-.deal-card.reveal-fly.flying { animation-duration: .28s; }
+/* 职业卡揭牌（v0.18 起）不再飞入：`.deal-card` 从第一帧起就钉死在终态，
+   不吃上面那条基础规则的 `var(--fs, .55)` 兜底缩放——那条兜底值本来是给还没量到锚点的
+   `deal` 变体用的中间态，`reveal` 变体压根不做矩形测量，套用它就是一次凭空的尺寸突变。 */
+.deal-card.reveal { transform: none; }
 /* **静止态就是牌背**（`rotateY(180deg)`），动画只负责把它翻过来。
    只写 `forwards` 的话，从挂载到动画首帧之间元素停在 `rotateY(0)`——正面会闪一下，
    然后才从背面重新翻一遍（试玩：点职业卡牌背会先闪现正面）。`both` 补上入场端的填充。
@@ -1359,9 +1361,8 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   100% { transform: translateZ(0)    rotateY(0); }
 }
 
-/* 职业卡揭牌（design/09 §5.4）：**飞入拍短得多**（0.28s，见 `.deal-card.reveal-fly`）——
-   源就是玩家刚点的那张 `.prof-back`，同一屏上、只差几十像素与一点点尺寸；
-   而牌堆卡是从棋盘上的一格飞过来的，位移大得多。省下的时间全部还给旋转：整 0.95s。 */
+/* 职业卡揭牌（design/09 §5.4 v0.18）：**没有飞入拍**——`.deal-card.reveal` 已经钉在终态，
+   翻转从第一帧就能起播，不用再等一段飞入先播完。整 0.95s 全部给旋转。 */
 .deal-inner.reveal { aspect-ratio: 3 / 4; }
 /* 几何从头到尾不变（§5.4 那条通则：过场里的主体，几何要么全程不变，要么只在它自己的动画里变）。
    `.deal-back` 是 `inset:0` 贴着文档流里的 `.deal-face` 的，而占位卡面 400px、
@@ -1371,7 +1372,7 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
    而溢出的那一截只在正面朝外时才看得见，那时牌背早已转走。
    （只有职业卡这一支能这么焊：它的正面就一种，高度是定的。） */
 .deal-inner.reveal > .deal-face { position: absolute; inset: 0 0 auto 0; }
-.deal-inner.reveal.flipping { animation: card-reveal .95s linear .28s both; }
+.deal-inner.reveal.flipping { animation: card-reveal .95s linear both; }
 @keyframes card-reveal {
   0%   { transform: translateZ(0)    rotateY(180deg);
          animation-timing-function: cubic-bezier(.36, 0, .66, .5); }
