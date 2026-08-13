@@ -23,6 +23,7 @@ import DealCurtain from '../components/board/DealCurtain.vue'
 import OnlineCardPanel from '../components/board/OnlineCardPanel.vue'
 import OnlineLandingPanel from '../components/board/OnlineLandingPanel.vue'
 import PaydayCurtain from '../components/board/PaydayCurtain.vue'
+import PenaltyCurtain from '../components/board/PenaltyCurtain.vue'
 import PlayerTableRow from '../components/PlayerTableRow.vue'
 import PromptModal from '../components/PromptModal.vue'
 import ReceiptStack from '../components/ReceiptStack.vue'
@@ -299,6 +300,10 @@ const settleSpot = computed(() => {
   const s = settleStep.value
   return s ? { track: s.track, index: s.index, amount: s.amount, mine: !!paydayStep.value } : null
 })
+/** 惩罚帘幕同样只给当事人——旁观者维持现状的小回执通知，不弹全屏（同 paydayStep 的分工）。 */
+const penaltyStep = computed(() =>
+  game.stageNow?.kind === 'penalty' && game.stageNow.playerId === game.session?.playerId
+    ? game.stageNow : null)
 const pulse = computed<Spot | null>(() =>
   game.stageNow?.kind === 'landing'
     ? { track: game.stageNow.track, index: game.stageNow.index } : null)
@@ -1130,6 +1135,7 @@ const decisionShownElsewhere = computed(() => {
 
     <!-- 全屏发薪：只给当事人，自动消散（design/09 §5.5） -->
     <PaydayCurtain v-if="paydayStep" :step="paydayStep" @skip="game.skipStage()" />
+    <PenaltyCurtain v-if="penaltyStep" :step="penaltyStep" @skip="game.skipStage()" />
 
     <!-- 全屏发牌翻牌：全员同步播放 -->
     <DealCurtain v-if="dealStep" :deck="dealStep.deck" :title="dealStep.title"

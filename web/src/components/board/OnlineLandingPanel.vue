@@ -102,12 +102,13 @@ const stub = computed(() => {
   }
 })
 
-/** 与回执的分工按**频次**切：
+/** 与惩罚帘幕的分工按**频次**切（和结算日存根同一条规矩）：
  *
  *  - 每回合都可能发生的（银行结算日 / 现金流量日）走上面那张存根卡：它随回合自然消失，
  *    不要求任何确认，所以**金额写在那儿**——没有回执替它说钱。
- *  - 一局只撞上几次的重击（孩子 / 失业 / 快车道三个惩罚格）另有回执负责报数，
- *    这儿就不再把同一个数字说第二遍。
+ *  - 一局只撞上几次的重击（孩子 / 失业 / 快车道三个惩罚格）现在有全屏惩罚帘幕
+ *    （`PenaltyCurtain`）负责报数，这儿的 `done` 不再重复；帘幕散场后的回看
+ *    交给下面的 `hitStub`（同 `stub` 的先例：帘幕是仪式、自动消散，没看清就没地方回看）。
  */
 const done = computed<{ icon: string; title: string; why: string; amount?: number } | null>(() => {
   const lg = landing.value
@@ -115,26 +116,31 @@ const done = computed<{ icon: string; title: string; why: string; amount?: numbe
   if (!lg || !lg.resolved || !m) return null
   switch (lg.type) {
     // PAYDAY / FT_PAYDAY 不在这儿——**结算日归结算日存根管**（见下面的 stub）。
-    // 那份读的是事件金额，连过两个结算格的 ×2 写得出来；这儿只有快照的单月值。
-    // 一个位置只有一个主人，两处都画就会把同一笔钱说两遍。
-    // 「添了一个」还是「满 3 个无效果」由**回执**去说（它读的是事件流，分得清）；
-    // 结果卡读的是快照，只讲此刻的状态——两种情况下这句话都是对的。
-    case 'CHILD':
-      return { icon: '👶', title: '停在孩子格',
-               why: `现在共 ${m.childCount} 个孩子，每月孩子支出 ${fmt(m.derived.childExpense)}` }
-    case 'UNEMPLOYMENT':
-      return { icon: '💼', title: '停在失业格', why: '已支付一次总支出，并停赛 2 轮' }
-    case 'FT_TAX_AUDIT':
-    case 'FT_DIVORCE':
-    case 'FT_LAWSUIT': {
-      const t = FT_HIT_TEXT[lg.type]
-      return { icon: t.icon, title: `停在${t.title}格`, why: t.why }
-    }
+    // CHILD / UNEMPLOYMENT / FT_TAX_AUDIT / FT_DIVORCE / FT_LAWSUIT 也不在这儿——
+    // 全屏惩罚帘幕 + hitStub 管，一个位置只有一个主人，两处都画就会把同一笔钱说两遍。
     default:
       // 服务端已经把话写好了（已被买断的绿格、就地破产）就照搬，没写就不作声——
       // 机会/市场/额外支出这些落点的交代由卡面本身承担，这里再补一句是重复。
       return lg.note ? { icon: '📍', title: lg.note, why: '' } : null
   }
+})
+
+/** 惩罚帘幕存根：`PenaltyCurtain` 散场后留在抽屉里的摘要卡，供点太快跳过帘幕的人回看。 */
+const hitStub = computed(() => {
+  const s = game.penaltyStub
+  if (!s || s.playerId !== me.value?.id) return null
+  if (s.hitKind === 'CHILD') {
+    return {
+      icon: '👶', title: '喜添一名孩子',
+      why: `现在共 ${s.childCount} 个孩子，每月孩子支出 ${fmt(s.childExpense)}`,
+      amount: undefined as number | undefined,
+    }
+  }
+  if (s.hitKind === 'UNEMPLOYMENT') {
+    return { icon: '💼', title: '停在失业格', why: '已支付一次总支出，并停赛 2 轮', amount: -s.amount }
+  }
+  const t = FT_HIT_TEXT[`FT_${s.hitKind}`]
+  return { icon: t.icon, title: `停在${t.title}格`, why: t.why, amount: -s.amount }
 })
 </script>
 
@@ -148,6 +154,18 @@ const done = computed<{ icon: string; title: string; why: string; amount?: numbe
       <div class="t2">{{ stub.why }}</div>
     </div>
     <span class="amt money" :class="stub.amount >= 0 ? 'pos' : 'neg'">{{ signed(stub.amount) }}</span>
+  </div>
+
+  <!-- 惩罚帘幕（失业/孩子/税务审计/离婚/官司）散场后的存根：帘幕已经报过数，
+       这儿是给点太快跳过的人回看，可以和结算日存根同时出现 -->
+  <div v-if="hitStub" class="card inner landing-done">
+    <span class="ic">{{ hitStub.icon }}</span>
+    <div class="tx">
+      <div class="t1">{{ hitStub.title }}</div>
+      <div class="t2">{{ hitStub.why }}</div>
+    </div>
+    <span v-if="hitStub.amount !== undefined" class="amt money"
+          :class="hitStub.amount >= 0 ? 'pos' : 'neg'">{{ signed(hitStub.amount) }}</span>
   </div>
 
   <div v-if="landing && !landing.resolved" class="stack" style="gap:10px">

@@ -1034,6 +1034,7 @@ async function main() {
   let landedShot = false
   let paydayShot = false
   let stubShot = false
+  let penaltyShot = false
   for (let i = 0; i < 12 && !onDeal; i++) {
     await clickText(pMe, '.drawer-cta .btn', '掷')
     if (i === 0) {
@@ -1086,6 +1087,21 @@ async function main() {
         if (!cur.text.includes(w)) failures.push(`24b-纯线上-发薪帘幕: 少了「${w}」`)
       if (cur.dup) failures.push('24b-纯线上-发薪帘幕: 帘幕在场时板上还飘着同一个金额')
       if (!chip) failures.push('24c-纯线上-别人过结算日: 座次条上没有瞬时金额角标')
+    }
+    // 惩罚帘幕（失业/孩子/税务审计/离婚/官司）——五种里落到哪种全由服务端点数决定，
+    // 同 24b 一样「走到才截」，不强求每次跑到、也不强求覆盖全部 5 种
+    for (let k = 0; k < 40; k++) {
+      await sleep(150)
+      if (penaltyShot || !(await pMe.$('.curtain.penalty'))) continue
+      penaltyShot = true
+      const cur = await pMe.evaluate(() => {
+        const c = document.querySelector('.curtain.penalty')
+        return { hero: !!c?.querySelector('.cline.hero'), text: c?.innerText ?? '' }
+      })
+      await sleep(850)
+      await shotNow(pMe, '24e-纯线上-惩罚帘幕')
+      if (!cur.hero) failures.push('24e-纯线上-惩罚帘幕: 缺少关键数据行')
+      if (!cur.text.includes('点一下跳过')) failures.push('24e-纯线上-惩罚帘幕: 缺少跳过提示')
     }
     // 落在不需要任何决定的格子上（结算日/孩子/失业/快车道惩罚格）时给一句交代——
     // 试玩反馈②：什么都没有，回合突然就能结束了，不知道刚发生了什么
