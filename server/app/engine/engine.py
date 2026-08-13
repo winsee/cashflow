@@ -1805,6 +1805,9 @@ def _a_shares_adjusted(s: RoomState, p) -> None:
     """并股/拆股：股数按比例增减，**总成本不变**（design/06 §3.0，该规则是固有的）。
 
     单价随之反向调整，否则破产清算按 shares × cost_per_share 估值会凭空少算一半。
+    除不尽时四舍五入到最近整数（与 formulas.fasttrack_initial_income、engine._d_charity_donate
+    同一惯例），而不是地板除——地板除会系统性截断成本（如 $5 总成本拆成 2 股会被错误算成
+    $2/股而不是 $2.5→$3/股），整数货币精度下 ≤$1 的舍入误差无法避免。
     """
     num, den = p["ratio_num"], p["ratio_den"]   # "2:1" → 每2股并1股
     for pl in s.players.values():
@@ -1814,7 +1817,7 @@ def _a_shares_adjusted(s: RoomState, p) -> None:
                 total_cost = h.shares * h.cost_per_share
                 h.shares = h.shares * den // num
                 if h.shares > 0:
-                    h.cost_per_share = total_cost // h.shares
+                    h.cost_per_share = (total_cost + h.shares // 2) // h.shares
             if h.shares > 0:
                 kept.append(h)
         pl.stocks = kept
