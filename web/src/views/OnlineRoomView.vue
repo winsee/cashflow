@@ -374,19 +374,8 @@ const heldTip = computed(() => {
   }
 })
 
-/** 我身上优先级最高的持续状态（停赛 / 慈善 / 破产 …）：轮心与 peek 条共用这一句 */
+/** 我身上优先级最高的持续状态（停赛 / 慈善 / 破产 …）：抽屉状态条与座次条/牌桌/总览角标共用这一句 */
 const myStatus = computed(() => (me.value ? majorStatus(me.value) : null))
-
-const hubTip = computed(() => {
-  if (!game.connected) return '重新连上之前，不能掷骰'
-  if (held.value) return heldTip.value
-  if (!game.isMyTurn) return `${game.currentPlayer?.nickname ?? '对手'} 正在行动`
-  // 「停赛中 · 还需跳过 N 轮」与牌桌、总览、座次条同一份派生，不在这里另写一遍
-  if (me.value?.skipTurns) return myStatus.value?.label ?? ''
-  if (step.value === 1) return '点骰子开始这一回合'
-  if (step.value === 2) return landing.value?.note || '这一格还欠你一个决定'
-  return '这一格处理完了'
-})
 
 const activeCardInfo = ref<CardDto | null>(null)
 watch(() => game.state?.activeCard?.card_id, async (id) => {
@@ -410,14 +399,12 @@ async function endTurn() {
 
 type Detent = 'peek' | 'half' | 'full'
 type LedgerPage = 'statement' | 'overview' | 'log'
-/** peek 的 128px 是量出来不够用的旧值：把手 12（含下边距）+ 状态条一行 22 + 正文底内边距 8
- *  + 按钮区两行 115（掷骰/结束回合，或买入/放弃 + 结束回合）= 157px 才是实际最小值，
- *  差的 29px 由 `.drawer-cta` 的 `position:sticky;bottom:0` 垫上——但它的最近滚动祖先是
- *  `.board-page`（`.board-drawer` 自己没设 `overflow`，不构成滚动容器），于是按钮条整块贴着
- *  页面真实底边定住，而不是排在状态条下面，视觉上直接盖住了状态条（真机复现：状态条文字
- *  一个字都不出现，只剩把手）。改成 180px（157 再加约 20px 余量，覆盖状态条换行到两行的情形
- *  ——「XXXXX 正在行动」+ 头像列可能换行）。三处必须一起改：这里、下面 `detentPx()` 里的
- *  同一个数字、以及 `moveDrag()` 借的下限。 */
+/** peek 的 180px 曾经身兼两职：既是「内容很多时（状态条换行到两行 + 两行按钮）该给多高」
+ *  的上限，又是在掩盖 `.drawer-cta` 的 `position:sticky;bottom:0` 逃逸出 `.board-drawer`
+ *  （它自己没设 `overflow`，不构成滚动容器）贴死页面真实底边、盖住状态条的老 bug——
+ *  真机复现过状态条文字一个字都不出现，只剩把手。sticky 已经删掉（见 `style.css`
+ *  `.drawer-cta`），这个数字现在只管前一职责：内容多时的**上限**，不再需要跟下面
+ *  `FLOOR_H`（内容少时的下限）保持同一个数字。 */
 const DETENT_H: Record<Detent, string> = { peek: '180px', half: '46dvh', full: '88dvh' }
 const RANK: Record<Detent, number> = { peek: 0, half: 1, full: 2 }
 const ORDER: Detent[] = ['peek', 'half', 'full']
@@ -518,7 +505,11 @@ const ctaH = ref(0)
 /** 账本、破产清算：这两屏本该占满档位，不跟内容收缩 */
 const spacious = computed(() => !!ledger.value || !!me.value?.inBankruptcy)
 
-const FLOOR_H = 180 // 必须与 DETENT_H.peek / detentPx().peek / moveDrag() 下限同一个数字
+/** 曾经必须跟 `DETENT_H.peek`/`detentPx().peek` 同一个数字（180），因为那三处其实是在
+ *  合力掩盖 `.drawer-cta` 的 sticky 逃逸 bug（见上面 `DETENT_H` 的注释）。sticky 删掉后
+ *  这里只剩它本来该管的事：内容测出来接近 0 时（比如别人回合、cta 只剩内边距）兜一个
+ *  通用下限，不再是「按某种内容形状算出来的最小值」——够露出把手 + 状态条一行即可。 */
+const FLOOR_H = 96
 
 let sheetObserver: ResizeObserver | null = null
 onMounted(() => {
@@ -582,7 +573,8 @@ function lower() {
 /** 三档的像素高。full 实际被 `flex: 0 1 auto` 压过，但标称值单调，够拿来就近吸附 */
 function detentPx(): Record<Detent, number> {
   const vh = window.innerHeight
-  return { peek: 180, half: vh * 0.46, full: vh * 0.88 }   // 180 必须跟上面 DETENT_H.peek 一致
+  return { peek: 180, half: vh * 0.46, full: vh * 0.88 }   // 180 跟上面 DETENT_H.peek 一致——
+  // 这个 180 只管手动拖拽的下限/就近吸附，跟 FLOOR_H（内容自适应的下限）已经是两件独立的事
 }
 function nearestDetent(h: number): Detent {
   const px = detentPx()
@@ -904,23 +896,16 @@ const decisionShownElsewhere = computed(() => {
                  :settle="settleSpot" :pulse="pulse" :compact="compactBoard"
                  :offline="!game.connected" @tap="tapSquare">
         <template #hub>
-          <!-- 轮心只放骰盘 + 一行状态提示；轮次归 HUD，进度归 HUD 进度带。
-               停赛的人不给骰盘——那是一个按下必被拒的按钮。
-               **但也不在这里另写一行「停赛中」**：那句话是状态提示的职责，
-               `hubTip` 已经说了，两处都写就会在轮心里重复两遍（第二轮试玩） -->
+          <!-- 轮心只放骰盘，不放任何文字（design/09 v0.19）：状态提示与选粒数
+               都已在抽屉状态条/CTA 区域各有一份，轮心重复一遍只会在棋盘收窄时
+               把不跟着 `--bw` 缩放的选择器挤出圆形边界。停赛的人不给骰盘——
+               那是一个按下必被拒的按钮。 -->
           <div v-if="!(game.isMyTurn && me.skipTurns)" class="board-dice"
                :class="`n${Math.max(1, shownRolls.length || diceCount)}`">
             <Die3d v-for="i in Math.max(1, shownRolls.length || diceCount)" :key="i"
                    :index="i - 1" :value="rolling ? null : (shownRolls[i - 1] ?? null)"
                    :rolling="rolling" :rollable="canRoll" @roll="roll" />
           </div>
-          <!-- 慈善生效时粒数选择器**替换**状态提示行（不叠高度、不弹层） -->
-          <div v-if="canRoll && diceMax > 1" class="dice-pick"
-               @click.stop>
-            <button v-for="n in diceMax" :key="n" :class="{ on: diceCount === n }"
-                    @click="diceCount = n">{{ n }} 粒</button>
-          </div>
-          <div v-else class="hub-tip">{{ hubTip }}</div>
         </template>
       </BoardView>
 
@@ -1040,7 +1025,7 @@ const decisionShownElsewhere = computed(() => {
                continue，从不让他们成为 current player，所以这个条件与 `isMyTurn` 同时成立
                时，只可能是停赛刚刚生效的那一回合（失业已结算/破产刚复活）——玩家这一回合
                正常行动过，不是"什么都不能做只能跳过"，按普通回合处理即可，见下方 ReceiptStack /
-               OnlineLandingPanel 与结束回合按钮。停赛状态本身由 hubTip 与座次条/牌桌/总览角标
+               OnlineLandingPanel 与结束回合按钮。停赛状态本身由抽屉状态条与座次条/牌桌/总览角标
                持续展示，不靠这里。 -->
           <div v-else-if="me.phase === 'OUT'" class="card inner muted">
             你已出局 · 可以继续观战
@@ -1112,6 +1097,15 @@ const decisionShownElsewhere = computed(() => {
               {{ cardCta.settlePreview?.waived ? '确认（无需支付）'
                  : `支付 ${fmt(cardCta.settlePreview?.due ?? 0)}` }}
             </button>
+          </div>
+          <!-- 慈善生效时的粒数选择器：从轮心搬进抽屉，紧贴在掷骰按钮正上方——
+               轮心此后只剩骰盘。不套 `.cta-row`：它不是一对并列决策按钮，是掷骰按钮的
+               前置选项，条件严格是掷骰行的子集（多了 `diceMax > 1`），两行必然同开同关。
+               和上一行的 `cardCta` 同挂一条 v-if/else-if 链——`cardCta` 与「还没掷骰」
+               本就互斥（有待决策的卡说明这一格已经落定），不会同屏抢位置。 -->
+          <div v-else-if="game.isMyTurn && step === 1 && canRoll && diceMax > 1" class="dice-pick">
+            <button v-for="n in diceMax" :key="n" :class="{ on: diceCount === n }"
+                    @click="diceCount = n">{{ n }} 粒</button>
           </div>
           <div v-else-if="game.isMyTurn && step === 1 && canRoll" class="cta-row">
             <button class="btn grow" @click="roll">🎲 掷 {{ diceCount }} 粒骰</button>
