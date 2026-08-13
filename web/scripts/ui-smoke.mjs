@@ -805,6 +805,16 @@ async function main() {
     has: ['第 1 步 / 3', '掷骰'],
     hasNot: ['你停在哪种格子', '手动选卡'],
   })
+  // 还没掷骰这一步只该有「掷骰」一个按钮，不该同时冒出「结束回合」
+  // （试玩反馈：这一步该只能掷骰，不是掷骰/结束回合二选一）
+  const preRollCta = await pMe.evaluate(() => ({
+    rows: document.querySelectorAll('.drawer-cta .cta-row').length,
+    endTurn: [...document.querySelectorAll('.drawer-cta .btn')]
+      .some(b => b.textContent.includes('结束回合')),
+  }))
+  if (preRollCta.rows !== 1 || preRollCta.endTurn)
+    failures.push(`22-纯线上-棋盘待掷骰: 还没掷骰就有「结束回合」（${preRollCta.rows} 行，` +
+      `endTurn=${preRollCta.endTurn}）`)
   // 名牌是装饰，不许压住任何一格：它必须排在圆盘之外
   const nameInDisc = await pMe.evaluate(() => {
     const n = document.querySelector('.wheel-name'), w = document.querySelector('.wheel')
@@ -1092,6 +1102,10 @@ async function main() {
     }
     const t = await screen(pMe)
     if (t.includes('抽哪一叠')) { onDeal = true; break }
+    // 强制卡/机会失业落点的动作已经摆在别处（cardCta 那一行 / OnlineLandingPanel 正文），
+    // 底部不该再复述一句禁用态占位文案（试玩反馈：这三句被读成废话）
+    for (const stale of ['先结算这张卡', '先抽一张牌', '先支付失业损失'])
+      if (t.includes(stale)) failures.push(`25-纯线上-落点处理: 底部还留着复述的占位文案「${stale}」`)
     // 不是机会格：强制卡付掉、慈善不捐，然后结束回合换人
     await pMe.evaluate(() => {
       const want = ['支付', '确认', '执行', '放弃', '我不买']
@@ -1112,6 +1126,11 @@ async function main() {
     await expectText(pMe, '25-纯线上-机会格选大小生意', {
       has: ['你停在机会格', '必须抽一张牌'],
     })
+    // 「小生意/大买卖」已经摆在正文里了，底部不该再有一行复述的「先抽一张牌」
+    const preDealCta = await pMe.evaluate(() =>
+      document.querySelectorAll('.drawer-cta .cta-row').length)
+    if (preDealCta) failures.push(`25-纯线上-机会格选大小生意: 底部还有 ${preDealCta} 行 CTA，` +
+      '「小生意/大买卖」已经摆在正文了，不该再复述')
     await clickText(pMe, '.drawer-body .btn', '小生意')
     await sleep(1000)
     await shot(pMe, '26-纯线上-全屏发牌翻牌', '.deal-curtain')
@@ -1286,7 +1305,9 @@ async function main() {
     if (!el) return null
     const body = el.querySelector('.drawer-body')
     body.scrollTop = body.scrollHeight
-    const last = body.lastElementChild?.lastElementChild
+    // .drawer-body 的唯一直接子元素现在是 .drawer-body-inner（内容贴合改动新增的
+    // 测量包裹层），要多取一层才能到当年那个「最后一张卡」
+    const last = body.lastElementChild?.lastElementChild?.lastElementChild
     return {
       over: Math.round(el.getBoundingClientRect().bottom - window.innerHeight),
       tail: last ? Math.round(last.getBoundingClientRect().bottom - window.innerHeight) : 0,
@@ -1410,7 +1431,8 @@ async function main() {
   await pMe.evaluate(() => document.querySelector('.modal-mask')?.click())
   await sleep(400)
 
-  // 结束回合的出口必须常驻：卡片决策排它上面一行，不取代它（design/09 §2.4）
+  // 结束回合的出口在「没有别的地方已经摆出动作」时必须常驻：这一步已经决策完（第 3 步），
+  // 没有强制卡/机会失业落点/未掷骰这三种会把这一行整行收起的情形，所以它必须在（design/09 §2.4）
   await expectText(pMe, '27e-纯线上-结束回合常驻', { has: ['结束回合'] })
   const ctaRows = await pMe.evaluate(() => document.querySelectorAll('.drawer-cta .cta-row').length)
   if (!ctaRows) failures.push('27e-纯线上-结束回合常驻: 底部操作区没有分行')

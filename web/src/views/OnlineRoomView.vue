@@ -504,6 +504,51 @@ const boardWidth = computed(() => {
   return `${Math.min(cap, Math.max(BOARD_MIN, avail))}px`
 })
 
+/** 抽屉贴合内容高度：短内容不该把抽屉撑到当前档位的目标高度，多出来的空间该还给棋盘。
+ *  `DETENT_H`/`drawerH`/`--dh` 一律不动——那套拖拽状态机继续原样决定「目标上限」；
+ *  这里另起一条独立的 `--content-h`，由 CSS `min()` 跟 `--dh` 组合，只在没有拖拽时生效
+ *  （见 style.css 的 `.board-drawer:not(.dragging)` 规则）。 */
+const peekEl = ref<HTMLElement | null>(null)
+const bodyInnerEl = ref<HTMLElement | null>(null)
+const ctaEl = ref<HTMLElement | null>(null)
+const peekH = ref(0)
+const bodyContentH = ref(0)
+const ctaH = ref(0)
+
+/** 账本、破产清算：这两屏本该占满档位，不跟内容收缩 */
+const spacious = computed(() => !!ledger.value || !!me.value?.inBankruptcy)
+
+const FLOOR_H = 180 // 必须与 DETENT_H.peek / detentPx().peek / moveDrag() 下限同一个数字
+
+let sheetObserver: ResizeObserver | null = null
+onMounted(() => {
+  sheetObserver = new ResizeObserver((entries) => {
+    // 演出没播完时先按住：等 held 翻回 false、内容真正定型，DOM 变化会自然再触发一次测量
+    if (held.value) return
+    for (const entry of entries) {
+      const h = entry.contentRect.height
+      if (entry.target === peekEl.value) peekH.value = h
+      else if (entry.target === bodyInnerEl.value) bodyContentH.value = h
+      else if (entry.target === ctaEl.value) ctaH.value = h
+    }
+  })
+  if (peekEl.value) sheetObserver.observe(peekEl.value)
+  if (bodyInnerEl.value) sheetObserver.observe(bodyInnerEl.value)
+})
+onUnmounted(() => sheetObserver?.disconnect())
+// .drawer-cta 是 v-if="!ledger"，元素会整个换掉，要跟着重新 observe/unobserve
+watch(ctaEl, (el, prev) => {
+  if (prev) sheetObserver?.unobserve(prev)
+  if (el) sheetObserver?.observe(el)
+  else ctaH.value = 0
+})
+
+const naturalH = computed(() => peekH.value + bodyContentH.value + ctaH.value)
+const contentHVar = computed<string | undefined>(() => {
+  if (spacious.value || !naturalH.value) return undefined   // 交回 --dh，原样撑满
+  return `${Math.max(FLOOR_H, naturalH.value)}px`
+})
+
 /** 抽屉的手势（design/09 §2.2 v0.10）：**整块都接**，不只那根 34×4px 的把手。
  *
  *  v0.7 把手从「只认拖拽」补成「也认点击」，解决的是「点了没反应」；把手势限死在
@@ -741,22 +786,26 @@ async function decide(decision: string) {
   await game.act('CARD_DECISION', { decision })
 }
 
-/** 现在还不能结束回合的话，写清在等什么（与服务端 `_d_end_turn` 的两道闸门同口径） */
-const blockedBy = computed(() => {
-  // 动画还没播完（骰子在转/棋子在走/正在发牌/正在洗牌）：不管这一格最终要不要决策，
-  // 先按住——服务端早把整批事件算完了，`landing`/`activeCard` 可能已经 resolved，
-  // 但玩家还没在屏上看到骰子停、棋子到，此刻放行就是让他在看清落点前先把回合结束掉。
-  // 复用 heldTip：按钮上的字与状态条上的字永远是同一句话。
-  if (held.value) return heldTip.value
+/** 现在还不能结束回合的话，写清在等什么——但只在「没有别的地方已经把这件事摆出来」时才写。
+ *  强制卡（`cardCta` 已经在上一行给出唯一动作）与机会/失业格（`OnlineLandingPanel` 已经在
+ *  正文给出按钮）这两种情况下，「结束回合」这一整行直接收起，不复述已经摆在眼前的按钮
+ *  （试玩反馈：「先结算这张卡」「先抽一张牌」被读成废话，还白占一整行）。
+ *  真正需要这一行来解释的只剩「动画还没播完」——那一刻屏上确实没有别的东西可点，
+ *  复用 heldTip：按钮上的字与状态条上的字永远是同一句话。 */
+const blockedBy = computed(() => (held.value ? heldTip.value : ''))
+
+/** 这一格/这张卡的动作是不是已经在别处（`cardCta` 那一行 / `OnlineLandingPanel` 正文）摆出来了，
+ *  摆出来了「结束回合」这一行就该整行收起，而不是在它旁边再摆一句复述的禁用态文案。
+ *  与服务端 `_d_end_turn` 的两道闸门同口径（`EXPENSE_EVENT`/`CASH`/`CREDIT_OPTION`/
+ *  `INSTALLMENT`/`STOCK_EVENT` 五种强制卡 + `OPPORTUNITY`/`UNEMPLOYMENT` 两种必做落点）。 */
+const decisionShownElsewhere = computed(() => {
+  if (held.value) return false
   const ac = game.state?.activeCard
   if (ac && !ac.resolved && ['EXPENSE_EVENT', 'CASH', 'CREDIT_OPTION', 'INSTALLMENT',
-    'STOCK_EVENT'].includes(ac.subtype)) return '先结算这张卡'
+    'STOCK_EVENT'].includes(ac.subtype)) return true
   const lg = landing.value
-  if (lg && !lg.resolved) {
-    if (lg.type === 'OPPORTUNITY') return '先抽一张牌'
-    if (lg.type === 'UNEMPLOYMENT') return '先支付失业损失'
-  }
-  return ''
+  if (lg && !lg.resolved && (lg.type === 'OPPORTUNITY' || lg.type === 'UNEMPLOYMENT')) return true
+  return false
 })
 </script>
 
@@ -892,7 +941,8 @@ const blockedBy = computed(() => {
     </div>
 
     <!-- ===== 底部三档抽屉 ===== -->
-    <div ref="drawerEl" class="board-drawer" :class="{ dragging }" :style="{ '--dh': drawerH }">
+    <div ref="drawerEl" class="board-drawer" :class="{ dragging }"
+         :style="{ '--dh': drawerH, '--content-h': contentHVar }">
       <!-- 把手：跟手 + 点击（§2.2 v0.10）。用 `<button>` 而不是 `<div>`：
            它能点，语义与键盘可达性得跟上；裸 button 早已被重置成中性，视觉不变。
            手势现在铺到了整个抽屉，但**点击只有这一根认**——状态条和正文不是按钮。 -->
@@ -902,7 +952,7 @@ const blockedBy = computed(() => {
               @pointerup="onGrabUp" @pointercancel="onGrabUp"></button>
 
       <!-- 状态条也能拖：整块抽屉都该跟手，而不是只有那根 34×4px 的小横条 -->
-      <div class="drawer-peek"
+      <div class="drawer-peek" ref="peekEl"
            @pointerdown="onPeekDown" @pointermove="onPeekMove"
            @pointerup="onPeekUp" @pointercancel="onPeekUp">
         <!-- 破产清算优先于一切：这时候抽屉里只有清算面板，分段控件让位 -->
@@ -956,6 +1006,7 @@ const blockedBy = computed(() => {
       <div class="drawer-body"
            @touchstart="onBodyStart" @touchmove="onBodyMove"
            @touchend="onBodyEnd" @touchcancel="onBodyEnd">
+       <div class="drawer-body-inner" ref="bodyInnerEl">
         <!-- 破产清算：抽屉自动升到 full 档，里面只有这块面板——
              卖资产、还贷、完成清算，每一步都得走得完，否则一破产就锁死 -->
         <template v-if="me.inBankruptcy">
@@ -1023,13 +1074,16 @@ const blockedBy = computed(() => {
                             :player="r.p" :step="r.step" :now="r.now" :self="r.id === me.id" />
           </template>
         </template>
+       </div>
       </div>
 
       <!-- 决策按钮钉底：一张牌堆卡加上前后对比就超过 half 档的高度，
            内容必须能滚，但「买入 / 放弃」不能跟着滚走。
-           **最后一行永远留给「结束回合」**：卡片决策排它上面一行，不取代它——
-           试玩里「买不起的 CD + 只有『我不买』」就是这样把出口关掉的。 -->
-      <div v-if="!ledger" class="drawer-cta">
+           「结束回合」这一行只在**没有别的地方已经摆出动作**时才出现（可选决策，如股票要约
+           只剩「我不买」——试玩里「买不起的 CD」就是这样把出口关掉的，仍旧要留住这一行）；
+           强制卡/机会失业落点/还没掷骰这三种情况下，动作已经摆在别处（上一行决策按钮，或
+           `OnlineLandingPanel` 正文），这一行整行收起，不再复述一句禁用态文案。 -->
+      <div v-if="!ledger" class="drawer-cta" ref="ctaEl">
         <template v-if="me.inBankruptcy">
           <div class="cta-row">
             <button class="btn grow warn" @click="game.act('BANKRUPTCY_RESOLVE')">完成清算</button>
@@ -1064,11 +1118,14 @@ const blockedBy = computed(() => {
           </div>
 
           <!-- 下行：结束回合。判据与服务端 `_d_end_turn` 逐项对齐——
-               UI 的闸门不许比服务端严，服务端准结束的情形界面就必须准。
+               UI 的闸门不许比服务端严，服务端准结束的情形界面就必须准（可选决策时依然如此，
+               这一行与上一行的决策按钮同屏出现，只是弱化成 ghost 样式）。
+               强制决策/机会失业落点/还没掷骰这三种情况下不渲染这一行（见 `decisionShownElsewhere`
+               与掷骰行的 `v-else-if`），不是禁用，是整行收起。
                停赛（skip_turns>0）不再另开分支：这个状态与 `isMyTurn` 同时成立时只可能是
                停赛刚生效的这一回合（见上方注释），按普通回合结束即可，不必绕开确认弹窗。 -->
-          <div v-if="game.isMyTurn" class="cta-row">
-            <button class="btn grow" :class="{ ghost: !!cardCta || (step === 1 && canRoll) }"
+          <div v-if="game.isMyTurn && !decisionShownElsewhere && !(step === 1 && canRoll)" class="cta-row">
+            <button class="btn grow" :class="{ ghost: !!cardCta }"
                     :disabled="!!blockedBy" @click="endTurn">
               {{ blockedBy || '✅ 结束回合' }}
             </button>
