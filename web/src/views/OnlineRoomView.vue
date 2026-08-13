@@ -59,6 +59,12 @@ const toWin = computed(() => {
   return f ? Math.max(0, f.initial_income + FT_WIN_INCREMENT - f.current_income) : 0
 })
 
+/** HUD 身份行（职业 + 梦想）：整局不变的两件事，跟着「银行储蓄」走，不单占一行。
+ *  梦想名不像职业名那么短（23 个里最长 13 字），拼进同一行时职业固定宽度、
+ *  梦想用剩下的空间省略号截断——截断不等于丢信息，全名在准备页/棋盘格子详情/报表页都查得到。 */
+const myDream = computed(() =>
+  game.board?.fastTrack.dreams.find(d => d.id === me.value?.dreamId) ?? null)
+
 /** 自己回合内、老鼠赛跑走过一格后进入快车道：本回合到此为止，别再糊出老鼠赛跑最后那张已结算的卡
  *  （`_a_entered_fasttrack` 不清空 `active_card`，卡本身已 resolved，只是不该再显示）。
  *  同 `FasttrackPanel.vue` 的 justLanded 判据，之前只 port 到了线下路径。 */
@@ -755,6 +761,12 @@ const blockedBy = computed(() => {
       <div>
         <div class="lab">银行储蓄</div>
         <div class="cash money">{{ fmt(me.cash) }}</div>
+        <div v-if="me.professionTitle" class="hud-ident">
+          <span class="ic">💼</span><span class="prof">{{ me.professionTitle }}</span>
+          <template v-if="myDream">
+            <span class="sep">·</span><span class="ic">🎯</span><span class="dream">{{ myDream.name }}</span>
+          </template>
+        </div>
       </div>
       <div class="hud-side">
         <template v-if="ft">
