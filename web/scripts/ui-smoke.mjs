@@ -1142,11 +1142,56 @@ async function main() {
     await expectText(pMe, '25-纯线上-机会格选大小生意', {
       has: ['你停在机会格', '必须抽一张牌'],
     })
-    // 「小生意/大买卖」已经摆在正文里了，底部不该再有一行复述的「先抽一张牌」
-    const preDealCta = await pMe.evaluate(() =>
-      document.querySelectorAll('.drawer-cta .cta-row').length)
-    if (preDealCta) failures.push(`25-纯线上-机会格选大小生意: 底部还有 ${preDealCta} 行 CTA，` +
+    // 「小生意/大买卖」已经摆在正文里了，底部不该再有一行复述的「先抽一张牌」，
+    // 而且**整块按钮区都不该在场**：它自带上下内边距，空着渲染就是抽屉底下一条
+    // 谁也点不着的死白，还是从棋盘那儿夺来的（design/09 §2.2 v0.20）
+    const preDealCta = await pMe.evaluate(() => ({
+      rows: document.querySelectorAll('.drawer-cta .cta-row').length,
+      box: document.querySelectorAll('.drawer-cta').length,
+    }))
+    if (preDealCta.rows) failures.push(`25-纯线上-机会格选大小生意: 底部还有 ${preDealCta.rows} 行 CTA，` +
       '「小生意/大买卖」已经摆在正文了，不该再复述')
+    if (preDealCta.box) failures.push('25-纯线上-机会格选大小生意: 一行都排不出来，' +
+      '`.drawer-cta` 却还在场，白占一截抽屉高度')
+    // ── v0.20 这一屏的正主：抽屉贴合内容高度，**内容就必须真的装得下** ──
+    // 从前 `--content-h` 是把三个孩子的高度加起来算的，漏了把手（4px + 8px 外边距）
+    // 与抽屉自己 1px 的上边框，于是抽屉比内容矮十几像素，`.drawer-body` 一滚动，
+    // 最后一行按钮被切掉半截（试玩截图：两个抽牌按钮下半截没了）。
+    // 负向对照：把 `measureSheet` 换回「peek + body-inner + cta 三者相加」，这两条当场挂。
+    const fitted = await pMe.evaluate(() => {
+      const body = document.querySelector('.drawer-body')
+      const row = document.querySelector('.drawer-body .btn-row')
+      if (!body || !row) return null
+      return {
+        // 抽屉贴合内容高度的那一档里，正文就不该有滚动条
+        over: Math.round(body.scrollHeight - body.clientHeight),
+        // 按钮整行必须整个落在正文的可视区里
+        cut: Math.round(row.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom),
+      }
+    })
+    if (!fitted) failures.push('25-纯线上-机会格选大小生意: 找不到正文或抽牌按钮行')
+    else {
+      if (fitted.over > 1) failures.push('25-纯线上-机会格选大小生意: ' +
+        `抽屉没贴合内容高度，正文还差 ${fitted.over}px 才装得下`)
+      if (fitted.cut > 1) failures.push('25-纯线上-机会格选大小生意: ' +
+        `抽牌按钮被切掉 ${fitted.cut}px`)
+    }
+    // 抽屉只占一百多像素时，棋盘该长回满宽写字版——`compact` 是**板宽的结果**，
+    // 不是档位的结果（v0.15 那两档常量把 half 档一律按在 230px 上，格面文字与名牌
+    // 跟着一并退场，屏上于是大半是空白 + 一块读不出字的小板）。
+    // 负向对照：把 `boardPx` 的上限改回 `compactBoard ? 230 : 332`，这三条当场挂。
+    const roomy = await pMe.evaluate(() => ({
+      bw: Math.round(document.querySelector('.wheel')?.getBoundingClientRect().width ?? 0),
+      labels: document.querySelectorAll('.track-rr .sq-label').length,
+      name: document.querySelectorAll('.wheel-name').length,
+      slack: Math.round((document.querySelector('.board-stage')?.getBoundingClientRect().bottom ?? 0)
+        - (document.querySelector('.wheel')?.getBoundingClientRect().bottom ?? 0)),
+    }))
+    if (roomy.bw < 300) failures.push('25-纯线上-机会格选大小生意: ' +
+      `stage 底下还空着 ${roomy.slack}px，棋盘却只有 ${roomy.bw}px`)
+    if (roomy.labels < 12) failures.push('25-纯线上-机会格选大小生意: ' +
+      `板宽 ${roomy.bw}px 写得下字，内圈却只有 ${roomy.labels} 个格面文字`)
+    if (!roomy.name) failures.push('25-纯线上-机会格选大小生意: 板宽够却没有名牌')
     await clickText(pMe, '.drawer-body .btn', '小生意')
     await sleep(1000)
     await shot(pMe, '26-纯线上-全屏发牌翻牌', '.deal-curtain')

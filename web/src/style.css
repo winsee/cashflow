@@ -1258,8 +1258,15 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
    抽屉的**底端落在屏幕之外**——里面滚到底也永远差最后一截（试玩：总览的「退出对局」看不全）。
    让它可收缩，档位高度就成了「最多这么高」，实际由剩余空间兜住。
    棋盘 stage 是 flex-basis:0，负空间不摊到它头上，所以收缩全落在抽屉上，正是我们要的。 */
+/* 安全区归**抽屉自己**，不归里面某一个孩子。它从前挂在 `.drawer-cta` 的 padding-bottom 上，
+   而那一块「一行都排不出来时整块不渲染」（见 OnlineRoomView 的 `ctaShown`）——于是机会格
+   那一屏（两个抽牌按钮在正文里）底下的留白连同安全区一起没了，正文最后一行直接顶到
+   home indicator 下面。贴着屏幕底边的是抽屉，安全区本来就该由它来让。
+   `--content-h` 不用跟着改：`measureSheet` 量的是「抽屉高 − 正文高」，
+   抽屉的 padding 天然落在「壳」那一半里。 */
 .board-drawer {
   position: relative; flex: 0 1 auto; min-height: 0; background: var(--panel);
+  padding-bottom: env(safe-area-inset-bottom);
   border-top: 1px solid var(--line-2); border-radius: var(--r-lg) var(--r-lg) 0 0;
   box-shadow: 0 -6px 20px -14px rgba(120, 92, 40, .5);
   display: flex; flex-direction: column;
@@ -1303,7 +1310,8 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
    下面 `::before` 那道渐变遮罩需要一个 positioned 祖先。 */
 .drawer-cta {
   position: relative; flex: none;
-  padding: var(--sp-2) var(--sp-3) calc(var(--sp-2) + env(safe-area-inset-bottom));
+  /* 安全区已经由 `.board-drawer` 让出（它才是贴着屏幕底边的那一块） */
+  padding: var(--sp-2) var(--sp-3);
   background: var(--panel);
   display: flex; flex-direction: column; gap: var(--sp-2);
   /* 这一块不滚动，从这儿起手的下拉只会喂给浏览器去刷新整页。
@@ -1341,6 +1349,11 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 /* 换行是给长昵称留的余地（「XXXXX 正在行动」+ 头像列 + 代结束）；
    账本的四个 tab 已经搬进内容区，不再靠这条兜底。 */
 .drawer-peek {
+  /* `flex: none`：**`.drawer-body` 必须是抽屉里唯一会伸缩的那一个**。
+     `--content-h` 量的是「抽屉高 − 正文高 = 壳」（见 OnlineRoomView 的 `measureSheet`），
+     这条等式的前提就是负空间全落在正文上；状态条跟着按比例缩的话，壳会量小、
+     抽屉跟着算矮，最后一行按钮又要被挤出可滚动区。它本来也不该被压扁。 */
+  flex: none;
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px; row-gap: 6px;
   padding: 0 var(--sp-3) 2px; font-size: 13px;
   /* 同 .drawer-cta：不滚动的一块，手势归抽屉，不喂给浏览器去刷新整页 */
