@@ -820,6 +820,11 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   animation: curtain-in var(--dur-slow) var(--ease);
 }
 @keyframes curtain-in { from { opacity: 0; } }
+/* 退场淡出（职业卡揭牌帘幕专用，RoomView.vue 的 `curtain-fade` Transition）：
+   只管 leave，不定义 enter-* 规则——Vue 检测不到入场过渡就照旧同步挂载，
+   `.curtain`/`.deal-curtain` 自己的入场淡入不受影响。 */
+.curtain-fade-leave-active { transition: opacity .3s ease; }
+.curtain-fade-leave-to { opacity: 0; }
 .curtain-inner {
   width: 100%; max-width: 560px; min-height: 100dvh;
   display: flex; flex-direction: column; gap: var(--sp-3); text-align: center;

@@ -396,12 +396,18 @@ async function copyUrl() {
          没有「飞入放大」那一拍，整 0.95s 都给旋转，尺寸从头到尾不变 -->
     <!-- 卡还没到（帘幕先落下、请求还在路上）时**不给默认插槽**，让 DealCurtain 用它自己的
          占位卡面兜住高度——插槽给了但内容为空的话，牌面高度塌成 0，连牌背都看不见了 -->
-    <DealCurtain v-if="revealing" variant="reveal" deck="PROFESSION" title="职业卡"
-                 :from="profFrom" @skip="revealing = false">
-      <template v-if="myProfession" #default>
-        <ProfessionCard :card="myProfession" />
-      </template>
-    </DealCurtain>
+    <!-- 退场包一层 Transition：`revealing` 变 false 时页内最终态（上面 267 行那一支）
+         已经挂载好在帘幕底下，只让帘幕自己淡出 0.3s，别再一帧硬切（试玩「变一下」）。
+         入场不受影响——没有定义 curtain-fade-enter-* 规则，Vue 检测不到入场过渡就照旧
+         同步挂载，帘幕自己的 180ms curtain-in 淡入原样播放。 -->
+    <Transition name="curtain-fade">
+      <DealCurtain v-if="revealing" variant="reveal" deck="PROFESSION" title="职业卡"
+                   :from="profFrom" @skip="revealing = false">
+        <template v-if="myProfession" #default>
+          <ProfessionCard :card="myProfession" />
+        </template>
+      </DealCurtain>
+    </Transition>
   </div>
   <ConnectingFallback v-else />
 </template>
