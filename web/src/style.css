@@ -1099,15 +1099,20 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   gap: 8px; padding: 8px; text-align: center; pointer-events: auto;
   text-wrap: balance;
 }
-.hub-tip { font-size: 12px; color: var(--muted); line-height: 1.35; }
+/* 字号跟着棋盘等比缩（骰子是图形可以纯按比例缩，这里是要读的文字，设一个 10px 可读性下限）。 */
+.hub-tip {
+  font-size: clamp(10px, calc(12px * (var(--bw) / 332px)), 12px);
+  color: var(--muted); line-height: 1.35;
+}
 
-/* 骰盘 1–3 粒：粒数越多每粒越小，轮心可用直径是固定的。
-   尺寸只有一个入口 `--d`，透视、圆角、点子大小全按它的比例算——
-   32px（小）到 58px（轮心）两个极端都不用改别处。 */
+/* 骰盘 1–3 粒：粒数越多每粒越小；三个尺寸是棋盘满宽 332px（peek 档）时的参考值，
+   随后按 --bw 等比缩放——棋盘变小骰子跟着变小，不再各按各的尺寸系统。
+   calc() 里先做 长度/长度 得到无量纲比例，再乘参考像素值：length*length 在 CSS 里不合法，
+   顺序不能反。尺寸只有一个入口 `--d`，透视、圆角、点子大小全按它的比例算。 */
 .board-dice { display: flex; gap: 6px; justify-content: center; }
-.board-dice .die, .board-dice .die3d { --d: 58px; }
-.board-dice.n2 .die, .board-dice.n2 .die3d { --d: 46px; }
-.board-dice.n3 .die, .board-dice.n3 .die3d { --d: 40px; }
+.board-dice .die, .board-dice .die3d { --d: calc(58px * (var(--bw) / 332px)); }
+.board-dice.n2 .die, .board-dice.n2 .die3d { --d: calc(46px * (var(--bw) / 332px)); }
+.board-dice.n3 .die, .board-dice.n3 .die3d { --d: calc(34px * (var(--bw) / 332px)); }
 
 /* 「还没掷」的平面骰：立方体总有一面朝前，没有点数可显示时不该摆一颗看似有结果的骰子。
    这是平面骰与立方体共存的唯一理由（design/09 §3.4.2），别把它们「统一」掉。 */
