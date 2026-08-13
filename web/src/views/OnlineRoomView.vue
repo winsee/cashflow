@@ -6,7 +6,7 @@
  *  它们是「随时可查」而不是「本回合待办」，本就不该和棋盘平级。
  *  既有 `ActionTab` 等只服务线下辅助模式，一行不改。
  */
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { bankRequest } from '../bankrequest'
 import { confirmAction } from '../confirm'
 import { majorStatus } from '../statuses'
@@ -459,8 +459,32 @@ const drawerH = computed(() =>
 /** 抽屉一展开棋盘就收：格面文字与图标退场、名牌隐藏。
  *  **工具带不看它**——那三枚钮在任何档位都钉在原地（design/09 §3.2.1 v0.15）。 */
 const compactBoard = computed(() => detent.value !== 'peek')
-const boardWidth = computed(() =>
-  detent.value === 'full' ? '150px' : detent.value === 'half' ? '230px' : '332px')
+
+/** 棋盘不能只按档位给固定宽度——那是按"典型 HUD 高度"估的数，HUD 一变高（资产条展开、
+ *  状态徽章变多）或设备可视高度更矮，固定值就会比 `.board-stage` 实测可用高度还高，
+ *  超出的一截被 stage 自己的 `overflow:hidden` 咬掉（棋盘底边贴着抽屉那个问题）。
+ *  改成量出 stage 实测高度倒推棋盘能有多宽，固定值只留作"够用时"的上限。 */
+const BOARD_MAX: Record<Detent, number> = { peek: 332, half: 230, full: 150 }
+const BOARD_MIN = 120
+const stageEl = ref<HTMLElement | null>(null)
+const stageAvailH = ref<number | null>(null)
+let stageObserver: ResizeObserver | null = null
+onMounted(() => {
+  if (!stageEl.value) return
+  stageObserver = new ResizeObserver((entries) => {
+    stageAvailH.value = entries[0]?.contentRect.height ?? null
+  })
+  stageObserver.observe(stageEl.value)
+})
+onUnmounted(() => stageObserver?.disconnect())
+
+const boardWidth = computed(() => {
+  const cap = BOARD_MAX[detent.value]
+  // 46 = BoardView 根元素 `.board-wrap` 的 padding-top，给钉在 stage 顶的名牌+圆钮留白，
+  // ResizeObserver 的 contentRect 已经排除了 stage 自身的 padding，这里只用再减这一层
+  const avail = stageAvailH.value != null ? stageAvailH.value - 46 : cap
+  return `${Math.min(cap, Math.max(BOARD_MIN, avail))}px`
+})
 
 /** 抽屉的手势（design/09 §2.2 v0.10）：**整块都接**，不只那根 34×4px 的把手。
  *
@@ -701,6 +725,11 @@ async function decide(decision: string) {
 
 /** 现在还不能结束回合的话，写清在等什么（与服务端 `_d_end_turn` 的两道闸门同口径） */
 const blockedBy = computed(() => {
+  // 动画还没播完（骰子在转/棋子在走/正在发牌/正在洗牌）：不管这一格最终要不要决策，
+  // 先按住——服务端早把整批事件算完了，`landing`/`activeCard` 可能已经 resolved，
+  // 但玩家还没在屏上看到骰子停、棋子到，此刻放行就是让他在看清落点前先把回合结束掉。
+  // 复用 heldTip：按钮上的字与状态条上的字永远是同一句话。
+  if (held.value) return heldTip.value
   const ac = game.state?.activeCard
   if (ac && !ac.resolved && ['EXPENSE_EVENT', 'CASH', 'CREDIT_OPTION', 'INSTALLMENT',
     'STOCK_EVENT'].includes(ac.subtype)) return '先结算这张卡'
@@ -769,7 +798,7 @@ const blockedBy = computed(() => {
     <!-- ===== 棋盘 =====
          演出进行中点棋盘任意处即**终止**当前序列并刷到终态（不是加速）：
          玩到第 20 轮的人不该被自己看过 20 遍的动画拖住 -->
-    <div class="board-stage"
+    <div class="board-stage" ref="stageEl"
          :class="{ 'card-open': (!held && !!game.state.activeCard) || assetsOpen }"
          :style="{ '--bw': boardWidth }"
          @click="assetsOpen ? (assetsOpen = false) : (game.staging && game.skipStage())">
