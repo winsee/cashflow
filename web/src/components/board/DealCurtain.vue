@@ -21,8 +21,20 @@
  *  **飞入要有锚点**（design/09 §5.4 v0.12）：第一帧必须压在玩家上一眼看的那个东西上
  *  （页内那张牌背 / 棋盘上的落点格），否则「放大」就成了一次没有来由的尺寸突变——
  *  试玩说的「牌背突然变一下大小，然后又翻转」正是这个。见 `from`。
- */
-import { computed, onMounted, ref, useSlots } from 'vue'
+ *
+ *  **起播要等一帧「结算」**（design/09 §5.4 v0.16）：v0.12 把几何钉对了，但没管**时机**——
+ *  `ready()` 从 false 变 true 的那一帧，正好是「新卡面第一次真正挂进 DOM（一次实打实的
+ *  布局/绘制）」与「`.flying`/`.flipping` 两个 class 一起挂上、动画开始播」撞在同一帧的时刻。
+ *  牌堆卡这支还伴随一轮偏重的响应式重渲染（`fetchCards` 不带缓存，见 style.css:1319），
+ *  浏览器要在同一帧里既排新内容的版又要起播 transform 动画，读起来是「卡一下」；
+ *  职业卡这支即使内容轻，动画头几帧也会被这次绘制吃掉，读起来是「先跳一下再翻」。
+ *  两支症状同源，不是几何数值错了（`--fs/--fx/--fy` 仍是对的）。
+ *  修法是标准的「双 `requestAnimationFrame`」：内容到齐后先只让它挂载、自然画一帧
+ *  （仍停在飞入前的静止姿态，`--fs` 还很小，v0.12 那条「几何不会跳」原封不动），
+ *  下一帧才把 `animate` 置真、真正起播——两次绘制之间隔着至少一次真实的浏览器绘制，
+ *  动画起播那一帧不用再扛新内容的布局成本。`<slot>` 里内容什么时候换、`ready()` 什么时候
+ *  求值这两条不动，改的只是「什么时候允许动画 class 生效」。 */
+import { computed, onMounted, onUpdated, ref, useSlots } from 'vue'
 import { DECK_COLOR, DECK_LABEL } from '../../decks'
 import type { CardDto } from '../../types'
 import GameCard from '../cards/GameCard.vue'
@@ -56,6 +68,17 @@ const fly = ref<Record<string, string> | null>(null)
 /** 量过了没有。**量完才允许起播**——否则第一帧会用兜底值（屏心、.55）画一下再跳到起点。
  *  代价只有一帧，而那一帧画的正好是拍 1「牌背待命」的正确姿态。 */
 const measured = ref(false)
+/** 动画 class（`.flying`/`.flipping`）是否已经获准生效。与「内容到齐了没有」
+ *  （`ready()`）故意隔了一帧——见文件头「起播要等一帧结算」。 */
+const animate = ref(false)
+let animateScheduled = false
+function scheduleAnimate() {
+  if (animate.value || animateScheduled) return
+  animateScheduled = true
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { animate.value = true })
+  })
+}
 
 /** 在**挂载那一帧**量。量的是自己的**终态**几何——`transform` 不进布局，所以这就是
  *  「飞完之后停在哪儿、多大」；源矩形减它即得起点的偏移与缩放。
@@ -80,11 +103,17 @@ onMounted(() => {
     }
   }
   measured.value = true
+  if (ready()) scheduleAnimate()
 })
+/** 内容多半是稍后才到（牌堆卡等 `fetchCards`、职业卡等 `SELECT_PROFESSION` 往返）——
+ *  这个组件本来就只会因为 `props.card`/插槽内容变化而重渲染，`onUpdated` 恰好是
+ *  「内容刚挂进 DOM」之后的第一个钩子。`ready()` 在渲染期求值这条 v1.0 定下的铁律不变。 */
+onUpdated(() => { if (ready()) scheduleAnimate() })
 const color = computed(() => DECK_COLOR[props.deck] ?? 'var(--line-2)')
 const label = computed(() => DECK_LABEL[props.deck] ?? '牌堆')
-/** 卡面到齐了没有。牌堆发牌（§5.3）挂载时 `card` 就有值，恒为真、逐帧不变；
- *  只有职业卡（§5.4）会经历一个几十毫秒的待命拍。
+/** 卡面到齐了没有。两条路径都可能要经历一段待命拍——牌堆发牌（§5.3）的 `card` 来自
+ *  一次不带缓存的 `fetchCards`（style.css:1319），职业卡（§5.4）等的是服务端往返；
+ *  `ready()` 变 true 之后动画还要再等一帧才起播，见文件头「起播要等一帧结算」。
  *
  *  **必须在渲染时求值，不能写成 `computed`**（v1.0 修）：`useSlots()` 拿到的是组件实例上
  *  那个**普通对象**，父组件重渲染时它被就地改写，没有任何响应式依赖可以追踪。
@@ -100,9 +129,9 @@ const ready = () => !!slots.default || !!props.card
        :style="{ '--deck': color, background: `color-mix(in srgb, ${color} 12%, var(--bg))` }"
        @click="emit('skip')">
     <div ref="cardEl" class="deal-card"
-         :class="{ flying: ready() && measured, 'reveal-fly': props.variant === 'reveal' }"
+         :class="{ flying: animate && measured, 'reveal-fly': props.variant === 'reveal' }"
          :style="fly ?? undefined">
-      <div class="deal-inner" :class="{ flipping: ready() && measured, reveal: props.variant === 'reveal' }">
+      <div class="deal-inner" :class="{ flipping: animate && measured, reveal: props.variant === 'reveal' }">
         <div class="deal-face">
           <slot>
             <GameCard v-if="props.card" :card="props.card" />
