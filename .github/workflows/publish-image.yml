@@ -80,29 +80,40 @@ jobs:
 
       - name: Write job summary
         run: |
+          summary="$(mktemp)"
           {
-            echo "## 本次推送的镜像"
+            echo "## Pushed Images"
             echo ""
+            ghcr_tags=""
+            hub_tags=""
             while IFS= read -r tag; do
               [ -z "$tag" ] && continue
               case "$tag" in
                 ghcr.io/*)
                   link="https://github.com/${{ github.repository_owner }}/cashflow/pkgs/container/cashflow"
+                  ghcr_tags="${ghcr_tags}- [${tag}](${link})"$'\n'
                   ;;
                 docker.io/*)
                   ref="${tag#docker.io/}"
                   name="${ref%%:*}"
                   tagname="${ref##*:}"
                   link="https://hub.docker.com/r/${name}/tags?name=${tagname}"
-                  ;;
-                *)
-                  link=""
+                  hub_tags="${hub_tags}- [${tag}](${link})"$'\n'
                   ;;
               esac
-              if [ -n "$link" ]; then
-                echo "- \`docker pull $tag\` — [查看]($link)"
-              else
-                echo "- \`docker pull $tag\`"
-              fi
             done <<< "${{ steps.meta.outputs.tags }}"
-          } >> "$GITHUB_STEP_SUMMARY"
+            if [ -n "$ghcr_tags" ]; then
+              echo "### GHCR"
+              printf '%s' "$ghcr_tags"
+              echo ""
+            fi
+            if [ -n "$hub_tags" ]; then
+              echo "### Docker Hub"
+              printf '%s' "$hub_tags"
+              echo ""
+            fi
+          } > "$summary"
+          if [ -f "$GITHUB_STEP_SUMMARY" ]; then
+            cat "$GITHUB_STEP_SUMMARY" >> "$summary"
+          fi
+          mv "$summary" "$GITHUB_STEP_SUMMARY"
