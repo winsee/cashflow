@@ -18,9 +18,19 @@
  *  牌背跟着变。职业卡那条路径是「帘幕先落下、请求还在路上」，卡面会在翻转途中换进来——
  *  于是一条扁扁的牌背忽然长成一整张。所以卡没到就停在拍 1「牌背待命」，到了才加 `.flipping`。
  *
- *  **飞入要有锚点**（design/09 §5.4 v0.12）：第一帧必须压在玩家上一眼看的那个东西上
- *  （页内那张牌背 / 棋盘上的落点格），否则「放大」就成了一次没有来由的尺寸突变——
+ *  **飞入要有锚点**（design/09 §5.4 v0.12，`deal` 变体）：第一帧必须压在玩家上一眼看的
+ *  那个东西上（棋盘上的落点格），否则「放大」就成了一次没有来由的尺寸突变——
  *  试玩说的「牌背突然变一下大小，然后又翻转」正是这个。见 `from`。
+ *
+ *  **职业卡揭牌（`reveal` 变体）v0.18 起不再飞入**：v0.12–v0.17 四轮都在修「测量矩形 →
+ *  写入 CSS 变量 → 等两帧 → 起播」这条链路本身的边角，每轮都在开发机 + `ui-smoke` 上验证
+ *  通过，但真机上依然能看到翻转前的一次尺寸突变——页内 `.prof-back`（父容器有 `max-width`
+ *  的 `.page`）与帘幕里 `.deal-card`（父容器铺满视口的 `.curtain`）本来就不是同一个宽度，
+ *  这条链路每多一环运行时测量就多一次在真实设备上出现时序错位的机会，问题始终没有断根。
+ *  索性砍掉飞入这一拍：`reveal` 变体的 `.deal-card` 从第一帧起就是它自己样式表里写死的
+ *  终态尺寸（76%/max 300px、无 translate、scale 恒为 1），不存在依赖矩形测量的中间态，
+ *  代价是职业卡不再「从你点的那个位置飞过来」，直接原地淡入 + 翻转。`from`/矩形测量只留给
+ *  `deal` 变体（牌堆抽卡，从棋盘格子飞出来）。
  *
  *  **起播要等一帧「结算」**（design/09 §5.4 v0.16）：v0.12 把几何钉对了，但没管**时机**——
  *  `ready()` 从 false 变 true 的那一帧，正好是「新卡面第一次真正挂进 DOM（一次实打实的
@@ -46,15 +56,18 @@ const props = defineProps<{
   card?: CardDto | null
   /** 哪一条节拍表。两条路径的拍子本来就不同，**不该共用一段 keyframes**：
    *  - `deal`（默认）= 牌堆发牌，§5.1 拍 6–7：牌背飞向屏心并放大 0.43s + 翻牌 0.52s；
-   *  - `reveal` = 职业卡揭牌，§5.4 拍 1–2：牌背待命（静止，与页内那张同尺寸）+ 整 0.95s 纯翻牌。
+   *  - `reveal` = 职业卡揭牌，§5.4 v0.18：没有飞入这一拍，`.deal-card` 从第一帧起就钉在
+   *    终态尺寸，整 0.95s 全部给纯翻牌。
    *
-   *  职业卡是玩家点了**页内那张牌背**才起的，它已经在屏上了；再演一遍飞入放大，
-   *  屏上就成了「先缩小、再长回来、然后正面突然蹦出来」——0.43s 花在不属于它的拍子上，
-   *  真正的翻转只剩 0.52s。（第四轮试玩「怎么没有翻面的动画」正是这个） */
+   *  职业卡是玩家点了**页内那张牌背**才起的，它已经在屏上了；v0.12–v0.17 试过让它对齐
+   *  那张牌背的矩形飞过来，但这条测量链路在真机上反复出现翻转前的尺寸突变，v0.18 起
+   *  索性不飞了，直接原地翻转。 */
   variant?: 'deal' | 'reveal'
-  /** 飞入拍的**起点**：源元素在视口坐标里的矩形（页内那张 `.prof-back` / 棋盘上的落点格）。
-   *  牌背的第一帧压在它上面，然后飞到屏心并放大——**位移是这一拍的主语，放大只是随行的**。
-   *  不给（或量不到）就退回不带锚点的原地放大，见下面的 `fly`。 */
+  /** 飞入拍的**起点**：源元素在视口坐标里的矩形（棋盘上的落点格）。牌背的第一帧压在它
+   *  上面，然后飞到屏心并放大——**位移是这一拍的主语，放大只是随行的**。
+   *  **只对 `deal` 变体生效**（v0.18 起）：`reveal` 变体不再飞入，这个 prop 对它是死的，
+   *  见文件头「职业卡揭牌 v0.18 起不再飞入」。不给（或量不到）就退回不带锚点的原地放大，
+   *  见下面的 `fly`。 */
   from?: DOMRect | null
 }>()
 const emit = defineEmits<{ (e: 'skip'): void }>()
@@ -82,24 +95,28 @@ function scheduleAnimate() {
 
 /** 在**挂载那一帧**量。量的是自己的**终态**几何——`transform` 不进布局，所以这就是
  *  「飞完之后停在哪儿、多大」；源矩形减它即得起点的偏移与缩放。
+ *  **只对 `deal` 变体做这套测量**——`reveal` 变体没有飞入这一拍，`fly` 全程留 `null`，
+ *  `.deal-card.reveal` 的 CSS 会把 transform 钉成 `none`（见 style.css），不吃这里的
+ *  `var(--fs, .55)` 兜底值。
  *
  *  **宽度只能取 `offsetWidth`，不能取 rect 的宽**：此刻基础 transform 里的 `scale(var(--fs,.55))`
  *  已经生效了，`getBoundingClientRect()` 给的是缩过的框，拿它当分母算出来的 `--fs`
  *  会大出 1/.55 倍。中心点不受影响（`transform-origin` 在正中，缩放不挪中心），照旧取 rect。 */
 onMounted(() => {
-  const el = cardEl.value
-  const self = el?.getBoundingClientRect()
-  const width = el?.offsetWidth ?? 0
-  const src = props.from
-  if (self && src && width >= 1 && src.width >= 1) {
-    // 棋盘一格只有二十几像素，按原大小起飞是个看不清的点；夹住下限让它仍是「一张牌」。
-    // 职业卡那条的源就是一张同款牌背，比例本来就接近 1，不用夹。
-    const raw = src.width / width
-    const scale = props.variant === 'reveal' ? raw : Math.min(Math.max(raw, 0.26), 0.6)
-    fly.value = {
-      '--fx': `${(src.left + src.width / 2) - (self.left + self.width / 2)}px`,
-      '--fy': `${(src.top + src.height / 2) - (self.top + self.height / 2)}px`,
-      '--fs': `${scale}`,
+  if (props.variant !== 'reveal') {
+    const el = cardEl.value
+    const self = el?.getBoundingClientRect()
+    const width = el?.offsetWidth ?? 0
+    const src = props.from
+    if (self && src && width >= 1 && src.width >= 1) {
+      // 棋盘一格只有二十几像素，按原大小起飞是个看不清的点；夹住下限让它仍是「一张牌」。
+      const raw = src.width / width
+      const scale = Math.min(Math.max(raw, 0.26), 0.6)
+      fly.value = {
+        '--fx': `${(src.left + src.width / 2) - (self.left + self.width / 2)}px`,
+        '--fy': `${(src.top + src.height / 2) - (self.top + self.height / 2)}px`,
+        '--fs': `${scale}`,
+      }
     }
   }
   measured.value = true
@@ -129,7 +146,7 @@ const ready = () => !!slots.default || !!props.card
        :style="{ '--deck': color, background: `color-mix(in srgb, ${color} 12%, var(--bg))` }"
        @click="emit('skip')">
     <div ref="cardEl" class="deal-card"
-         :class="{ flying: animate && measured, 'reveal-fly': props.variant === 'reveal' }"
+         :class="{ flying: animate && measured && props.variant !== 'reveal', reveal: props.variant === 'reveal' }"
          :style="fly ?? undefined">
       <div class="deal-inner" :class="{ flipping: animate && measured, reveal: props.variant === 'reveal' }">
         <div class="deal-face">

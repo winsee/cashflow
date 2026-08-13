@@ -603,9 +603,6 @@ async function main() {
   // 牌在翻转途中有没有「长个」（占位卡面换成真卡那一跳，第四轮试玩的主因）
   await qa.evaluate(() => {
     window.__dealH0 = -1
-    // 点下去**之前**量这张牌背：它就是帘幕里那张牌的起飞矩形（20e 拿它对账）
-    const src = document.querySelector('.prof-back').getBoundingClientRect()
-    window.__profRect = { x: src.left + src.width / 2, y: src.top + src.height / 2, w: src.width }
     document.querySelector('.prof-back')?.click()
     requestAnimationFrame(() => {
       window.__dealH0 = document.querySelector('.deal-curtain .deal-inner')?.offsetHeight ?? -1
@@ -641,9 +638,11 @@ async function main() {
       return { err: `牌上没挂动画：class="${el.className}" n=${el.getAnimations().length} `
         + `name=${cs.animationName} dur=${cs.animationDuration} play=${cs.animationPlayState}` }
     }
-    // **必须把延迟算进去**（v0.12）：翻转拍现在接在飞入拍后面（`animation-delay`），
-    // 而 `anim.currentTime` 是从**延迟开始**算的——照旧 seek 到 [0, dur] 会全部落在延迟里，
-    // 每一帧都是 0% 的入场填充（一律 180°），下面「三成时间过去必须已起转」当场误报。
+    // **必须把延迟算进去**（v0.12）：`anim.currentTime` 是从 `animation-delay` 开始算的，
+    // 职业卡揭牌 v0.18 起延迟已经是 0（不再等一段飞入先播完），但牌堆抽卡那条 `deal` 变体
+    // 仍然有延迟——这段逻辑对两条路径都要成立，不能假设延迟恒为 0。
+    // 照旧 seek 到 [0, dur] 的话，有延迟时会全部落在延迟里，每一帧都是 0% 的入场填充
+    // （一律 180°），下面「三成时间过去必须已起转」当场误报。
     const { delay } = anim.effect.getComputedTiming()
     const dur = anim.effect.getTiming().duration
     const keep = anim.currentTime
@@ -655,8 +654,9 @@ async function main() {
     }
     anim.currentTime = keep
     anim.play()
-    // 顺手把「翻完之后」的牌高也带回去（20b' 用）。整段揭牌只有 ack + 2.2s，
-    // 而这会儿翻牌（0.95s）已经播完、帘幕铁定还在——比之后再 sleep 一次去量稳得多
+    // 顺手把「翻完之后」的牌高也带回去（20b' 用）。整段揭牌只有 ack + 1.9s
+    // （v0.18 起不再有飞入那一拍，比之前短了 0.3s），而这会儿翻牌（0.95s）已经播完、
+    // 帘幕铁定还在——比之后再 sleep 一次去量稳得多
     return { dur, xs, h1: el.offsetHeight }
   })
   if (spin?.err) failures.push(`20d-翻转: ${spin.err}`)
@@ -689,58 +689,44 @@ async function main() {
     }
   }
 
-  // 20e 「牌背是**飞过来**的，不是原地变大」——第五轮试玩「点一下背面，背面突然变一下大小，
-  // 然后又翻转」。现有断言一条都钉不住它：20b' 量的是 `offsetHeight`（`transform` 不进布局），
-  // 20d 特意把缩放从 `cos θ` 里约掉了——两条对位移与缩放都免疫。
-  //
-  // 根因是**交接**：页内那张 `.prof-back` 是 `76% × (页宽 − 24px)`（390px 手机上 ≈278px、
-  // 在页面流里），帘幕里那张 `.deal-card` 是 `76% × 视口宽`（≈296px、钉在屏心），
-  // 两张同款牌背在 180ms 淡入里交叉，一大一小、位置还不同。
-  // 所以这里量的是**飞入拍的第一帧**：它必须压在玩家刚点的那张牌背上。
-  const fly = await qa.evaluate(() => {
+  // 20e（v0.18 起）职业卡揭牌不再飞入——v0.12–v0.17 四轮都在修「对齐页内那张牌背飞过来」
+  // 这条测量链路本身，每轮都在这里（旧版 20e）验证通过，却在真机上反复复现翻转前的一次
+  // 尺寸突变；索性砍掉飞入，`.deal-card` 从第一帧起就该是它自己样式表写死的终态尺寸
+  // （`transform: none`），不存在任何依赖运行时矩形测量的中间态。
+  // 断言换成正面：帘幕刚挂载的这一刻就该没有 `.flying` 动画、没有 transform，
+  // 且矩形宽度已经等于它自己不带缩放的终态宽度（`offsetWidth`）——但凡有人把飞入逻辑
+  // 加回 `reveal` 分支，这条会立刻报「还挂着动画」或「transform 不是 none」。
+  const steady = await qa.evaluate(() => {
     const el = document.querySelector('.deal-curtain .deal-card')
     if (!el) return { err: '帘幕里没有 .deal-card' }
-    const anim = el.getAnimations()[0]
-    if (!anim?.effect) {
-      const cs = getComputedStyle(el)
-      return { err: `牌上没挂飞入动画：class="${el.className}" name=${cs.animationName}` }
+    const anims = el.getAnimations()
+    const r = el.getBoundingClientRect()
+    return {
+      transform: getComputedStyle(el).transform,
+      animCount: anims.length,
+      rectW: r.width,
+      offsetW: el.offsetWidth,
     }
-    const keep = anim.currentTime
-    anim.pause()
-    const box = t => {
-      anim.currentTime = t
-      const r = el.getBoundingClientRect()
-      return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width }
-    }
-    const first = box(0)
-    const last = box(anim.effect.getComputedTiming().activeDuration)
-    anim.currentTime = keep
-    anim.play()
-    return { first, last, src: window.__profRect }
   })
-  if (fly?.err) failures.push(`20e-飞入: ${fly.err}`)
-  else if (!fly) failures.push('20e-飞入: 采不到样')
+  if (steady?.err) failures.push(`20e-不再飞入: ${steady.err}`)
+  else if (!steady) failures.push('20e-不再飞入: 采不到样')
   else {
-    const d = Math.hypot(fly.first.x - fly.src.x, fly.first.y - fly.src.y)
-    const dw = Math.abs(fly.first.w - fly.src.w)
-    // 修之前：第一帧钉在屏心、宽度是终态的 .55 —— 中心差几十上百 px、宽度差一百多 px
-    if (d > 6) {
-      failures.push(`20e-飞入: 第一帧没压在被点的那张牌背上（中心差 ${d.toFixed(1)}px；`
-        + `源 ${fly.src.x.toFixed(1)},${fly.src.y.toFixed(1)} w=${fly.src.w.toFixed(1)} → `
-        + `首帧 ${fly.first.x.toFixed(1)},${fly.first.y.toFixed(1)} w=${fly.first.w.toFixed(1)}），`
-        + '牌背是凭空变大的，不是飞过来的')
-    } else if (dw > 6) {
-      failures.push(`20e-飞入: 第一帧的宽度与被点的那张对不上（${fly.src.w.toFixed(1)} → `
-        + `${fly.first.w.toFixed(1)}px），交接时会突然变一下大小`)
-    } else if (!(fly.last.w > fly.first.w)) {
-      failures.push(`20e-飞入: 飞完没有比起飞时大（${fly.first.w.toFixed(1)} → ${fly.last.w.toFixed(1)}px）`)
+    if (steady.transform !== 'none') {
+      failures.push(`20e-不再飞入: .deal-card 的 transform 不是 none（${steady.transform}），`
+        + '还在套用飞入/缩放，第一帧就会跟终态尺寸对不上')
+    } else if (steady.animCount > 0) {
+      failures.push(`20e-不再飞入: .deal-card 身上还挂着 ${steady.animCount} 个动画，`
+        + '不该再有飞入这一拍')
+    } else if (Math.abs(steady.rectW - steady.offsetW) > 0.5) {
+      failures.push(`20e-不再飞入: 矩形宽度 ${steady.rectW.toFixed(1)}px 与终态宽度 `
+        + `${steady.offsetW}px 对不上，说明还有缩放在生效`)
     }
   }
 
   // 20b 揭牌期间**页内不许摆着那张正面**：`.curtain` 是淡入的，
   // 帘幕变实之前它会从底下透出来，看着就是「点了先闪一下正面」（第三轮试玩①）
   // 不再另 sleep：上面 20c 的截图 + 20d 的采样已经花掉一秒有余，翻牌早播完了，
-  // 而帘幕只活 ack + 2.2s——多睡一次就会踩着它落幕（实测会截空）
+  // 而帘幕只活 ack + 1.9s——多睡一次就会踩着它落幕（实测会截空）
   const leak = await qa.evaluate(() =>
     document.querySelectorAll('.pcard').length
     - document.querySelectorAll('.deal-curtain .pcard').length)
@@ -757,7 +743,7 @@ async function main() {
   // 只留 4px 给亚像素舍入。
   if (h0 <= 0) failures.push(`20b-揭牌: 首帧没量到牌的高度（${h0}），帘幕挂载慢了？`)
   else if (Math.abs(h1 - h0) > 4) failures.push(`20b-揭牌: 牌在翻转途中长个了 ${h0}px → ${h1}px`)
-  await sleep(2000)          // 揭牌帘幕：翻牌 0.95s + 定格到 2.2s，等它自己收
+  await sleep(2000)          // 揭牌帘幕：翻牌 0.95s + 定格到 1.9s，等它自己收
   // 20a 翻开后是整张职业卡，且页面上不留任何看着能换一张的控件
   await shot(qa, '20a-纯线上准备页-职业卡翻开', '.pcard')
   await expectText(qa, '20a-纯线上准备页-职业卡翻开', {
