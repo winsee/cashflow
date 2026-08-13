@@ -139,6 +139,8 @@ export const useGame = defineStore('game', {
     lastSettlement: null as SettlementStub | null,
     /** 棋盘数据（两条轨道），纯线上模式进房时拉一次 */
     board: null as BoardDto | null,
+    /** 全部卡面（含职业卡），静态数据，整局只拉一次；纯线上模式进房时预取 */
+    cardsCatalog: null as CardDto[] | null,
     // ---- 演出层（stage.ts）：只影响「界面此刻显示到哪一帧」，与账目无关 ----
     stageQueue: [] as StageStep[],
     stageNow: null as StageStep | null,
@@ -582,12 +584,23 @@ export const useGame = defineStore('game', {
         }, 5000)
       })
     },
+    /** 全部卡面（含职业卡）是静态数据，整局只用真正打一次网络请求；
+     *  `q`（CardPicker 的搜索框）走服务端 `ocr_keywords` 匹配，客户端没有这份字段，
+     *  搜索请求不缓存、照旧打网络。发牌动画的起播被这份数据卡住过（`DealCurtain.vue`
+     *  的 `ready()` 门槛），此前每次抽卡都要等一轮网络往返才起播，开发机上感觉不出来，
+     *  真机上就是「卡一下再突然跳进动画」——缓存后动画不再等网络。 */
     async fetchCards(deck?: string, q = ''): Promise<CardDto[]> {
-      const params = new URLSearchParams()
-      if (deck) params.set('deck', deck)
-      if (q) params.set('q', q)
-      const r = await fetch(`/api/cards?${params}`)
-      return r.json()
+      if (q) {
+        const params = new URLSearchParams({ q })
+        if (deck) params.set('deck', deck)
+        const r = await fetch(`/api/cards?${params}`)
+        return r.json()
+      }
+      if (!this.cardsCatalog) {
+        const r = await fetch('/api/cards')
+        this.cardsCatalog = await r.json()
+      }
+      return deck ? this.cardsCatalog!.filter(c => c.deck === deck) : this.cardsCatalog!
     },
     async fetchLog(): Promise<LogEntry[]> {
       if (!this.session) return []
