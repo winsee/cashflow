@@ -43,7 +43,7 @@ const finished = computed(() => game.state?.status === 'FINISHED')
 const me = computed(() => game.me)
 const ft = computed(() => me.value?.phase === 'FAST_TRACK')
 
-onMounted(() => { game.fetchBoard() })
+onMounted(() => { game.fetchBoard(); game.fetchCards() })
 
 // ---------- HUD ----------
 
