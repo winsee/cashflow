@@ -44,6 +44,20 @@ export type StageStep =
   }
   /** 拍 5：落点脉冲 */
   | { kind: 'landing'; ms: number; track: Track; index: number }
+  /** 拍 4.5：必付无选项的格子（失业/孩子/税务审计/离婚/官司）当事人一屏全屏帘幕。
+   *
+   *  和 `settle` 同一条道理：金额/旧现金**在排队时就从事件与结算前快照里焊死**，
+   *  播放时不读实时 store——UNEMPLOYMENT_HIT/FT_CASH_HIT 都是「批内唯一一次改这个人
+   *  现金」的事件，`before()` 给出的 `cashBefore` 和 `settle` 复用同一个闭包。
+   *  `CHILD` 没有现金变动，`amount`/`cashBefore` 恒为 0，`childCount`/`childExpense`
+   *  才是这一支要显示的数——这两个数除了 CHILD_ADDED 不会再被别的事件改，
+   *  排队时读实时 store 和 `PaydayCurtain` 的 `toWin` 是同一个安全前提。 */
+  | {
+    kind: 'penalty'; ms: number; playerId: string
+    hitKind: 'UNEMPLOYMENT' | 'CHILD' | 'TAX_AUDIT' | 'DIVORCE' | 'LAWSUIT'
+    amount: number; cashBefore: number
+    childCount: number; childExpense: number
+  }
   /** 边界态：牌堆洗回，中央飘一行，不弹层 */
   | { kind: 'reshuffle'; ms: number; deck: string }
   /** 拍 6–9：全屏发牌翻牌（帘幕组件负责四小段的 CSS 时序） */
@@ -70,6 +84,8 @@ export const BEAT = {
   // 比发牌（2050）短——发牌之后要读一张卡，发薪只有一个数。
   settle: 1700,
   landing: 620,
+  // 与 settle 同一量级：同属「低频重击」一档，一局撞不上几次，可以慢慢看
+  penalty: 1700,
   reshuffle: 1600,
   // 帘幕是**仪式**不是阅读界面：卡面随后就落进抽屉，可以慢慢看。
   // 2.9s 试玩反馈「停太久」，收回到 2.05s（翻牌 0.95 + 定格 1.1）
@@ -151,6 +167,32 @@ export function buildStage(events: StageEvent[], prev: RoomStateDto | null): Sta
           landedAt[p.player_id] = { track, index: path[path.length - 1] }
           out.push({ kind: 'landing', ms: BEAT.landing, track, index: path[path.length - 1] })
         }
+        break
+      }
+      case 'UNEMPLOYMENT_HIT':
+        out.push({
+          kind: 'penalty', ms: BEAT.penalty, playerId: p.player_id, hitKind: 'UNEMPLOYMENT',
+          amount: p.amount ?? 0, ...before(p.player_id, -(p.amount ?? 0)),
+          childCount: 0, childExpense: 0,
+        })
+        break
+      case 'FT_CASH_HIT':
+        out.push({
+          kind: 'penalty', ms: BEAT.penalty, playerId: p.player_id, hitKind: p.kind,
+          amount: p.amount ?? 0, ...before(p.player_id, -(p.amount ?? 0)),
+          childCount: 0, childExpense: 0,
+        })
+        break
+      case 'CHILD_ADDED': {
+        // 没有现金变动：孩子数与每月支出都从 prev 快照推——per_child_expense 是职业卡
+        // 固定值，不受这次事件影响，childCount 恒定 +1（引擎满 3 个孩子会走 CHILD_NOOP，不到这儿）
+        const pl = prev?.players.find(x => x.id === p.player_id)
+        const childCount = (pl?.childCount ?? 0) + 1
+        out.push({
+          kind: 'penalty', ms: BEAT.penalty, playerId: p.player_id, hitKind: 'CHILD',
+          amount: 0, cashBefore: 0,
+          childCount, childExpense: childCount * (pl?.perChildExpense ?? 0),
+        })
         break
       }
       case 'DECK_RESHUFFLED':

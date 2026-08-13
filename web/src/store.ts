@@ -24,6 +24,18 @@ export interface SettlementStub {
   cashflow: number
 }
 
+/** 惩罚帘幕存根：失业/孩子/税务审计/离婚/官司这 5 种帘幕散场后留在抽屉里的摘要卡数据。
+ *  和 `SettlementStub` 同一手法，`key` 同样是「轮次@行动者」——一局里这 5 种一个回合
+ *  只会撞上一次（不像结算日可能连过两格），不需要 `times`/累加。 */
+export interface PenaltyStub {
+  key: string
+  playerId: string
+  hitKind: 'UNEMPLOYMENT' | 'CHILD' | 'TAX_AUDIT' | 'DIVORCE' | 'LAWSUIT'
+  amount: number
+  childCount: number
+  childExpense: number
+}
+
 /** toast 的四种口吻：成功 / 出错 / 仪式（金色高光）/ 中性信息 */
 export type FlashVariant = 'ok' | 'err' | 'gold' | 'info'
 
@@ -137,6 +149,7 @@ export const useGame = defineStore('game', {
      *  而「经过」根本不产生 landing，落点结果卡只认「停在」——于是没看清就没地方回看。
      *  照发牌那条老规矩办：帘幕是仪式，卡片随后落进抽屉可以慢慢看。 */
     lastSettlement: null as SettlementStub | null,
+    lastPenalty: null as PenaltyStub | null,
     /** 棋盘数据（两条轨道），纯线上模式进房时拉一次 */
     board: null as BoardDto | null,
     /** 全部卡面（含职业卡），静态数据，整局只拉一次；纯线上模式进房时预取 */
@@ -221,6 +234,11 @@ export const useGame = defineStore('game', {
      *  重连首帧是 `type:'snapshot'`、不带 lastEvents，所以不会补出一张陈年摘要卡。 */
     settlementStub(): SettlementStub | null {
       const s = this.lastSettlement
+      if (!s || !this.state) return null
+      return s.key === `${this.state.turnCount}@${this.state.currentPlayerId ?? ''}` ? s : null
+    },
+    penaltyStub(): PenaltyStub | null {
+      const s = this.lastPenalty
       if (!s || !this.state) return null
       return s.key === `${this.state.turnCount}@${this.state.currentPlayerId ?? ''}` ? s : null
     },
@@ -413,6 +431,7 @@ export const useGame = defineStore('game', {
       const impact = buildCardImpact(events, this.state)
       if (impact) this.lastImpact = impact
       this.catchStub(events, meId)
+      this.catchHit(events, meId)
       this.catchCheer(events, meId)
     },
     /** 攒出本回合的结算日存根。同一次移动可能连过两个结算格（服务端会产出两条事件），
@@ -442,6 +461,33 @@ export const useGame = defineStore('game', {
           amount: (prev?.amount ?? 0) + add.amount,
           times: (prev?.times ?? 0) + add.times,
         }
+      }
+    },
+    /** 攒出惩罚帘幕的存根（失业/孩子/税务审计/离婚/官司）。必须在换上新快照之前调用——
+     *  CHILD_ADDED 没有 amount，孩子数/月支出得趁 `this.state` 还是「结算前」那份时
+     *  从 childCount+1 推出来，和 stage.ts 里 buildStage 对 CHILD_ADDED 的处理同一手法。 */
+    catchHit(events: { type: string; payload: Record<string, any> }[], meId: string) {
+      if (!this.isOnline) return
+      for (const ev of events) {
+        const p = ev.payload ?? {}
+        if (p.player_id !== meId) continue
+        let hitKind: PenaltyStub['hitKind'] | null = null
+        let amount = 0
+        let childCount = 0
+        let childExpense = 0
+        if (ev.type === 'UNEMPLOYMENT_HIT') {
+          hitKind = 'UNEMPLOYMENT'; amount = p.amount ?? 0
+        } else if (ev.type === 'FT_CASH_HIT') {
+          hitKind = p.kind; amount = p.amount ?? 0
+        } else if (ev.type === 'CHILD_ADDED') {
+          hitKind = 'CHILD'
+          const pl = this.state!.players.find(x => x.id === meId)
+          childCount = (pl?.childCount ?? 0) + 1
+          childExpense = childCount * (pl?.perChildExpense ?? 0)
+        }
+        if (!hitKind) continue
+        const key = `${this.state!.turnCount}@${this.state!.currentPlayerId ?? ''}`
+        this.lastPenalty = { key, playerId: meId, hitKind, amount, childCount, childExpense }
       }
     },
     /** 别人逃出老鼠赛跑：推一屏全屏祝贺。

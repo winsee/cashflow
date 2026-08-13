@@ -911,6 +911,37 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 }
 .pay-sub { font-size: var(--fs-sm); color: #7A5E15; margin: 0; }
 
+/* ---------- 惩罚帘幕：失业/孩子/税务审计/离婚/官司（design/09 §5.5 延伸） ----------
+   与发薪帘幕同一套交互语言——点任意处跳过、不给按钮：这 5 种虽然一局撞不上几次
+   （不需要「自动消散」那条防骚扰理由），但没必要在这套演出体系里另起一种手势。 */
+.curtain.penalty { animation-duration: 220ms; }
+.curtain.penalty .curtain-inner { justify-content: center; gap: var(--sp-2); }
+.curtain.penalty .cline.cash { margin-top: 6px; background: rgba(255, 255, 255, .45); }
+
+/* 冷色：失业（老鼠赛跑）—— 与 .curtain.payday.neg 同一套语言，钱在变少 */
+.curtain.penalty.cold {
+  background: radial-gradient(120% 80% at 50% 0%, #FFF9F7, #F7E9E6 55%, #EDD8D4);
+}
+.curtain.penalty.cold h2 { color: #6B2B22; }
+.curtain.penalty.cold .cline.hero { background: linear-gradient(180deg, #7A3128, #56201A); }
+.curtain.penalty.cold .fineprint { color: #8A473C; }
+
+/* 金箔转冷：税务审计/官司/离婚（快车道）—— 底色仍是这条赛道的金箔身份（保住
+   「这是快车道」），hero 换成和失业同一条冷色主干，让「这是坏消息」的语言在
+   两条赛道上保持一致，只是底色因赛道而不同 */
+.curtain.penalty.ftxcold {
+  background: radial-gradient(120% 80% at 50% 0%, #F7ECD3, #EDDBA9 55%, #DEC583);
+}
+.curtain.penalty.ftxcold h2 { color: #6B2B22; }
+.curtain.penalty.ftxcold .cline.hero { background: linear-gradient(180deg, #7A3128, #56201A); }
+.curtain.penalty.ftxcold .fineprint { color: #8A5A2E; }
+
+/* 暖色：生孩子（老鼠赛跑）—— 不是「重击」，是家庭事件，沿用默认暖色语气，不引入新色相 */
+.curtain.penalty.warm {
+  background: radial-gradient(120% 80% at 50% 0%, #FFFBF3, #F6F0E4 55%, #EDE4C6);
+}
+.curtain.penalty.warm .fineprint { color: #8A6F28; }
+
 /* ---------- 战报页 ---------- */
 .result-hero {
   text-align: center; padding: 22px var(--sp-4); border-radius: var(--r-lg);

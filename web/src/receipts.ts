@@ -109,20 +109,11 @@ const SELF_ACTION: Record<string, string[]> = {
   HOST_ADJUSTED: ['HOST_ADJUST'],
   TRANSFER_COMPLETED: ['TRANSFER_CONFIRM'],
   HOST_REVERTED: ['HOST_REVERT'],
-  // 下面三件事在线下模式是玩家自己点的（「添一个孩子」「失业」「税务审计/离婚/官司」），
-  // 纯线上则由 ROLL_DICE 自动产出。同一份 buildReceipts 两种模式共用，
-  // 靠这条窗口把线下那份排掉——线下一条回执都不会多出来。
-  CHILD_ADDED: ['ADD_CHILD'],
-  UNEMPLOYMENT_HIT: ['UNEMPLOYMENT'],
-  FT_CASH_HIT: ['FT_TAX_AUDIT', 'FT_DIVORCE', 'FT_LAWSUIT'],
-}
-
-/** 快车道三个惩罚格：纯线上落地即自动执行，扣得又狠（离婚扣光现金），必须有回执。
- *  文案与线下 `FasttrackPanel` 那三个按钮同一套说法。 */
-const FT_HIT: Record<string, { icon: string; title: string; why: string }> = {
-  TAX_AUDIT: { icon: '🧾', title: '税务审计', why: '停在税务审计格：现金减半上缴' },
-  LAWSUIT: { icon: '⚖️', title: '官司', why: '停在官司格：现金减半赔付' },
-  DIVORCE: { icon: '💔', title: '离婚', why: '停在离婚格：失去全部现金' },
+  // CHILD_ADDED / UNEMPLOYMENT_HIT / FT_CASH_HIT 曾经在这儿登记过（线下是玩家自己点的，
+  // 纯线上由 ROLL_DICE 自动产出，靠这条窗口把线下自己点的那份排掉）——现在这三种
+  // 事件的「当事人」分支已经整个交给全屏惩罚帘幕（`PenaltyCurtain`），回执不再对
+  // 当事人报数，这条窗口对它们来说没有东西可排了，故删除。UNEMPLOYMENT_HIT 剩下的
+  // 「别人失业了」分支本就靠 `player_id !== meId` 自己排掉当事人，不需要这张表兜底。
 }
 
 /** 刚发出的行动在这个窗口内不再算「被动」；服务端往返一般远快于此 */
@@ -288,49 +279,20 @@ export function buildReceipts(
       }
 
       // ⑦⑧⑨ 走格时自动发生、**没有经过任何人点头**的三件事（纯线上，design/09 §4.3）。
-      //    在线下模式它们是玩家自己点的，靠上面的 SELF_ACTION 窗口排掉，一条都不会多出来。
-      //
-      //    **只收低频的重击**：孩子（一局最多 3 次、永久多一笔支出）、失业（付一次总支出 + 停赛 2 轮）、
-      //    快车道三个惩罚格（离婚直接扣光现金）。银行结算日/现金流量日**不进这里**——
-      //    它们每回合都可能发生，而回执要点「我知道了」才消失，每回合逼人点一次是骚扰。
-      //    那两件事由落点结果卡当场交代（`OnlineLandingPanel`，回合一换自然消失），
-      //    走格动画里还有一拍过站橙光飘金额。
-      case 'CHILD_ADDED': {
-        if (p.player_id !== meId) break
-        out.push(make({
-          tone: 'neg', icon: '👶',
-          title: '家里添了一个孩子',
-          why: '停在孩子格，此后每月多一份孩子支出',
-          amount: signed(-me.perChildExpense, true),
-        }))
-        break
-      }
-
+      //    孩子（一局最多 3 次、永久多一笔支出）、失业（付一次总支出 + 停赛 2 轮）、
+      //    快车道三个惩罚格（离婚直接扣光现金）——这四种事的**当事人**分支已经整个
+      //    交给全屏惩罚帘幕（`PenaltyCurtain`，同结算日不进回执的老规矩：仪式已经把
+      //    「确认看到」这件事做过了，回执不再把同一件事说第二遍）。
+      //    银行结算日/现金流量日同理不进这里——那两件事由落点结果卡当场交代
+      //    （`OnlineLandingPanel`，回合一换自然消失），走格动画里还有一拍过站橙光飘金额。
       case 'UNEMPLOYMENT_HIT': {
-        if (p.player_id !== meId) {
-          // 别人失业：不动我的账，但接下来两轮牌桌上少一个人，这是要看见的
-          out.push(make({
-            tone: 'neg', icon: '💼',
-            title: `${nickOf(p.player_id)} 失业了`,
-            why: '支付一次总支出，接下来停赛 2 轮',
-          }))
-          break
-        }
+        // 别人失业：不动我的账，但接下来两轮牌桌上少一个人，这是要看见的——
+        // 唯一还留在回执里的分支，因为帘幕只给当事人，旁观者没有别的地方能看见
+        if (p.player_id === meId) break
         out.push(make({
           tone: 'neg', icon: '💼',
-          title: '失业',
-          why: '停在失业格，支付一次总支出并停赛 2 轮',
-          amount: signed(-(p.amount ?? 0)),
-        }))
-        break
-      }
-
-      case 'FT_CASH_HIT': {
-        if (p.player_id !== meId) break
-        const hit = FT_HIT[p.kind] ?? { icon: '💸', title: '快车道意外', why: '' }
-        out.push(make({
-          tone: 'neg', icon: hit.icon, title: hit.title, why: hit.why,
-          amount: signed(-(p.amount ?? 0)),
+          title: `${nickOf(p.player_id)} 失业了`,
+          why: '支付一次总支出，接下来停赛 2 轮',
         }))
         break
       }
