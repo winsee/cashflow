@@ -27,7 +27,14 @@ const STATUS_LABEL: Record<string, string> = {
 // ---------- 大厅列表 ----------
 async function refresh() {
   loading.value = true
-  try { rooms.value = await game.fetchRooms() }
+  try {
+    rooms.value = await game.fetchRooms()
+    // 服务器重启会清空内存房间，但 localStorage 里的会话还在——
+    // 一旦拿到新鲜的房间列表却找不到自己那间，说明是个死会话，自动清掉。
+    if (game.session && !rooms.value.some(r => r.code === game.session!.roomCode)) {
+      game.clearSession()
+    }
+  }
   catch { /* 服务器未就绪时静默，下轮轮询再试 */ }
   finally { loading.value = false }
 }
@@ -43,14 +50,14 @@ const joinCode = ref('')
 const codePassword = ref('')
 const codeError = ref('')
 /** 建房时选定的对局模式（design/09 §1.2 分流点 1）；房间建好后谁都改不了 */
-const createMode = ref<GameMode>('OFFLINE_ASSIST')
+const createMode = ref<GameMode>('ONLINE')
 /** 建房分两步：① 只问「怎么玩」 ② 才是房间名/密码/人数。
  *  模式是这局唯一改不了的决定（MODE_LOCKED），不该和三个随时能改的表单项挤在一屏里。 */
 const createStep = ref<1 | 2>(1)
 
 function openCreate() {
   roomName.value = '现金流对局'; roomPassword.value = ''; maxPlayers.value = 6
-  createMode.value = 'OFFLINE_ASSIST'
+  createMode.value = 'ONLINE'
   createStep.value = 1
   sheet.value = 'create'
 }
