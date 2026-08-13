@@ -1101,7 +1101,8 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .pawn-txt { font-size: 9px; font-weight: 800; fill: var(--text); }
 .pawn-extra { font-size: 8px; font-weight: 800; fill: var(--muted); }
 
-/* 轮心：只放骰盘 + 一行状态提示。文字不用 nowrap 硬撑，宁可换行 */
+/* 轮心：只放骰盘，不放文字（design/09 v0.19）——状态提示与选粒数都已挪去抽屉，
+   不跟着 --bw 缩放的文字/按钮留在这个会变半径的圆里迟早会被挤变形。 */
 .wheel-hub {
   position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
 }
@@ -1110,11 +1111,6 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 8px; padding: 8px; text-align: center; pointer-events: auto;
   text-wrap: balance;
-}
-/* 字号跟着棋盘等比缩（骰子是图形可以纯按比例缩，这里是要读的文字，设一个 10px 可读性下限）。 */
-.hub-tip {
-  font-size: clamp(10px, calc(12px * (var(--bw) / 332px)), 12px);
-  color: var(--muted); line-height: 1.35;
 }
 
 /* 骰盘 1–3 粒：粒数越多每粒越小；三个尺寸是棋盘满宽 332px（peek 档）时的参考值，
@@ -1207,9 +1203,11 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   60% { transform: translateY(calc(var(--d) * .05)); }
   100% { transform: translateY(0); }
 }
-.dice-pick { display: flex; gap: 5px; justify-content: center; }
+/* 抽屉里的粒数选择器（design/09 v0.19，从轮心搬来）：不再挤在一个会变半径的圆里，
+   不需要任何缩放算式；铺满整行、贴着正下方掷骰按钮的宽度走，均分而不是挤成一小簇。 */
+.dice-pick { display: flex; gap: var(--sp-2); }
 .dice-pick button {
-  min-width: 34px; padding: 3px 8px; border-radius: 999px; font-size: 12px;
+  flex: 1; min-height: 36px; padding: 8px 10px; border-radius: 999px; font-size: 13px;
   border: 1px solid var(--line-2); background: var(--panel); font-weight: 700;
 }
 .dice-pick button.on { background: var(--brand-soft); border-color: transparent; color: var(--brand); }
@@ -1265,9 +1263,15 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 /* 决策按钮钉底：一张牌堆卡加上前后对比就超过 half 档的高度，内容必须能滚，
    但「买入 / 放弃」不能跟着滚走。按钮条上方压一道渐变，内容从它下面划过去。 */
 /* 两行：上行是这一格/这张卡的决策，下行永远留给「结束回合」。
-   不横排三个按钮——375 屏宽下每个只剩 ~110px，「买入 $2,000」这种带金额的文案放不下。 */
+   不横排三个按钮——375 屏宽下每个只剩 ~110px，「买入 $2,000」这种带金额的文案放不下。
+   `position:relative`（不是 `sticky`）——它已经是 `.board-drawer` flex 列里排最后的
+   兄弟节点，天然贴底，不需要 sticky；`sticky` 的包含块会一路逃逸到 `.board-page`
+   （`.board-drawer` 自己没设 `overflow`），抽屉一矮这块就会整块贴死在屏幕真实底边、
+   盖住状态条——这正是 `OnlineRoomView.vue` 里 `FLOOR_H` 曾经被迫钉在 180px 的病灶，
+   删掉 sticky 后抽屉才能真正随内容压紧（design/09 v0.19）。留 `relative` 只是因为
+   下面 `::before` 那道渐变遮罩需要一个 positioned 祖先。 */
 .drawer-cta {
-  position: sticky; bottom: 0; flex: none;
+  position: relative; flex: none;
   padding: var(--sp-2) var(--sp-3) calc(var(--sp-2) + env(safe-area-inset-bottom));
   background: var(--panel);
   display: flex; flex-direction: column; gap: var(--sp-2);
