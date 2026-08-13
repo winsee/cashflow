@@ -843,6 +843,15 @@ async function main() {
     failures.push(`22-纯线上-棋盘待掷骰: 悬浮圆钮 ${floats.n} 枚、完整可见 ${floats.whole} 枚`)
   if (!floats.text.includes('🏦'))
     failures.push('22-纯线上-棋盘待掷骰: 没有资金入口（🏦）')
+  // 棋盘底边不许探出 stage：stage 有 overflow:hidden，超出的一截会被裁掉（曾在 HUD 偏高
+  // 的设备上把棋盘最下面一圈格子吃掉）。boardWidth 现在按实测 stage 高度自适应收缩，
+  // 这条断言钉的就是这件事：不管 stage 量出来多高，.wheel 的底边永远落在它里面
+  const wheelClipped = await pMe.evaluate(() => {
+    const stage = document.querySelector('.board-stage').getBoundingClientRect()
+    const wheel = document.querySelector('.wheel').getBoundingClientRect()
+    return wheel.bottom > stage.bottom + 1
+  })
+  if (wheelClipped) failures.push('22-纯线上-棋盘待掷骰: 棋盘底边超出了 stage，被裁切')
   // ── v0.15 两条轨道同在一张板上（design/09 §3） ──
   // 这一条钉的就是根因：从前 BoardView 靠 `track` prop 只画一条环，
   // 退回那个版本必然有一条是 0 格。
@@ -1036,6 +1045,16 @@ async function main() {
       await shot(pMe, '24-纯线上-掷骰与走格', '.wheel .die3d')
       // 演出期间抽屉正文按住：不写「第 N 步 / 3」（那一步还没走到），也不摆卡面
       await expectText(pMe, '24-纯线上-掷骰与走格', { hasNot: ['第 3 步 / 3'] })
+      // 演出没播完，「结束回合」不许先变绿——不管这一格最终要不要决策，服务端早把
+      // 落点算完了，落点本身不需要决策的格子曾经会在动画播放中途就冒出可点的按钮
+      // （骰子还在转 · 结束回合已可点，两句话自相矛盾）
+      const endTurnDisabled = await pMe.evaluate(() => {
+        const rows = [...document.querySelectorAll('.drawer-cta .cta-row')]
+        const last = rows[rows.length - 1]?.querySelector('button')
+        return last ? last.disabled : null
+      })
+      if (endTurnDisabled === false)
+        failures.push('24-纯线上-掷骰与走格: 动画还在播，「结束回合」却已经可点')
     }
     // 一整条演出序列（design/09 §5.1 v0.5）：翻滚 1.3 + 读数 0.65 + 最多 6 格 ×0.24
     // + 可能的过站结算 1.7 + 落点 0.62 ≈ 5.8s 封顶。

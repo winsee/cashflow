@@ -203,6 +203,40 @@ def test_stock_merge_keeps_total_cost(duo):
     assert held.shares * held.cost_per_share == cost_before   # 总成本不变
 
 
+def test_stock_split_rounds_not_truncates_indivisible_cost(duo):
+    """sd-048 拆股 1:2：总成本除不尽股数时四舍五入，而不是地板除截断成本。
+
+    1 股 @ $5（总成本 5）拆成 2 股：真实值 2.5，四舍五入到 3；
+    地板除会错误截断成 2（对应用户反馈的 bug：$5 买入拆股后显示 $2/股）。
+    """
+    duo.player("A").cash += 10000
+    duo.act("A", "DRAW_CARD", cardId="sd-016")        # MYT4U $5
+    duo.act("A", "STOCK_BUY", qty=1)
+    _cycle(duo)
+
+    duo.act("A", "DRAW_CARD", cardId="sd-048")        # MYT4U 拆股 1:2
+    duo.act("A", "CARD_DECISION", decision="apply")
+    held = duo.player("A").stocks[0]
+    assert held.shares == 2
+    assert held.cost_per_share == 3                   # (5+1)//2 四舍五入，不是地板除的 2
+    assert abs(held.shares * held.cost_per_share - 5) <= 1   # 总成本偏差 ≤ $1
+
+
+def test_stock_merge_rounds_not_truncates_indivisible_cost(duo):
+    """sd-009 并股 2:1：总成本除不尽股数时四舍五入，而不是地板除截断成本。"""
+    duo.player("A").cash += 10000
+    duo.act("A", "DRAW_CARD", cardId="sd-016")        # MYT4U $5
+    duo.act("A", "STOCK_BUY", qty=3)                  # 总成本 15
+    _cycle(duo)
+
+    duo.act("A", "DRAW_CARD", cardId="sd-009")        # MYT4U 并股 2:1
+    duo.act("A", "CARD_DECISION", decision="apply")
+    held = duo.player("A").stocks[0]
+    assert held.shares == 1                           # 3 // 2 = 1（多余半股作废，非本次范围）
+    assert held.cost_per_share == 15                   # 15 // 1 = 15，整除，无舍入
+    assert held.shares * held.cost_per_share == 15
+
+
 # ---------- 10. 骰子赌局 ----------
 
 @pytest.mark.parametrize("roll,expect_payout", [(4, 10000), (5, 10000),
