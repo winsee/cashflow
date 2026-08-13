@@ -77,3 +77,32 @@ jobs:
             WITH_OCR=0
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Write job summary
+        run: |
+          {
+            echo "## 本次推送的镜像"
+            echo ""
+            while IFS= read -r tag; do
+              [ -z "$tag" ] && continue
+              case "$tag" in
+                ghcr.io/*)
+                  link="https://github.com/${{ github.repository_owner }}/cashflow/pkgs/container/cashflow"
+                  ;;
+                docker.io/*)
+                  ref="${tag#docker.io/}"
+                  name="${ref%%:*}"
+                  tagname="${ref##*:}"
+                  link="https://hub.docker.com/r/${name}/tags?name=${tagname}"
+                  ;;
+                *)
+                  link=""
+                  ;;
+              esac
+              if [ -n "$link" ]; then
+                echo "- \`docker pull $tag\` — [查看]($link)"
+              else
+                echo "- \`docker pull $tag\`"
+              fi
+            done <<< "${{ steps.meta.outputs.tags }}"
+          } >> "$GITHUB_STEP_SUMMARY"
