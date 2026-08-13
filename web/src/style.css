@@ -1234,7 +1234,7 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   border-top: 1px solid var(--line-2); border-radius: var(--r-lg) var(--r-lg) 0 0;
   box-shadow: 0 -6px 20px -14px rgba(120, 92, 40, .5);
   display: flex; flex-direction: column;
-  height: var(--dh, 128px); transition: height var(--dur-slow) var(--ease);
+  height: var(--dh, 180px); transition: height var(--dur-slow) var(--ease);
   z-index: var(--z-hud);
 }
 /* 跟手期间必须把那条 transition 关掉，否则抽屉永远慢手指 420ms，拖起来像在拉皮筋 */
