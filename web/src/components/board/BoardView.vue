@@ -195,11 +195,14 @@ function markerTri(track: Track): string {
   <!-- 这个组件只画板本身。名牌与三枚悬浮圆钮都钉在 stage 顶上那条带里（design/09 §3.2.1 v0.15），
        不在这里——它们要在抽屉拉到任何档位时都待在同一个屏幕位置。 -->
   <div class="board-wrap" :class="{ compact }">
-    <!-- 骰子（Die3d）挂在 .wheel-hub 里、用了 CSS 3D（perspective/preserve-3d）——
-         祖先链里不能出现 opacity!=1 / filter（WebKit 会强制拍平 preserve-3d 后代，
-         比 Chromium 严格），而 .wheel 在 card-open / 断线两种场景下恰好会拿到这两条
+    <!-- 骰子（Die3d）挂在 .wheel-hub 里、用了 CSS 3D（perspective/preserve-3d）。
+         `opacity`/`filter` 按规范只强制**元素自身**变 flat，但一旦落在 3D 链路上，
+         WebKit 的合成实现就比 Chromium 保守得多（iPad 上骰子整个画不出来那次
+         就是撞在这一带），而 .wheel 在 card-open / 断线两种场景下恰好两条都会拿到
          （见 style.css `.board-stage.card-open .wheel` 与 `.offline-dim`）。所以
-         .wheel-hub 挂在 .wheel-stack 下当 .wheel 的兄弟节点，不做 .wheel 的子节点。 -->
+         .wheel-hub 挂在 .wheel-stack 下当 .wheel 的兄弟节点，不做 .wheel 的子节点。
+         代价是这两种场景下骰子不跟着压暗——**这是明示的取舍**，别用 opacity/filter
+         找补回来（design/09 v0.22）；断线时「点不动」这条由下面的 pointer-events 保住。 -->
     <div class="wheel-stack">
     <div class="wheel plate" :class="{ 'offline-dim': offline }">
     <svg ref="disc" class="disc" :class="{ compact }" :viewBox="`0 0 ${V} ${V}`" role="img"
@@ -317,7 +320,7 @@ function markerTri(track: Track): string {
     </div>
 
     <!-- 轮心：只放骰盘 + 一行状态提示（轮次归 HUD，进度归 HUD 进度带） -->
-    <div class="wheel-hub" :style="{ '--hub': hubPct + '%' }">
+    <div class="wheel-hub" :class="{ 'hub-offline': offline }" :style="{ '--hub': hubPct + '%' }">
       <div class="hub"><slot name="hub" /></div>
     </div>
     </div>

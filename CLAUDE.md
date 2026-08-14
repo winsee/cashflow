@@ -899,6 +899,44 @@ bug——`boardPx = min(332, stage 实测净宽, stage 实测净高 − 46)`，�
 **只差真机那一遍**：240px 板宽下两字格名在真实设备上是否还看得清、之前反馈的「抽屉上方空一截」
 的具体场景这次是否已经不再触发 compact。
 
+**Safari 兼容性那一轮打坏了普通浏览器的骰子（2026-08-14，design/09 **v0.22**）**，纯呈现层，
+**引擎/协议/事件流/卡库零改动，线下辅助模式一屏一字未变**。房主反馈「上次改了 Safari 兼容性后，
+普通浏览器反而出问题了，这个骰子渲染有问题」——截图里轮心是一簇 2×3 的黑点加几条细线，不是骰子。
+① **根因：`.cube` 变成了行内盒。** `Die3d.vue` 的 `.cube` 一直是 `<span>`，从前**碰巧**是
+`.die3d { display: grid }` 的直接子元素，靠「grid 项被 blockify 成 block」才拿到盒子；
+上一轮为了把 `perspective` 从原生 `<button>` 上挪走（WebKit 对原生控件内部的 3D 合成不可靠），
+在中间插了一层 `.cube-scene`（它自己是 grid 项，所以是块盒），`.cube` 于是退回 `display: inline`。
+**非替换行内盒不适用 `width`/`height`/`transform`**，`transform-style: preserve-3d` 一并失效：
+六个面被拍平，f6 在 DOM 最末所以浮在最上（那 2×3 六个点子），`.f2/.f5` 的 `rotateY(±90deg)`
+退化成零宽、`.f3/.f4` 退化成零高（点子周围那几条线），`dieTumble` 也不再翻滚——截图里每一处
+异常都对得上。**这不是「只有 Chromium 出问题」，iPad Safari 上同样是坏的**，上一轮只是把一种
+坏渲染换成了另一种。改法：三层全改 `<div>`，`.cube-scene`/`.cube` 再各显式写一条 `display: block`。
+**通则：立方体的每一层都自己写死 `display`，blockify 不许靠父元素的 display 类型带出来**
+（同「`useSlots()` 不能进 computed」那一类，几何不该依赖祖先长什么样）。
+② **结构性断言挡不住渲染问题。** 上一轮新加的 `checkDice3dContext()` 只查「`.cube-scene` 有没有
+`perspective`」「祖先里有没有 `<button>`/`opacity`/`filter`」——结构全对、立方体根本没有盒子，
+一条都没报，反倒给了假的安全感。补三条**几何**断言：`.cube` 不许是行内盒、布局盒子非零且与
+`.face` 一致、`transform` 必须以 `matrix3d(` 开头。量的是 `offsetWidth` 而不是
+`getBoundingClientRect()`——立方体与每个面身上都挂着 3D 变换，rect 给的是**投影后**的框
+（`.f1` 被 `translateZ` 推近镜头还会放大），拿它当判据必然误报。
+③ **明示的取舍（房主定案）**：骰子搬出 `.wheel` 之后，`.offline-dim` 与
+`.board-stage.card-open .wheel` 这两处压暗够不着它，断线 / 卡面翻开时骰子照常全亮。
+**不许用 `opacity`/`filter` 找补**——那正是要绕开的东西。断线时「点不动」这条保证单独补回来：
+`.wheel-hub.hub-offline .hub` 给 `pointer-events: none`（不参与合成，对 3D 渲染零影响）。
+④ **回前台强制重连不再闪红条**（`store.ts`）。iOS Safari 后台化后 `readyState` 会说谎，
+「回前台就强制重连一次」这条留着；但它同步置 `connected = false`，而 `visibilitychange`
+在**所有**浏览器上都会因为切 App / 切标签 / 熄屏亮屏频繁触发——于是每次切回来都闪一下
+「连接断开，正在重连…」，**一条本该表示真故障的红条变成了噪音**。改成不同步翻 `connected`：
+失败照旧由新 socket 的 `onclose` 立即收口，只有「既不 open 也不 close」的僵死连接才由 3 秒
+宽限计时器兜底（`clearSession()` 里一并清掉）。顺带恢复被覆盖掉的 `FATAL_CLOSE`（4001/4002）
+那段文档注释，并订正 `BoardView.vue` 里「`filter` 会拍平嵌套的 preserve-3d 后代」这句——
+按规范 `filter` 只强制**元素自身**变 flat，`.wheel-stack` 拆分的理由是 WebKit 的合成实现更保守。
+测试 **532 passed**（后端未动，作回归）；`npx vue-tsc --noEmit` 通过；`npm run ui-smoke` 全过。
+**负向对照做过**：把 `.cube` 的 `display` 改回 `inline`，22 与 28 两屏当场报
+「`.cube` 是行内盒（display:inline），width/height/transform 全都不适用」。
+**只差真机那一遍**：普通浏览器（Android Chrome / Samsung Internet）与 iPad Safari 各看一次
+待掷 / 摇动 / 落定三态，40px 与 58px 两个尺寸都要看得出立体；切到别的 App 再切回来不许闪红条。
+
 ## 开发必读（按顺序）
 
 1. [design/09-纯线上版UX设计.md](design/09-纯线上版UX设计.md) — 纯线上模式的信息架构、棋盘、回合流、动效节拍表（呈现层权威）

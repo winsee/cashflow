@@ -1152,6 +1152,11 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .wheel-hub {
   position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
 }
+/* 断线时骰子点不动。骰子搬出 `.wheel` 之后就不在 `.offline-dim` 底下了，那条
+   `opacity + pointer-events` 一并够不着它——压暗是明示放弃的（见 BoardView.vue 的注释，
+   不许拿 opacity/filter 找补），但「点不动」这条保证得单独补回来。
+   `pointer-events` 不参与合成，对 3D 渲染零影响。 */
+.wheel-hub.hub-offline .hub { pointer-events: none; }
 .hub {
   width: var(--hub, 42%); aspect-ratio: 1; border-radius: 50%;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -1191,7 +1196,8 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 /* 透视给得柔一点（6.5 倍边长）：4 倍是鱼眼，斜过来的那两条边会夸张到变形。
    透视根落在这层纯展示用的 span 上，既不是 <button>，也不被任何 <button> 包含。 */
 .cube-scene {
-  position: relative; width: var(--d); height: var(--d);
+  /* `display` 是**显式写死**的，见下面 `.cube` 那条通则 */
+  display: block; position: relative; width: var(--d); height: var(--d);
   perspective: calc(var(--d) * 6.5);
 }
 .die3d-hit {
@@ -1200,9 +1206,18 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 }
 .die3d-hit:disabled { cursor: default; }
 /* 落定的缓出是这套动效里「慢」的那一半：匀速快转 → 0.62s 大幅减速转到那一面。
-   两段速度差本身就是节奏，比把翻滚拉长有用（design/09 §5.1 v0.4）。 */
+   两段速度差本身就是节奏，比把翻滚拉长有用（design/09 §5.1 v0.4）。
+
+   **通则：立方体的每一层都自己写死 `display`，blockify 不许靠父元素的 display 类型带出来。**
+   这条是踩出来的（design/09 v0.22）：`.cube` 一直是 `<span>`，从前**碰巧**是
+   `.die3d { display: grid }` 的直接子元素，靠「grid 项被 blockify」才拿到盒子；
+   iPad Safari 那次修复在中间插了一层 `.cube-scene`（它自己是 grid 项，所以是块盒），
+   `.cube` 于是退回 `display: inline`——非替换行内盒**不适用 `width`/`height`/`transform`**，
+   `transform-style: preserve-3d` 一并失效，六个面被拍平：普通浏览器上骰子成了一簇散点
+   加几条细线（f6 在 DOM 最末所以浮在最上，`.f2/.f5` 退化成零宽、`.f3/.f4` 退化成零高）。
+   元素标签现已改成 `<div>`，这条 `display` 是第二道保险——几何不该依赖祖先长什么样。 */
 .cube {
-  position: relative; width: var(--d); height: var(--d);
+  display: block; position: relative; width: var(--d); height: var(--d);
   transform-style: preserve-3d;
   transition: transform .62s cubic-bezier(.15, .85, .25, 1.02);
 }

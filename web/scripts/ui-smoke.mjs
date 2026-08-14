@@ -109,12 +109,18 @@ async function shotNow(page, name) {
   console.log(`  ✓ ${name}`)
 }
 
-/** 骰子 3D 渲染上下文的结构性回归护栏（iPad Safari 骰子渲染不出来那次修复）：
- *  Chromium 测不出 WebKit 那个合成 bug 本身，但能钉住导致它的两个前提条件不被误回退——
+/** 骰子 3D 的回归护栏。分两半，**缺一不可**：
+ *
+ *  【结构】（iPad Safari 骰子渲染不出来那次修复）Chromium 测不出 WebKit 那个合成 bug
+ *  本身，但能钉住导致它的两个前提条件不被误回退——
  *  ① perspective 根（.cube-scene）不能再被任何 <button> 包含；
  *  ② 从 .cube-scene 往上到 body，途中任何祖先都不许有 opacity!=1 / filter!=none
- *     （WebKit 会强制拍平嵌套的 preserve-3d，Safari 比 Chromium 严格得多）。
- *  调用方在默认态与「断线」（.offline-dim 生效）两处各查一次。 */
+ *     （WebKit 对 3D 合成比 Chromium 保守，这两条是它最常见的拍平来源）。
+ *
+ *  【几何】（design/09 v0.22）光有结构断言是**不够的**：上一轮结构全对，`.cube` 却因为
+ *  是块盒里的一个 `<span>` 退回了 `display: inline`——非替换行内盒不适用 width/height/
+ *  transform，preserve-3d 一并失效，六个面拍成一簇散点，而上面那两条一条都没报。
+ *  所以这里要直接量「立方体到底有没有盒子、有没有真的转起来」。 */
 async function checkDice3dContext(page) {
   return page.evaluate(() => {
     const scene = document.querySelector('.cube-scene')
@@ -130,6 +136,32 @@ async function checkDice3dContext(page) {
         return { ok: false, reason: `祖先 .${el.className} 带 opacity/filter` }
       el = el.parentElement
     }
+
+    // —— 几何：立方体每一层都必须是有盒子的块级元素 ——
+    const cube = scene.querySelector('.cube')
+    const face = cube && cube.querySelector('.face')
+    if (!cube || !face) return { ok: false, reason: '.cube / .face 不在场' }
+    for (const [sel, node] of [['.cube-scene', scene], ['.cube', cube]]) {
+      const d = getComputedStyle(node).display
+      if (d === 'inline')
+        return { ok: false, reason: `${sel} 是行内盒（display:${d}），width/height/transform 全都不适用` }
+    }
+    // 量**布局**尺寸而不是 getBoundingClientRect()：立方体与每个面身上都挂着 3D 变换，
+    // rect 给的是投影后的框（f1 被 translateZ 推近镜头还会放大），拿它当判据必然误报。
+    if (cube.offsetWidth < 1 || cube.offsetHeight < 1)
+      return { ok: false, reason: `.cube 没有盒子（${cube.offsetWidth}×${cube.offsetHeight}）` }
+    // 面是 inset:0 铺在 .cube 上的，尺寸必须一致；对不上就说明包含块退化了
+    if (Math.abs(face.offsetWidth - cube.offsetWidth) > 1
+      || Math.abs(face.offsetHeight - cube.offsetHeight) > 1)
+      return {
+        ok: false,
+        reason: `.face 与 .cube 的盒子对不上（面 ${face.offsetWidth}×${face.offsetHeight} ` +
+          `vs 立方体 ${cube.offsetWidth}×${cube.offsetHeight}）`,
+      }
+    // REST_TILT 含 rotateX/rotateY，只要 transform 真的生效就必然是 3D 矩阵
+    const tf = getComputedStyle(cube).transform
+    if (!tf.startsWith('matrix3d('))
+      return { ok: false, reason: `.cube 的 transform 没生效（${tf}）` }
     return { ok: true, reason: '' }
   })
 }
