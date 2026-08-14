@@ -65,13 +65,13 @@ const tossStyle = computed(() => ({
        表单控件内部的 3D 合成支持不可靠，`.die3d-hit` 只是叠在视觉层上面的透明热区。 -->
   <div v-else class="die3d" :class="{ rollable, rolling, landed }"
        :style="rolling ? tossStyle : undefined">
-    <span class="cube-scene">
-      <span class="cube" :style="rolling ? tumbleStyle : cubeStyle">
+    <div class="cube-scene">
+      <div class="cube" :style="rolling ? tumbleStyle : cubeStyle">
         <span v-for="f in DIE_FACES" :key="f" class="face" :class="`f${f}`">
           <i v-for="(p, k) in PIPS[f]" :key="k" :style="{ gridArea: `${p[0]} / ${p[1]}` }"></i>
         </span>
-      </span>
-    </span>
+      </div>
+    </div>
     <button class="die3d-hit" :disabled="!rollable" aria-label="掷骰子" @click="emit('roll')" />
   </div>
 </template>

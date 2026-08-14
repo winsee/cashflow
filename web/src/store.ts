@@ -114,10 +114,21 @@ export function loadSession(): Session | null {
  *  `ws.readyState` 仍然报告 `OPEN`——`close`/`error` 事件要等回到前台才补发，甚至要等
  *  下一次真正 `send()` 失败才触发。只靠 `onclose` 是被动的：玩家切后台再回来紧接着点一次
  *  操作，`send()` 不报错，`act()` 的 5 秒兜底超时会把它当成功——服务端其实压根没收到。
- *  这里只在「回到前台」这个明确时机主动验证一次连接：不管 `readyState`报什么都强制重连，
+ *  这里只在「回到前台」这个明确时机主动验证一次连接：不管 `readyState` 报什么都强制重连，
  *  逼一次真实握手，而不是信任一个可能已经僵死的连接。只装一次监听器（跨多次 connect()）。 */
 let visibilityWatcherInstalled = false
 
+/** 回前台重连的**宽限期**：这期间不翻 `connected`，红条不出。
+ *  `visibilitychange` 在所有浏览器上都会因为切 App / 切标签 / 熄屏亮屏而频繁触发，
+ *  而握手通常只要几十毫秒——同步置 `connected = false` 会让每一次回前台都闪一下
+ *  「连接断开，正在重连…」，把一条本该表示真故障的红条变成噪音。
+ *  真的没连上不会漏报：新 socket 失败会走 `onclose`（那条照旧立即翻 `connected`），
+ *  连接**挂住**既不 open 也不 close 的那种才由这个定时器兜底。 */
+const REVALIDATE_GRACE = 3000
+
+/** 服务端主动拒绝本机身份的 WS 关闭码：4001 = 令牌无效/房间不存在（main.py 的 /ws 握手），
+ *  4002 = 房间因 24h 无活动已归档（rooms.py archive_idle）。这两种都不可能靠重连恢复，
+ *  必须停止重连并清会话，否则页面会永久停在「连接中…」。 */
 const FATAL_CLOSE: Record<number, string> = {
   4001: '对局已不存在或身份已失效，已返回大厅',
   4002: '房间因长时间无人操作已归档，已返回大厅',
@@ -139,6 +150,8 @@ export const useGame = defineStore('game', {
     /** 我最近发出的行动类型 → 时间戳。用于把「自己主动做的事」从被动回执里排掉 */
     recentActionAt: {} as Record<string, number>,
     reconnectTimer: 0 as any,
+    /** 回前台强制重连的宽限计时器（见 REVALIDATE_GRACE），与重连退避是两回事 */
+    revalidateTimer: 0 as any,
     noticeTimer: 0 as any,
     stockDismissed: '' as string,   // 我点过「不需要」的股票窗口 key（纯本地，不广播）
     /** 我在本窗口内成功买入过的 key（纯本地）：区分「这次没买，历史仓位」和
@@ -279,6 +292,8 @@ export const useGame = defineStore('game', {
       this.state = null
       this.receipts = []
       localStorage.removeItem('cashflow.session')
+      // 宽限计时器也要停：它 3 秒后会去翻 `connected`，而那时人已经回大厅了
+      clearTimeout(this.revalidateTimer)
       this.ws?.close()
       this.ws = null
     },
@@ -361,7 +376,13 @@ export const useGame = defineStore('game', {
             old.onclose = null
             old.close()
           }
-          this.connected = false
+          // **不在这里翻 `connected`**（见 REVALIDATE_GRACE）：握手成功是常态，
+          // 同步置 false 等于每次切回来都闪一下红条。失败由新 socket 的 onclose 收口，
+          // 这个定时器只兜「既不 open 也不 close」的僵死连接。
+          clearTimeout(this.revalidateTimer)
+          this.revalidateTimer = setTimeout(() => {
+            if (this.ws?.readyState !== WebSocket.OPEN) this.connected = false
+          }, REVALIDATE_GRACE)
           this.connect()
         })
       }
