@@ -35,7 +35,9 @@ function onGrabDown(e: PointerEvent) {
   if (!props.dismissable) return
   startY = e.clientY
   dragging.value = true
-  ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  // 指针已经不活跃时 setPointerCapture 会抛 NotFoundError；捕获只是为了拖得跟手，
+  // 抓不到也不该把这一次交互整个废掉（同 OnlineRoomView.vue 抽屉把手的写法）
+  try { (e.target as HTMLElement).setPointerCapture(e.pointerId) } catch { /* 无妨 */ }
 }
 function onGrabMove(e: PointerEvent) {
   if (!dragging.value) return

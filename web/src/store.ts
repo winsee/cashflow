@@ -110,9 +110,14 @@ export function loadSession(): Session | null {
   } catch { return null }
 }
 
-/** 服务端主动拒绝本机身份的 WS 关闭码：4001 = 令牌无效/房间不存在（main.py 的 /ws 握手），
- *  4002 = 房间因 24h 无活动已归档（rooms.py archive_idle）。这两种都不可能靠重连恢复，
- *  必须停止重连并清会话，否则页面会永久停在「连接中…」。 */
+/** iOS Safari 把标签页切到后台/锁屏后，底层连接可能已经被系统悄悄砍掉，但 JS 里
+ *  `ws.readyState` 仍然报告 `OPEN`——`close`/`error` 事件要等回到前台才补发，甚至要等
+ *  下一次真正 `send()` 失败才触发。只靠 `onclose` 是被动的：玩家切后台再回来紧接着点一次
+ *  操作，`send()` 不报错，`act()` 的 5 秒兜底超时会把它当成功——服务端其实压根没收到。
+ *  这里只在「回到前台」这个明确时机主动验证一次连接：不管 `readyState`报什么都强制重连，
+ *  逼一次真实握手，而不是信任一个可能已经僵死的连接。只装一次监听器（跨多次 connect()）。 */
+let visibilityWatcherInstalled = false
+
 const FATAL_CLOSE: Record<number, string> = {
   4001: '对局已不存在或身份已失效，已返回大厅',
   4002: '房间因长时间无人操作已归档，已返回大厅',
@@ -344,6 +349,22 @@ export const useGame = defineStore('game', {
     },
     connect() {
       if (!this.session || this.ws) return
+      if (!visibilityWatcherInstalled && typeof document !== 'undefined') {
+        visibilityWatcherInstalled = true
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState !== 'visible' || !this.session) return
+          // 回到前台：不管 readyState 报什么都不信任，强制关掉重连一次，逼出真实握手
+          clearTimeout(this.reconnectTimer)
+          if (this.ws) {
+            const old = this.ws
+            this.ws = null
+            old.onclose = null
+            old.close()
+          }
+          this.connected = false
+          this.connect()
+        })
+      }
       const proto = location.protocol === 'https:' ? 'wss' : 'ws'
       const ws = new WebSocket(`${proto}://${location.host}/ws?token=${this.session.playerToken}`)
       this.ws = ws

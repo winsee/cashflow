@@ -323,7 +323,11 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 560px;
   display: flex;
+  /* color-mix() 到 Safari 16.2 才支持，项目最低线是 iOS Safari ≥16（不是 16.2）——
+     16.0/16.1 上整条 background 声明会因为值不合法被丢弃，先给一条纯色兜底。 */
+  background: var(--panel);
   background: color-mix(in srgb, var(--panel) 94%, transparent);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
@@ -386,6 +390,7 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .modal-mask {
   position: fixed; inset: 0; background: rgba(44, 40, 34, .44); z-index: var(--z-sheet);
   display: flex; align-items: flex-end; justify-content: center;
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   animation: mask-in var(--dur) var(--ease);
 }
@@ -519,6 +524,7 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   margin: 0 -12px var(--sp-3); padding: var(--sp-3) var(--sp-4) 14px;
   padding-top: calc(var(--sp-3) + env(safe-area-inset-top));
   background: linear-gradient(180deg, var(--panel), var(--panel2));
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
   display: grid; grid-template-columns: 1fr auto; gap: 3px var(--sp-3);
@@ -883,7 +889,10 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
       而这一屏总共只有 BEAT.settle = 1700ms，420ms 的淡入会吃掉四分之一。 */
 .curtain.payday {
   animation-duration: 220ms;
-  /* 结算格是橙的 —— 照 §5.3「抽的是哪副牌，帘幕就是哪个颜色」的老规矩 */
+  /* 结算格是橙的 —— 照 §5.3「抽的是哪副牌，帘幕就是哪个颜色」的老规矩。
+     color-mix() 到 Safari 16.2 才支持（最低线是 iOS Safari ≥16），先给一条纯色兜底——
+     这个帘幕每次经过结算格都会弹一次，是全场景出现频率最高的帘幕之一。 */
+  background: #FDF3E4;
   background: radial-gradient(120% 80% at 50% 0%,
       color-mix(in srgb, var(--deck-payday) 5%, #FFFBF3),
       color-mix(in srgb, var(--deck-payday) 13%, #FDF3E4) 55%,
@@ -1007,7 +1016,7 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 }
 /* 档位切换缩的是棋盘**自身的宽度变量**，不是 transform: scale——
    stage 有 overflow:hidden，缩 stage 会连裁切框一起缩，等于白缩一场。 */
-.board-stage .wheel { width: var(--bw, 332px); max-width: 100%; }
+.board-stage .wheel-stack { width: var(--bw, 332px); max-width: 100%; }
 /* 板本身。顶上那 46px 是给工具带留的，**每一档都留**。
    一度只在 peek 档留：当时算的是「half / full 档板只有 230 / 150px，左右各空 60 / 100px，
    圆钮天然碰不到」——那是按**一枚** 46px 的钮算的。改成横排之后那一列 3×38+2×6 = 126px 宽，
@@ -1062,10 +1071,16 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 }
 
 /* ---------- 轮盘本体 ---------- */
-.wheel {
+/* `.wheel-stack` 接过原来 `.wheel` 的尺寸/定位职责，`.wheel` 退化成纯背景板
+   （position:absolute;inset:0）——这样 `.wheel-hub`（骰子所在）才能挪出去做
+   `.wheel-stack` 的兄弟节点，不再是 `.wheel` 的后代，骰子从此不会有带
+   `opacity`/`filter` 的祖先（见 BoardView.vue 的注释）。两者尺寸完全同步，
+   几何不受影响。 */
+.wheel-stack {
   position: relative; aspect-ratio: 1; margin: 0 auto;
   transition: width var(--dur-slow) var(--ease);
 }
+.wheel { position: absolute; inset: 0; }
 /* 棋盘是一块有厚度的纸板：纸纹 + 压印边 + 接触阴影，不是纯色方块拼图 */
 .plate {
   background:
@@ -1163,15 +1178,27 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
   color: var(--muted);
 }
 
-/* 立方体骰 */
-/* 透视给得柔一点（6.5 倍边长）：4 倍是鱼眼，斜过来的那两条边会夸张到变形 */
+/* 立方体骰。`.die3d` 本身是纯 <div>，不再是 3D 渲染根、也不包含任何原生表单控件——
+   WebKit 对 <button>/<input> 等原生控件内部的 3D 合成支持不可靠，即使 appearance:none
+   也不保证解决（iPad Safari 骰子渲染不出来就是撞在这上面，实机确认过）。可点击的
+   <button class="die3d-hit"> 降级成叠在视觉层上面的透明热区，二者是平级关系，不再
+   互相嵌套——同 DealCurtain 的 .curtain（点击） / .deal-card（3D）分工方式。 */
 .die3d {
   --d: 58px; width: var(--d); height: var(--d);
-  position: relative; perspective: calc(var(--d) * 6.5);
-  background: none; border: 0; padding: 0; box-shadow: none;
-  display: grid; place-items: center; cursor: pointer;
+  position: relative;
+  display: grid; place-items: center;
 }
-.die3d[disabled] { cursor: default; }
+/* 透视给得柔一点（6.5 倍边长）：4 倍是鱼眼，斜过来的那两条边会夸张到变形。
+   透视根落在这层纯展示用的 span 上，既不是 <button>，也不被任何 <button> 包含。 */
+.cube-scene {
+  position: relative; width: var(--d); height: var(--d);
+  perspective: calc(var(--d) * 6.5);
+}
+.die3d-hit {
+  position: absolute; inset: 0; z-index: 1;
+  background: none; border: 0; padding: 0; margin: 0; cursor: pointer;
+}
+.die3d-hit:disabled { cursor: default; }
 /* 落定的缓出是这套动效里「慢」的那一半：匀速快转 → 0.62s 大幅减速转到那一面。
    两段速度差本身就是节奏，比把翻滚拉长有用（design/09 §5.1 v0.4）。 */
 .cube {
@@ -1207,9 +1234,11 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
    于是同一颗骰子在一次动作里从绿变白——变色被当成了状态变化去读，其实什么都没发生。
    骰子始终是那颗象牙白的实体骰子；能不能点是它**周围**的事，不是它自己的事。 */
 /* 光晕画在 `.die3d` **自己身上**（box-shadow），不是加一个 `::before` 垫在下面：
-   `.die3d` 有 `perspective`，它内部是一个 3D 渲染上下文，垫在里面的那层平面子元素
-   Chromium 直接不画（布局与计算样式全对——尺寸、渐变、动画都在——就是不上屏，实测过）。
-   元素自身的阴影不进那个上下文，照常渲染。
+   之前 `.die3d` 还带 `perspective` 时，它内部是一个 3D 渲染上下文，垫在里面的那层
+   平面子元素 Chromium 直接不画（布局与计算样式全对——尺寸、渐变、动画都在——就是不
+   上屏，实测过）。`.die3d` 现在已经是纯 <div>、透视根挪到了 `.cube-scene` 上
+   （iPad Safari 骰子渲染不出来那次修的），连这层顾虑都不用再有了，仍然维持画在
+   元素自己身上的写法。
    颜色用主色按透明度调，不用 --brand-soft：那个浅底摆在同样浅的纸底上等于没画。 */
 .die3d.rollable { border-radius: 26%; animation: dieCall 1.9s ease-in-out infinite; }
 @keyframes dieCall {
@@ -1531,5 +1560,5 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 
 @media (prefers-reduced-motion: reduce) {
   /* 棋子位移要额外写一条：整条序列压成淡入之后，位置应该直接跳变 */
-  .board-pawn, .board-drawer, .wheel { transition: none !important; }
+  .board-pawn, .board-drawer, .wheel-stack { transition: none !important; }
 }

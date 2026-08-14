@@ -143,7 +143,8 @@ const ready = () => !!slots.default || !!props.card
 
 <template>
   <div class="curtain deal-curtain"
-       :style="{ '--deck': color, background: `color-mix(in srgb, ${color} 12%, var(--bg))` }"
+       :style="`--deck:${color}; background:var(--bg);
+                background:color-mix(in srgb, ${color} 12%, var(--bg))`"
        @click="emit('skip')">
     <div ref="cardEl" class="deal-card"
          :class="{ flying: animate && measured && props.variant !== 'reveal', reveal: props.variant === 'reveal' }"
