@@ -148,14 +148,18 @@ const hitStub = computed(() => {
 const bizStub = computed(() => {
   const s = game.bizStub
   if (!s || s.playerId !== me.value?.id) return null
-  const gain = s.success ? (s.cashflow || s.lumpSum) : 0
+  // `.amt` 这个槽位在 stub/hitStub 里一贯是「此刻实际发生的现金变动」，不是「这笔交易划不划算」——
+  // 掷骰企业格成功后拿到的要么是月现金流（往后每个月才到账，此刻没有这笔现金），
+  // 要么是一次性收益（此刻就到账）。前者是速率、后者是金额，不能相加减；
+  // 月现金流只在 `why` 里说清楚，`.amt` 只算「首付付出 + 一次性收益到账」这一次的净现金。
+  const immediateGain = s.success ? s.lumpSum : 0
   return {
     icon: '🎲',
     title: `掷出 ${s.roll} 点 · 需 ${s.threshold} 点及以上 · ${s.success ? '成功' : '未达标'}`,
     why: s.success
       ? (s.cashflow ? `每月现金流 +${fmt(s.cashflow)}` : `一次性收益 +${fmt(s.lumpSum)}`)
       : '首付已支付，未获得收益',
-    amount: gain - s.downPayment,
+    amount: immediateGain - s.downPayment,
   }
 })
 </script>
