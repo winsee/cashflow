@@ -1126,7 +1126,7 @@ const ctaShown = computed(() =>
           <div v-if="cardCta" class="cta-row">
             <template v-if="['REALESTATE', 'BUSINESS', 'COLLECTIBLE', 'DICE_GAMBLE'].includes(cardCta.subtype)">
               <button class="btn grow" @click="decide('buy')">
-                {{ cardCta.subtype === 'DICE_GAMBLE' ? '接受' : '买入' }}
+                {{ cardCta.subtype === 'DICE_GAMBLE' ? '🎲 接受并掷骰' : '买入' }}
                 {{ fmt(activeCardInfo?.data.downPayment) }}
               </button>
               <button class="btn ghost grow" @click="decide('pass')">放弃</button>

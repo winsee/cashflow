@@ -36,6 +36,34 @@ export interface PenaltyStub {
   childExpense: number
 }
 
+/** 骰子赌局卡（DICE_GAMBLE）结算后的存根：`won`/`payout` 只在事件 payload 里出现一次，
+ *  `ActiveCard`（服务端模型）不携带，必须像 `SettlementStub` 一样趁事件流现抓。 */
+export interface GambleStub {
+  key: string
+  playerId: string
+  title: string
+  rolls: number[]
+  total: number
+  won: boolean
+  stake: number
+  payout: number
+}
+
+/** 快车道掷骰企业格（FT_BUY_BUSINESS 的 diceRule）结算后的存根，同 `GambleStub` 的理由：
+ *  `Landing` 不携带 `dice_roll`/`success`，只能从事件里现抓。 */
+export interface BizStub {
+  key: string
+  playerId: string
+  squareId: string
+  name: string
+  roll: number
+  threshold: number
+  success: boolean
+  downPayment: number
+  cashflow: number
+  lumpSum: number
+}
+
 /** toast 的四种口吻：成功 / 出错 / 仪式（金色高光）/ 中性信息 */
 export type FlashVariant = 'ok' | 'err' | 'gold' | 'info'
 
@@ -168,6 +196,9 @@ export const useGame = defineStore('game', {
      *  照发牌那条老规矩办：帘幕是仪式，卡片随后落进抽屉可以慢慢看。 */
     lastSettlement: null as SettlementStub | null,
     lastPenalty: null as PenaltyStub | null,
+    /** 骰子赌局卡 / 快车道掷骰企业格的结算存根，同上两个字段一样是「回合内回看」用途 */
+    lastGamble: null as GambleStub | null,
+    lastBiz: null as BizStub | null,
     /** 棋盘数据（两条轨道），纯线上模式进房时拉一次 */
     board: null as BoardDto | null,
     /** 全部卡面（含职业卡），静态数据，整局只拉一次；纯线上模式进房时预取 */
@@ -257,6 +288,16 @@ export const useGame = defineStore('game', {
     },
     penaltyStub(): PenaltyStub | null {
       const s = this.lastPenalty
+      if (!s || !this.state) return null
+      return s.key === `${this.state.turnCount}@${this.state.currentPlayerId ?? ''}` ? s : null
+    },
+    gambleStub(): GambleStub | null {
+      const s = this.lastGamble
+      if (!s || !this.state) return null
+      return s.key === `${this.state.turnCount}@${this.state.currentPlayerId ?? ''}` ? s : null
+    },
+    bizStub(): BizStub | null {
+      const s = this.lastBiz
       if (!s || !this.state) return null
       return s.key === `${this.state.turnCount}@${this.state.currentPlayerId ?? ''}` ? s : null
     },
@@ -474,6 +515,7 @@ export const useGame = defineStore('game', {
       if (impact) this.lastImpact = impact
       this.catchStub(events, meId)
       this.catchHit(events, meId)
+      this.catchDiceOutcome(events, meId)
       this.catchCheer(events, meId)
     },
     /** 攒出本回合的结算日存根。同一次移动可能连过两个结算格（服务端会产出两条事件），
@@ -530,6 +572,32 @@ export const useGame = defineStore('game', {
         if (!hitKind) continue
         const key = `${this.state!.turnCount}@${this.state!.currentPlayerId ?? ''}`
         this.lastPenalty = { key, playerId: meId, hitKind, amount, childCount, childExpense }
+      }
+    },
+    /** 骰子赌局卡 / 快车道掷骰企业格的结算存根。`won`/`success`/`dice_roll` 这些字段只在
+     *  事件 payload 里出现一次，`ActiveCard`/`Landing`（服务端模型）都不携带，
+     *  所以和 `catchStub`/`catchHit` 一样必须趁换快照前从事件流里现抓。 */
+    catchDiceOutcome(events: { type: string; payload: Record<string, any> }[], meId: string) {
+      if (!this.isOnline) return
+      const key = `${this.state!.turnCount}@${this.state!.currentPlayerId ?? ''}`
+      for (const ev of events) {
+        const p = ev.payload ?? {}
+        if (p.player_id !== meId) continue
+        if (ev.type === 'DICE_GAMBLE_RESOLVED') {
+          this.lastGamble = {
+            key, playerId: meId, title: p.title ?? '', rolls: p.rolls ?? [],
+            total: p.total ?? 0, won: !!p.won, stake: p.stake ?? 0, payout: p.payout ?? 0,
+          }
+        } else if (ev.type === 'FT_BUSINESS_BOUGHT' && p.dice_roll != null) {
+          const biz = this.board?.fastTrack.businesses
+            .find(b => b.id === p.square_id) as FtBusiness | undefined
+          this.lastBiz = {
+            key, playerId: meId, squareId: p.square_id, name: p.name ?? '',
+            roll: p.dice_roll, threshold: biz?.dice_rule?.threshold ?? 0,
+            success: !!p.success, downPayment: p.down_payment ?? 0,
+            cashflow: p.cashflow ?? 0, lumpSum: p.lump_sum ?? 0,
+          }
+        }
       }
     },
     /** 别人逃出老鼠赛跑：推一屏全屏祝贺。

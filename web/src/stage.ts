@@ -129,6 +129,26 @@ export function buildStage(events: StageEvent[], prev: RoomStateDto | null): Sta
           rolls: p.rolls ?? [], settling: true,
         })
         break
+      // 骰子赌局卡：服务端早就摇好点数写进事件，这里只是把它接进演出线——
+      // 与 DICE_ROLLED 同一对拍子，held 门与棋盘中央的 Die3d 全部直接复用。
+      case 'DICE_GAMBLE_RESOLVED':
+        out.push({ kind: 'dice', ms: BEAT.dice, playerId: p.player_id, rolls: p.rolls ?? [] })
+        out.push({
+          kind: 'dice', ms: BEAT.diceStop, playerId: p.player_id,
+          rolls: p.rolls ?? [], settling: true,
+        })
+        break
+      // 快车道掷骰企业格：只有带 diceRule 的企业格才有 dice_roll，没有这个字段的
+      // 企业（无骰子）买入不该无中生有一段动画。
+      case 'FT_BUSINESS_BOUGHT':
+        if (p.dice_roll != null) {
+          out.push({ kind: 'dice', ms: BEAT.dice, playerId: p.player_id, rolls: [p.dice_roll] })
+          out.push({
+            kind: 'dice', ms: BEAT.diceStop, playerId: p.player_id,
+            rolls: [p.dice_roll], settling: true,
+          })
+        }
+        break
       case 'PAYDAY': {
         const times = p.times ?? 1
         const cf = p.cashflow ?? 0
