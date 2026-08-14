@@ -61,13 +61,17 @@ const tossStyle = computed(() => ({
 <template>
   <!-- 还没掷（别人的回合）：平面骰 + 一个 `?`，不可点 -->
   <div v-if="flat" class="die">?</div>
-  <button v-else class="die3d" :class="{ rollable, rolling, landed }"
-          :disabled="!rollable" :style="rolling ? tossStyle : undefined"
-          @click="emit('roll')">
-    <span class="cube" :style="rolling ? tumbleStyle : cubeStyle">
-      <span v-for="f in DIE_FACES" :key="f" class="face" :class="`f${f}`">
-        <i v-for="(p, k) in PIPS[f]" :key="k" :style="{ gridArea: `${p[0]} / ${p[1]}` }"></i>
+  <!-- 可点击的 <button> 与做 3D 渲染的元素分开（同 DealCurtain 的做法）：WebKit 对原生
+       表单控件内部的 3D 合成支持不可靠，`.die3d-hit` 只是叠在视觉层上面的透明热区。 -->
+  <div v-else class="die3d" :class="{ rollable, rolling, landed }"
+       :style="rolling ? tossStyle : undefined">
+    <span class="cube-scene">
+      <span class="cube" :style="rolling ? tumbleStyle : cubeStyle">
+        <span v-for="f in DIE_FACES" :key="f" class="face" :class="`f${f}`">
+          <i v-for="(p, k) in PIPS[f]" :key="k" :style="{ gridArea: `${p[0]} / ${p[1]}` }"></i>
+        </span>
       </span>
     </span>
-  </button>
+    <button class="die3d-hit" :disabled="!rollable" aria-label="掷骰子" @click="emit('roll')" />
+  </div>
 </template>

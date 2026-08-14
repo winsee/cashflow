@@ -109,6 +109,31 @@ async function shotNow(page, name) {
   console.log(`  ✓ ${name}`)
 }
 
+/** 骰子 3D 渲染上下文的结构性回归护栏（iPad Safari 骰子渲染不出来那次修复）：
+ *  Chromium 测不出 WebKit 那个合成 bug 本身，但能钉住导致它的两个前提条件不被误回退——
+ *  ① perspective 根（.cube-scene）不能再被任何 <button> 包含；
+ *  ② 从 .cube-scene 往上到 body，途中任何祖先都不许有 opacity!=1 / filter!=none
+ *     （WebKit 会强制拍平嵌套的 preserve-3d，Safari 比 Chromium 严格得多）。
+ *  调用方在默认态与「断线」（.offline-dim 生效）两处各查一次。 */
+async function checkDice3dContext(page) {
+  return page.evaluate(() => {
+    const scene = document.querySelector('.cube-scene')
+    if (!scene) return { ok: true, reason: '' } // 这一刻没有立方体骰在场（平面 `?` 骰），跳过
+    if (getComputedStyle(scene).perspective === 'none')
+      return { ok: false, reason: '.cube-scene 没有 perspective' }
+    let el = scene.parentElement
+    while (el && el !== document.body) {
+      if (el.tagName === 'BUTTON')
+        return { ok: false, reason: `3D 上下文被 <button class="${el.className}"> 包含` }
+      const cs = getComputedStyle(el)
+      if (cs.opacity !== '1' || cs.filter !== 'none')
+        return { ok: false, reason: `祖先 .${el.className} 带 opacity/filter` }
+      el = el.parentElement
+    }
+    return { ok: true, reason: '' }
+  })
+}
+
 /** 文案断言：有些屏的关键不是「有没有元素」，而是「写没写清楚 / 有没有多出不该有的按钮」 */
 async function expectText(page, name, { has = [], hasNot = [], noButtons = [] } = {}) {
   const { text, buttons } = await page.evaluate(() => ({
@@ -800,7 +825,7 @@ async function main() {
   const cur = await qa.evaluate(() => document.querySelector('.hud-turn b')?.textContent ?? '')
   const [pMe, pOther] = cur.includes('轮到你') ? [qa, qb] : [qb, qa]
 
-  await shot(pMe, '22-纯线上-棋盘待掷骰', '.wheel .die3d')
+  await shot(pMe, '22-纯线上-棋盘待掷骰', '.board-dice .die3d')
   await expectText(pMe, '22-纯线上-棋盘待掷骰', {
     has: ['第 1 步 / 3', '掷骰'],
     hasNot: ['你停在哪种格子', '手动选卡'],
@@ -815,6 +840,8 @@ async function main() {
   if (preRollCta.rows !== 1 || preRollCta.endTurn)
     failures.push(`22-纯线上-棋盘待掷骰: 还没掷骰就有「结束回合」（${preRollCta.rows} 行，` +
       `endTurn=${preRollCta.endTurn}）`)
+  const diceCtx = await checkDice3dContext(pMe)
+  if (!diceCtx.ok) failures.push(`22-纯线上-棋盘待掷骰: 骰子 3D 上下文结构回归（${diceCtx.reason}）`)
   // 名牌是装饰，不许压住任何一格：它必须排在圆盘之外
   const nameInDisc = await pMe.evaluate(() => {
     const n = document.querySelector('.wheel-name'), w = document.querySelector('.wheel')
@@ -1039,7 +1066,7 @@ async function main() {
     await clickText(pMe, '.drawer-cta .btn', '掷')
     if (i === 0) {
       await sleep(900)
-      await shot(pMe, '24-纯线上-掷骰与走格', '.wheel .die3d')
+      await shot(pMe, '24-纯线上-掷骰与走格', '.board-dice .die3d')
       // 演出期间抽屉正文按住：不写「第 N 步 / 3」（那一步还没走到），也不摆卡面
       await expectText(pMe, '24-纯线上-掷骰与走格', { hasNot: ['第 3 步 / 3'] })
       // 演出没播完，「结束回合」不许先变绿——不管这一格最终要不要决策，服务端早把
@@ -1508,6 +1535,11 @@ async function main() {
   await expectText(pOther, '28-纯线上-断线态', {
     has: ['连接断开，正在重连…', '重新连上之前，操作暂不可用'],
   })
+  // 断线时 .offline-dim（opacity:.5）正挂在 .wheel 上——这正是骰子 3D 上下文最容易被
+  // WebKit 拍平的场景，专门在这里再查一次
+  const diceCtxOffline = await checkDice3dContext(pOther)
+  if (!diceCtxOffline.ok)
+    failures.push(`28-纯线上-断线态: 骰子 3D 上下文结构回归（${diceCtxOffline.reason}）`)
   await pOther.setOfflineMode(false)
   await sleep(1800)
   offlineOnPurpose = false
