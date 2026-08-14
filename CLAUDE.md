@@ -937,6 +937,29 @@ bug——`boardPx = min(332, stage 实测净宽, stage 实测净高 − 46)`，�
 **只差真机那一遍**：普通浏览器（Android Chrome / Samsung Internet）与 iPad Safari 各看一次
 待掷 / 摇动 / 落定三态，40px 与 58px 两个尺寸都要看得出立体；切到别的 App 再切回来不许闪红条。
 
+**非移动类掷骰改为玩家亲历（2026-08-14，纯呈现层）**，**引擎/协议/事件流/卡库零改动，
+线下辅助模式一屏一字未变**。用户反馈：除了走格子的移动掷骰，骰子赌局卡（`DICE_GAMBLE`，
+卡库里只有 `sd-013` 一张）和快车道掷骰企业格（`FT_BUY_BUSINESS` 的 `diceRule`，5 项企业）
+点一下决策按钮就直接结算，玩家看不到骰子转、也不知道自己掷了几点，缺乏参与感。查下来两处
+骰子本来就在服务端摇好、随 `DICE_GAMBLE_RESOLVED`/`FT_BUSINESS_BOUGHT` 事件下发，
+只是前端从没把这两个事件接进演出管线——移动掷骰（`ROLL_DICE` → `DICE_ROLLED`）早就是
+「服务端摇好点数写进事件、客户端只回放不预测」的架子，直接复用即可。`stage.ts` 的
+`buildStage()` 给这两个事件各加一对 `dice` 拍（同 `DICE_ROLLED` 的翻滚+落定两拍），
+`held` 门（`OnlineRoomView.vue`）与棋盘中央的 `Die3d` 全部现成复用，零新增组件。
+顺带补上一个一直存在的呈现缺口：买断掷骰企业格后界面完全不显示掷了几点/成不成功
+（`FtSquareCard` 只标「已买断」，`_a_ft_business_bought` 从不写 `landing.note`）；
+骰子赌局卡结算后同样没有任何地方交代赢没赢、赚/赔多少（`OnlineCardPanel.vue` 的决策区
+整块挂在 `!ac.resolved` 下，一结算就消失）。这两处的 `won`/`success`/`dice_roll` 只在
+事件 payload 里出现一次（`ActiveCard`/`Landing` 这两个服务端模型都不携带），所以照抄
+`SettlementStub`/`PenaltyStub` + `catchStub`/`catchHit`（`store.ts`）的既有手法，新增
+`GambleStub`/`BizStub` 两个存根，在 `ingestEvents` 里趁换快照前从事件流现抓，渲染成与
+`hitStub` 同款的 `.card.inner.landing-done` 存根卡。买入/接受按钮加 🎲 前缀强化「这一下
+会掷骰」的预期，不带 `diceRule` 的企业格与线下辅助模式的 `ActionTab.vue` 不受影响。
+测试 `pytest` **532 passed**（引擎未动，作回归）；`npx vue-tsc --noEmit` 通过；
+`npm run ui-smoke` 全过（与父提交逐项比对，两条既有的溢出警告在改动前后都存在，
+不是本次引入）。**只差真机那一遍**：抽到 `sd-013` 或走到掷骰企业格的概率都不高，
+本地没能自然撞上，靠代码审查 + 类型检查 + 既有全量冒烟回归确认正确性。
+
 ## 开发必读（按顺序）
 
 1. [design/09-纯线上版UX设计.md](design/09-纯线上版UX设计.md) — 纯线上模式的信息架构、棋盘、回合流、动效节拍表（呈现层权威）

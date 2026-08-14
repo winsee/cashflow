@@ -52,6 +52,13 @@ const marketPending = computed(() => {
       .filter(Boolean).join('、'),
   }
 })
+
+/** 骰子赌局卡结算后的存根：`gambleStub` 已经按 playerId 过滤过，只有抽卡人自己能看到——
+ *  和这张卡此前的决策预览（`shortfall` 等）同一条规矩，个人财务细节不对旁观者广播。 */
+const gamble = computed(() =>
+  ac.value?.resolved && ac.value.subtype === 'DICE_GAMBLE' ? game.gambleStub : null)
+const gambleNet = computed(() => (gamble.value
+  ? (gamble.value.won ? gamble.value.payout - gamble.value.stake : -gamble.value.stake) : 0))
 </script>
 
 <template>
@@ -118,5 +125,24 @@ const marketPending = computed(() => {
     <!-- 非抽卡人：只在有股票可操作时露出交易区（同一份 StockTradeBox，买卖口径由 store.myStockWindow 定，
          与 buyerScope/抽卡人身份无关——持仓人卖出从来不受抽卡人限制） -->
     <StockTradeBox v-else-if="ac?.subtype === 'STOCK_OFFER'" />
+
+    <!-- 骰子赌局卡结算存根：棋盘中央的骰子落定之后，这里交代掷了几点、赢没赢、赚/赔多少。
+         `gamble` 只在 `ac.resolved` 时非空，与上面这条 if/else-if 链互斥，独立判断即可。 -->
+    <div v-if="gamble" class="card inner landing-done">
+      <span class="ic">🎲</span>
+      <div class="tx">
+        <div class="t1">
+          掷出 {{ gamble.rolls.join('+') }}{{ gamble.rolls.length > 1 ? `=${gamble.total}` : '' }} 点
+          · {{ gamble.won ? '中彩' : '未中' }}
+        </div>
+        <div class="t2">
+          {{ gamble.won ? `支付 ${fmt(gamble.stake)}，赢得 ${fmt(gamble.payout)}`
+             : `支付 ${fmt(gamble.stake)}，血本无归` }}
+        </div>
+      </div>
+      <span class="amt money" :class="gambleNet >= 0 ? 'pos' : 'neg'">
+        {{ gambleNet >= 0 ? '+' : '−' }}{{ fmt(Math.abs(gambleNet)) }}
+      </span>
+    </div>
   </div>
 </template>

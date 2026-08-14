@@ -142,6 +142,26 @@ const hitStub = computed(() => {
   const t = FT_HIT_TEXT[`FT_${s.hitKind}`]
   return { icon: t.icon, title: `停在${t.title}格`, why: t.why, amount: -s.amount }
 })
+
+/** 快车道掷骰企业格结算存根：棋盘中央的骰子落定之后，交代掷了几点、有没有达标、
+ *  拿到了什么——`FtSquareCard` 结算后只会标「已买断」，这句话原来无处可说（design/09 遗留项）。 */
+const bizStub = computed(() => {
+  const s = game.bizStub
+  if (!s || s.playerId !== me.value?.id) return null
+  // `.amt` 这个槽位在 stub/hitStub 里一贯是「此刻实际发生的现金变动」，不是「这笔交易划不划算」——
+  // 掷骰企业格成功后拿到的要么是月现金流（往后每个月才到账，此刻没有这笔现金），
+  // 要么是一次性收益（此刻就到账）。前者是速率、后者是金额，不能相加减；
+  // 月现金流只在 `why` 里说清楚，`.amt` 只算「首付付出 + 一次性收益到账」这一次的净现金。
+  const immediateGain = s.success ? s.lumpSum : 0
+  return {
+    icon: '🎲',
+    title: `掷出 ${s.roll} 点 · 需 ${s.threshold} 点及以上 · ${s.success ? '成功' : '未达标'}`,
+    why: s.success
+      ? (s.cashflow ? `每月现金流 +${fmt(s.cashflow)}` : `一次性收益 +${fmt(s.lumpSum)}`)
+      : '首付已支付，未获得收益',
+    amount: immediateGain - s.downPayment,
+  }
+})
 </script>
 
 <template>
@@ -166,6 +186,16 @@ const hitStub = computed(() => {
     </div>
     <span v-if="hitStub.amount !== undefined" class="amt money"
           :class="hitStub.amount >= 0 ? 'pos' : 'neg'">{{ signed(hitStub.amount) }}</span>
+  </div>
+
+  <!-- 快车道掷骰企业格结算存根：可以和上面两张同时出现（同一回合先经过结算日再买断企业） -->
+  <div v-if="bizStub" class="card inner landing-done">
+    <span class="ic">{{ bizStub.icon }}</span>
+    <div class="tx">
+      <div class="t1">{{ bizStub.title }}</div>
+      <div class="t2">{{ bizStub.why }}</div>
+    </div>
+    <span class="amt money" :class="bizStub.amount >= 0 ? 'pos' : 'neg'">{{ signed(bizStub.amount) }}</span>
   </div>
 
   <div v-if="landing && !landing.resolved" class="stack" style="gap:10px">
@@ -219,7 +249,7 @@ const hitStub = computed(() => {
       <button v-if="!bizSold" class="btn block"
               @click="pay('FT_BUY_BUSINESS', { squareId: biz.id }, '买下这项企业投资？',
                 [`将支付 ${fmt(biz.down_payment)}`])">
-        买入 {{ fmt(biz.down_payment) }}
+        {{ biz.dice_rule ? '🎲 买入并掷骰' : '买入' }} {{ fmt(biz.down_payment) }}
       </button>
     </template>
 
