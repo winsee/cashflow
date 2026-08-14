@@ -1192,6 +1192,31 @@ async function main() {
     if (roomy.labels < 12) failures.push('25-纯线上-机会格选大小生意: ' +
       `板宽 ${roomy.bw}px 写得下字，内圈却只有 ${roomy.labels} 个格面文字`)
     if (!roomy.name) failures.push('25-纯线上-机会格选大小生意: 板宽够却没有名牌')
+    // ── v0.21 这一屏另加一段：真机反馈棋盘常年卡在 300px 以下（正方形棋盘竖屏里
+    // 多半是宽度先顶到 stage 边界收窄），旧阈值 300 把「写字」这个更有用的状态挡在
+    // 门外——改窄视口把板宽逼到新旧阈值之间（240~300），验证文字这时候还在。
+    // 负向对照：把 `BOARD_TEXT_MIN` 改回 300，这一段当场报「板宽够却没写字」。
+    const prevViewport = pMe.viewport()
+    await pMe.setViewport({ width: 294, height: 860, deviceScaleFactor: 2 })
+    await sleep(400)
+    const pinched = await pMe.evaluate(() => ({
+      bw: Math.round(document.querySelector('.wheel')?.getBoundingClientRect().width ?? 0),
+      compact: !!document.querySelector('.board-wrap.compact'),
+      labels: document.querySelectorAll('.track-rr .sq-label').length,
+      name: document.querySelectorAll('.wheel-name').length,
+    }))
+    if (pinched.bw < 240 || pinched.bw >= 300) failures.push('25-纯线上-窄屏仍写字: ' +
+      `没能把板宽逼到新旧阈值之间（240~300），实际 ${pinched.bw}px，测试本身需要调窄视口宽度`)
+    else {
+      if (pinched.compact) failures.push('25-纯线上-窄屏仍写字: ' +
+        `板宽 ${pinched.bw}px 已经 ≥ 新阈值 240，却仍判定为 compact`)
+      if (pinched.labels < 12) failures.push('25-纯线上-窄屏仍写字: ' +
+        `板宽 ${pinched.bw}px 该写字，内圈却只有 ${pinched.labels} 个格面文字`)
+      if (!pinched.name) failures.push('25-纯线上-窄屏仍写字: ' +
+        `板宽 ${pinched.bw}px 该写字，却没有名牌`)
+    }
+    if (prevViewport) await pMe.setViewport(prevViewport)
+    await sleep(400)
     await clickText(pMe, '.drawer-body .btn', '小生意')
     await sleep(1000)
     await shot(pMe, '26-纯线上-全屏发牌翻牌', '.deal-curtain')
