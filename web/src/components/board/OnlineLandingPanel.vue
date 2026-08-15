@@ -19,7 +19,7 @@ import { computed } from 'vue'
 import { askBankLoan } from '../../bankrequest'
 import { confirmAction } from '../../confirm'
 import { useFtLanding } from '../../ftlanding'
-import { charityCost, fmt, useGame } from '../../store'
+import { charityCost, fmt, signed, toneOf, useGame } from '../../store'
 import FtSquareCard from '../cards/FtSquareCard.vue'
 
 const props = defineProps<{ spectator?: boolean }>()
@@ -40,17 +40,6 @@ const unemploymentShort = computed(() =>
 async function pay(action: string, payload: Record<string, any>, title: string, lines: string[]) {
   if (!await confirmAction({ title, lines, okText: '确认' })) return
   await game.act(action, payload)
-}
-
-/** 落点已处理、且**从头到尾没问过我**的那些格子（design/09 §4.3）。
- *
- *  试玩反馈：停在银行结算日，屏幕上什么都没有，回合就突然可以结束了 —— 玩家不知道刚发生了什么。
- *  这张卡是「交代」，不是「待办」：不弹层、不提档、没有按钮，回合一换自然消失。
- *  金额一律取**已经算好的权威状态**，不在客户端重算（钱早在走格那一拍就入账了）。
- */
-/** 金额在模板里用不了 `Math.abs`（不在表达式白名单），在这儿就带上正负号成文 */
-function signed(n: number): string {
-  return (n >= 0 ? '+' : '−') + fmt(n < 0 ? -n : n)
 }
 
 const FT_HIT_TEXT: Record<string, { icon: string; title: string; why: string }> = {
@@ -92,6 +81,12 @@ const stub = computed(() => {
  *  - 一局只撞上几次的重击（孩子 / 失业 / 快车道三个惩罚格）现在有全屏惩罚帘幕
  *    （`PenaltyCurtain`）负责报数，这儿的 `done` 不再重复；帘幕散场后的回看
  *    交给下面的 `hitStub`（同 `stub` 的先例：帘幕是仪式、自动消散，没看清就没地方回看）。
+ */
+/** 落点已处理、且**从头到尾没问过我**的那些格子（design/09 §4.3）。
+ *
+ *  试玩反馈：停在银行结算日，屏幕上什么都没有，回合就突然可以结束了 —— 玩家不知道刚发生了什么。
+ *  这张卡是「交代」，不是「待办」：不弹层、不提档、没有按钮，回合一换自然消失。
+ *  金额一律取**已经算好的权威状态**，不在客户端重算（钱早在走格那一拍就入账了）。
  */
 const done = computed<{ icon: string; title: string; why: string; amount?: number } | null>(() => {
   const lg = landing.value
@@ -140,7 +135,7 @@ const bizStub = computed(() => {
     icon: '🎲',
     title: `掷出 ${s.roll} 点 · 需 ${s.threshold} 点及以上 · ${s.success ? '成功' : '未达标'}`,
     why: s.success
-      ? (s.cashflow ? `每月现金流 +${fmt(s.cashflow)}` : `一次性收益 +${fmt(s.lumpSum)}`)
+      ? (s.cashflow ? `每月现金流 ${signed(s.cashflow)}` : `一次性收益 ${signed(s.lumpSum)}`)
       : '首付已支付，未获得收益',
     amount: immediateGain - s.downPayment,
   }
@@ -166,7 +161,7 @@ const bizStub = computed(() => {
         <div class="t1">{{ stub.title }}</div>
         <div class="t2">{{ stub.why }}</div>
       </div>
-      <span class="amt money" :class="stub.amount >= 0 ? 'pos' : 'neg'">{{ signed(stub.amount) }}</span>
+      <span class="amt money" :class="toneOf(stub.amount)">{{ signed(stub.amount) }}</span>
     </div>
 
     <!-- 惩罚帘幕（失业/孩子/税务审计/离婚/官司）散场后的存根：帘幕已经报过数，
@@ -178,7 +173,7 @@ const bizStub = computed(() => {
         <div class="t2">{{ hitStub.why }}</div>
       </div>
       <span v-if="hitStub.amount !== undefined" class="amt money"
-            :class="hitStub.amount >= 0 ? 'pos' : 'neg'">{{ signed(hitStub.amount) }}</span>
+            :class="toneOf(hitStub.amount)">{{ signed(hitStub.amount) }}</span>
     </div>
 
     <!-- 快车道掷骰企业格结算存根：可以和上面两张同时出现（同一回合先经过结算日再买断企业） -->
@@ -188,7 +183,7 @@ const bizStub = computed(() => {
         <div class="t1">{{ bizStub.title }}</div>
         <div class="t2">{{ bizStub.why }}</div>
       </div>
-      <span class="amt money" :class="bizStub.amount >= 0 ? 'pos' : 'neg'">{{ signed(bizStub.amount) }}</span>
+      <span class="amt money" :class="toneOf(bizStub.amount)">{{ signed(bizStub.amount) }}</span>
     </div>
 
     <div v-if="landing && !landing.resolved" class="stack" style="gap:10px">
@@ -258,7 +253,7 @@ const bizStub = computed(() => {
         <div v-if="done.why" class="t2">{{ done.why }}</div>
       </div>
       <span v-if="done.amount" class="amt money"
-            :class="done.amount >= 0 ? 'pos' : 'neg'">{{ signed(done.amount) }}</span>
+            :class="toneOf(done.amount)">{{ signed(done.amount) }}</span>
     </div>
   </template>
 </template>

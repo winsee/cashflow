@@ -9,7 +9,7 @@
  */
 import { computed, ref } from 'vue'
 import { confirmAction } from '../../confirm'
-import { fmt, useGame } from '../../store'
+import { fmt, signed, useGame } from '../../store'
 
 const game = useGame()
 const me = computed(() => game.me)
@@ -23,7 +23,7 @@ async function takeLoan() {
   const cfAfter = me.value!.derived.monthlyCashflow - interest
   const ok = await confirmAction({
     title: `向银行贷款 ${fmt(amt)}？`,
-    lines: [`每月利息 +${fmt(interest)}（月息 10%）`, `贷后月现金流 ${fmt(cfAfter)}`],
+    lines: [`每月利息 +${fmt(interest)}（月息 10%）`, `贷后月现金流 ${signed(cfAfter)}`],
     warning: cfAfter < 0
       ? '贷后月现金流为负：下个银行结算日现金不足以支付即破产，届时不能再贷款'
       : undefined,

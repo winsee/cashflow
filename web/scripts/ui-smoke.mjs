@@ -478,19 +478,55 @@ async function main() {
   await send(pb, 'END_TURN')
   await sleep(400)
 
-  // 市场求购：阿明名下两套 2 室公寓 → 小雨抽到求购卡 → 阿明这边应弹出逐套勾选的弹层
+  // 市场求购：阿明名下三套 3室2厅 → 小雨抽到求购卡 → 阿明这边应弹出逐套勾选的弹层。
+  //
+  // 三张卡是**挑过的对照组**，不是随便找三套一样的（从前买两套一模一样的 bd-001，
+  // 两行逐字相同，既照不出「哪套最划算」也照不出负现金流）。mk-016 每套出价 $100,000：
+  //   sd-051  抵押 50,000  月现金流 **−100**  → 到手 +$50,000  卖了每月还多赚 $100  ★
+  //   bd-013  抵押 50,000  月现金流   500     → 到手 +$50,000  ≈ 100 个月现金流
+  //   bd-026  抵押 64,000  月现金流   750     → 到手 +$36,000  ≈  48 个月现金流
+  // sd-051 那一行同时钉死 `+$-100` 那一类出号（它的月现金流是负的）。
   await send(pa, 'HOST_ADJUST', { playerId: a.playerId, delta: 100000, reason: '冒烟：买房本金' })
-  for (let i = 0; i < 2; i++) {
-    await send(pa, 'DRAW_CARD', { cardId: 'bd-001' })
+  for (const cardId of ['sd-051', 'bd-013', 'bd-026']) {
+    await send(pa, 'DRAW_CARD', { cardId })
     await send(pa, 'CARD_DECISION', { decision: 'buy' })
     await send(pa, 'END_TURN')
     await send(pb, 'END_TURN')
     await sleep(250)          // 每条动作各开一条 WS，别让下一轮抢在广播前面
   }
   await send(pa, 'END_TURN')
-  await send(pb, 'DRAW_CARD', { cardId: 'mk-020' })   // 求购公寓，按间计价
+  await send(pb, 'DRAW_CARD', { cardId: 'mk-016' })   // 求购 3室2厅，每套 $100,000
   await sleep(800)
   await shot(pa, '08c-市场求购-逐套勾选', '.apick')
+  await expectText(pa, '08c-市场求购-逐套勾选', {
+    has: [
+      '★ 最划算',
+      '较成本 +$50,000 · 卖了每月还多赚 $100',   // sd-051：月现金流为负，卖掉反而每月多赚
+      '较成本 +$30,000 · 到手 ≈ 100 个月现金流',
+      '较成本 +$20,000 · 到手 ≈ 48 个月现金流',
+      '首付 $0',
+    ],
+    // 负号一律在 `$` 外面：`$-100` / `+$-100` / `−$-100` 三种旧写法一个都不许再出现
+    hasNot: ['$-', '+$-', '−$-'],
+  })
+  const bestRow = await pa.evaluate(() => {
+    const rows = [...document.querySelectorAll('.apick')]
+    const stars = rows.filter(r => r.querySelector('.star'))
+    const sd = rows.find(r => r.innerText.includes('抵押 $50,000') && r.innerText.includes('多赚'))
+    return {
+      stars: stars.length,
+      starOnBest: stars.length === 1 && sd != null && stars[0] === sd,
+      // 卖掉负现金流的房产，我的月现金流是**变好**的：绿色 +$100/月，不是红色
+      flowText: sd?.querySelector('.rt span')?.textContent.trim() ?? '',
+      flowPos: sd?.querySelector('.rt span')?.classList.contains('pos') ?? false,
+    }
+  })
+  if (bestRow.stars !== 1) failures.push(`08c-市场求购-逐套勾选: ★ 应有且只有 1 枚，实为 ${bestRow.stars}`)
+  if (!bestRow.starOnBest) failures.push('08c-市场求购-逐套勾选: ★ 没落在最划算的那一项（sd-051）上')
+  if (bestRow.flowText !== '+$100/月')
+    failures.push(`08c-市场求购-逐套勾选: 负现金流那一行该写 +$100/月，实为「${bestRow.flowText}」`)
+  if (!bestRow.flowPos) failures.push('08c-市场求购-逐套勾选: 卖掉负现金流资产是加分，不该染成红色')
+
   // 抽卡人侧：写清通知了谁、谁还没决定；不该出现那个按下会报 BAD_CARD 的「结算」
   await shot(pb, '08d-市场求购-抽卡人侧', '.badge')
   await expectText(pb, '08d-市场求购-抽卡人侧', {
@@ -498,11 +534,40 @@ async function main() {
     hasNot: ['强制卡'],
     noButtons: ['结算'],
   })
+
+  // 08c2 只卖一套之后还能接着卖 —— 从前一次提交把没勾的也一并否掉，
+  // 「先卖一套再想想」这条路整个没有（服务端一直是允许的，是 UI 把闸门收严了）。
+  // 故意卖**不带 ★ 的那一套**（bd-026）：分次卖与「系统推荐了哪一套」无关，
+  // 而且卖掉它之后 sd-051 还留在名下，正好给下面那屏当负现金流的样本。
   await pa.evaluate(() => {
-    const el = [...document.querySelectorAll('.modal .btn')].find(x => x.textContent.includes('都不卖'))
-    if (el) el.click()
+    const row = [...document.querySelectorAll('.apick')].find(r => r.innerText.includes('48 个月'))
+    row?.click()
   })
+  await sleep(200)
+  await clickText(pa, '.modal .btn', '卖出选中的 1 项')
+  await sleep(900)
+  await shot(pa, '08c2-市场求购-卖一套之后还能接着卖', '.apick')
+  await expectText(pa, '08c2-市场求购-卖一套之后还能接着卖', {
+    has: ['已卖出 1 项', '名下还有'],
+    noButtons: ['都不卖'],          // 卖过之后这枚按钮改说「不再卖了」
+  })
+  const left = await pa.evaluate(() => document.querySelectorAll('.apick').length)
+  if (left !== 2) failures.push(`08c2-市场求购-卖一套之后还能接着卖: 该还剩 2 项可卖，实为 ${left}`)
+  await clickText(pa, '.modal .btn', '不再卖了')
   await sleep(600)
+  const sellClosed = await pa.evaluate(() => document.querySelectorAll('.apick').length)
+  if (sellClosed !== 0) failures.push(`08c2-市场求购-卖一套之后还能接着卖: 点了「不再卖了」弹层没收口（还剩 ${sellClosed} 项）`)
+
+  // 08e 报表页那一行才是 `fmt()` 那一层的正主：损益表逐行是**裸的** fmt(cashflow)，
+  // 负现金流的资产（阿明名下还留着 sd-051）从前在这儿写成 `$-100`——负号落在 `$` 里面。
+  // 08c 那一屏的数全走 signed()（先取绝对值再拼号），钉不住这一条。
+  await pa.evaluate(() => document.querySelectorAll('.tabbar button')[0].click())
+  await shot(pa, '08c3-线下-报表页-负现金流资产', 'table.fin')
+  await expectText(pa, '08c3-线下-报表页-负现金流资产', {
+    has: ['-$100'],       // 负号在 $ 外面
+    hasNot: ['$-100'],    // 负号在 $ 里面：这一版写法一个字都不许再出现
+  })
+  await pa.evaluate(() => document.querySelectorAll('.tabbar button')[1].click())
   await send(pb, 'END_TURN')
 
   // 现金流调整卡：影响所有持有该类资产的人 → 抽卡人侧应逐人列出各变多少

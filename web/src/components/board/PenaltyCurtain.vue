@@ -14,15 +14,11 @@
  *  CHILD_ADDED 没有现金变动，孩子数/月支出改由 prev 快照 +1 推出来。
  */
 import { computed } from 'vue'
-import { fmt } from '../../store'
+import { fmt, signed } from '../../store'
 import type { StageStep } from '../../stage'
 
 const props = defineProps<{ step: Extract<StageStep, { kind: 'penalty' }> }>()
 const emit = defineEmits<{ (e: 'skip'): void }>()
-
-function signed(n: number): string {
-  return (n >= 0 ? '+' : '−') + fmt(n < 0 ? -n : n)
-}
 
 const cashAfter = computed(() => props.step.cashBefore + props.step.amount)
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { confirmAction } from '../confirm'
-import { fmt, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
+import { fmt, ftWinProgress, FT_WIN_INCREMENT, signed, toneOf, useGame } from '../store'
 import type { FtDream, Player } from '../types'
 import EmptyState from './base/EmptyState.vue'
 
@@ -105,9 +105,9 @@ const frozenIds = computed(() =>
         <table class="fin" v-if="me.fasttrack.businesses.length">
           <tbody>
             <tr v-for="b in me.fasttrack.businesses" :key="b.square_id">
-              <td>{{ b.name }}</td><td class="pos">+{{ fmt(b.cashflow) }}/月</td>
+              <td>{{ b.name }}</td><td :class="toneOf(b.cashflow)">{{ signed(b.cashflow) }}/月</td>
             </tr>
-            <tr class="total"><td>合计增量</td><td class="pos">+{{ fmt(ftGain) }}</td></tr>
+            <tr class="total"><td>合计增量</td><td :class="toneOf(ftGain)">{{ signed(ftGain) }}</td></tr>
           </tbody>
         </table>
         <EmptyState v-else icon="🏢" title="还没有买下任何企业"

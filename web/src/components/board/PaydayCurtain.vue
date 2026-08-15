@@ -16,7 +16,7 @@
  *  权威状态在演出开始前就已经是结算后的样子，再去读就没有「$2,100 →」的左边那一半了。
  */
 import { computed } from 'vue'
-import { fmt, useGame } from '../../store'
+import { fmt, signed, useGame } from '../../store'
 import type { StageStep } from '../../stage'
 
 const props = defineProps<{ step: Extract<StageStep, { kind: 'settle' }> }>()
@@ -28,10 +28,6 @@ const ft = computed(() => props.step.track === 'FAST_TRACK')
 /** 老鼠赛跑的月现金流可以是负的——**负现金流的结算日恰恰是最该被看见的一刻**，
  *  所以它不是「少一点金色」，而是换一种语气：冷色底、📉、写「本月净支出」。 */
 const neg = computed(() => props.step.amount < 0)
-
-function signed(n: number): string {
-  return (n >= 0 ? '+' : '−') + fmt(n < 0 ? -n : n)
-}
 
 const cashAfter = computed(() => props.step.cashBefore + props.step.amount)
 

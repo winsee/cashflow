@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { fmt, signed } from './money'
 import { buildCardImpact, buildReceipts, type CardImpact, type Receipt } from './receipts'
 import {
   buildStage, prefersReducedMotion, setStageBoard,
@@ -813,10 +814,9 @@ export function charityCost(p: { derived: { totalIncome: number } } | null | und
   return Math.round((p?.derived.totalIncome ?? 0) / 10)
 }
 
-export function fmt(n: number | undefined | null): string {
-  if (n === undefined || n === null) return '0'
-  return '$' + n.toLocaleString('en-US')
-}
+/** 金额成文的三件套住在 `money.ts`（`receipts.ts` 也要用，放这儿会成环）。
+ *  这里再导出一遍，既有的 `import { fmt } from './store'` 照旧可用。 */
+export { fmt, signed, toneOf } from './money'
 
 /** 快车道企业格的卡面数字。掷骰格的数值口径：成功后拿到的是月现金流还是一次性现金，
  *  卡面上要分清——`cashflow` 只在不掷骰的企业上才有意义，掷骰企业的收益写在 `dice_rule` 里。 */
@@ -825,10 +825,10 @@ export function ftBizNums(b: FtBusiness): { label: string; value: string }[] {
   if (b.dice_rule) {
     nums.push(b.dice_rule.lumpSum
       ? { label: '成功后', value: fmt(b.dice_rule.lumpSum) + ' 现金' }
-      : { label: '成功后', value: '+' + fmt(b.dice_rule.successCashflow ?? 0) + '/月' })
+      : { label: '成功后', value: signed(b.dice_rule.successCashflow ?? 0) + '/月' })
     nums.push({ label: '需掷出', value: `≥ ${b.dice_rule.threshold}` })
   } else {
-    nums.push({ label: '月现金流', value: '+' + fmt(b.cashflow) })
+    nums.push({ label: '月现金流', value: signed(b.cashflow) })
   }
   return nums
 }

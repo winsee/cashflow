@@ -7,6 +7,7 @@
  *  每条回执答三件事：发生了什么、为什么、对我的账有什么影响。
  *  一次性扣款和月现金流变化用「/月」区分，不能混。
  */
+import { fmt, signed as signedMoney } from './money'
 import type { RoomStateDto } from './types'
 
 export interface Receipt {
@@ -73,7 +74,7 @@ export function buildCardImpact(
           rows.push({
             playerId: pid, nickname: nickOf(pid),
             detail: names.join('、') || `${ids.length} 项资产`,
-            amount: signed(p.delta * ids.length, true),
+            amount: signedPer(p.delta * ids.length, true),
             tone: p.delta >= 0 ? 'pos' : 'neg',
           })
         }
@@ -87,7 +88,7 @@ export function buildCardImpact(
         rows.push({
           playerId: p.player_id, nickname: nickOf(p.player_id),
           detail: `${hit.map((x: any) => x.name).join('、') || '资产'} 被收回`,
-          amount: lost ? signed(-lost, true) : '—',
+          amount: lost ? signedPer(-lost, true) : '—',
           tone: 'neg',
         })
         break
@@ -119,11 +120,9 @@ const SELF_ACTION: Record<string, string[]> = {
 /** 刚发出的行动在这个窗口内不再算「被动」；服务端往返一般远快于此 */
 const SELF_WINDOW_MS = 6000
 
-function money(n: number): string {
-  return '$' + Math.abs(n).toLocaleString('en-US')
-}
-function signed(n: number, per = false): string {
-  return (n >= 0 ? '+' : '−') + money(n) + (per ? '/月' : '')
+/** 回执独有的只是那个 `/月` 后缀，符号与格式走 `money.ts` 那一份 */
+function signedPer(n: number, per = false): string {
+  return signedMoney(n) + (per ? '/月' : '')
 }
 
 let seq = 0
@@ -167,7 +166,7 @@ export function buildReceipts(
           tone: 'neg', icon: '📉',
           title: `额外支出 · ${p.title ?? '卡牌结算'}`,
           why: '这张卡的结算已记到你名下',
-          amount: signed(-p.amount),
+          amount: signedPer(-p.amount),
         }))
         break
       }
@@ -194,7 +193,7 @@ export function buildReceipts(
           tone: p.delta >= 0 ? 'pos' : 'neg', icon: p.delta >= 0 ? '📈' : '📉',
           title: `「${names.join('、') || '你的资产'}」月现金流变了`,
           why: '市场风云卡对这类资产统一调整',
-          amount: signed(p.delta * ids.length, true),
+          amount: signedPer(p.delta * ids.length, true),
         }))
         break
       }
@@ -210,7 +209,7 @@ export function buildReceipts(
           tone: 'neg', icon: '🏚️',
           title: `「${hit.map(x => x.name).join('、') || '你的资产'}」被没收`,
           why: '市场风云卡：该类资产强制交回银行',
-          amount: lost ? signed(-lost, true) : undefined,
+          amount: lost ? signedPer(-lost, true) : undefined,
         }))
         break
       }
@@ -241,7 +240,7 @@ export function buildReceipts(
           tone: 'gold', icon: '💔',
           title: '你的梦想被加价了',
           why: `${nickOf(p.player_id)}双倍购买「${p.name}」，你要花更多钱才能买下`,
-          amount: `现价 ${money((p.base_price ?? 0) * (before + 2))}`,
+          amount: `现价 ${fmt((p.base_price ?? 0) * (before + 2))}`,
         }))
         break
       }
@@ -253,7 +252,7 @@ export function buildReceipts(
           tone: p.delta >= 0 ? 'pos' : 'neg', icon: '🛠️',
           title: '房主调整了你的现金',
           why: p.reason || '房主在总览页做的手工修正',
-          amount: signed(p.delta),
+          amount: signedPer(p.delta),
         }))
         break
       }
@@ -265,14 +264,14 @@ export function buildReceipts(
             tone: 'neg', icon: '🤝',
             title: `${nickOf(p.to_player_id)} 收下了你的转账`,
             why: p.reason || '玩家间转账，对方确认后才扣款',
-            amount: signed(-p.amount),
+            amount: signedPer(-p.amount),
           }))
         } else if (p.to_player_id === meId) {
           out.push(make({
             tone: 'pos', icon: '🤝',
             title: `收到 ${nickOf(p.from_player_id)} 的转账`,
             why: p.reason || '玩家间转账',
-            amount: signed(p.amount),
+            amount: signedPer(p.amount),
           }))
         }
         break
@@ -306,7 +305,7 @@ export function buildReceipts(
           tone: 'gold', icon: '🏁',
           title: `${nickOf(p.player_id)} 逃出老鼠赛跑了`,
           why: '非工资收入超过总支出，已进入快车道',
-          amount: `现金流量日收入 ${money(p.initial_income ?? 0)}`,
+          amount: `现金流量日收入 ${fmt(p.initial_income ?? 0)}`,
         }))
         break
       }

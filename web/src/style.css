@@ -680,9 +680,21 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 /* 用 span 排版也要各占一行：按钮里不能放块级元素，所以在这儿显式声明 */
 .apick .t1 { display: block; font-size: var(--fs-sm); font-weight: 700; }
 .apick .t2 { display: block; font-size: 11px; color: var(--muted); line-height: 1.4; }
+/* 划算指标那一行：比 .t2 深一档（它是拿来做决定的，不是背景交代），仍是小字 */
+.apick .t3 { display: block; font-size: 11px; color: var(--text); line-height: 1.4; margin-top: 1px; }
+/* 「标签 数值」是一个整体：窄屏折行只许折在分隔点上，不许把数字甩到下一行去 */
+.apick .seg { white-space: nowrap; }
+/* ★ 只表示「这一项的指标最高」，不上任何玩家主题色——颜色不表示归属 */
+.apick .star {
+  display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 5px;
+  font-size: 10px; font-weight: 700; letter-spacing: .2px;
+  color: var(--gold-deep); background: var(--gold-soft); border: 1px solid var(--gold);
+}
 .apick .rt { text-align: right; flex: none; }
 .apick .rt b { font-size: 13.5px; font-variant-numeric: tabular-nums; }
-.apick .rt span { display: block; font-size: 10.5px; color: var(--neg); }
+/* 颜色不再写死：这一格现在是「卖掉它我的月现金流怎么变」，负现金流的房产卖掉反而是加分，
+   由模板的 .pos/.neg 说了算（`+$-100` 那一轮的教训：可能为负的数不许写死符号和颜色） */
+.apick .rt span { display: block; font-size: 10.5px; font-variant-numeric: tabular-nums; }
 
 /* ============================================================
    卡片家族：三个物种，各自照实体的样子来，都不参与阶段换肤
