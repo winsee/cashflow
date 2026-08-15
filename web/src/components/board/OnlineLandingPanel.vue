@@ -19,7 +19,7 @@ import { computed } from 'vue'
 import { askBankLoan } from '../../bankrequest'
 import { confirmAction } from '../../confirm'
 import { useFtLanding } from '../../ftlanding'
-import { fmt, useGame } from '../../store'
+import { charityCost, fmt, useGame } from '../../store'
 import FtSquareCard from '../cards/FtSquareCard.vue'
 
 const props = defineProps<{ spectator?: boolean }>()
@@ -30,9 +30,8 @@ const board = computed(() => game.board)
 // 取数在 `ftlanding.ts` 一处定义：底部按钮区与揭示帘幕上的卡面要的是同一份数
 const { landing, bizSold, ftShort, ftCard } = useFtLanding()
 
-/** 慈善捐款额 = 总收入 10%（与引擎同一口径，四舍五入到美元） */
-const charityCost = computed(() =>
-  Math.round((me.value?.derived.totalIncome ?? 0) / 10))
+/** 慈善捐款额 = 总收入 10%（公式在 store 一处定义，按钮上写多少这里就得是多少） */
+const charity = computed(() => charityCost(me.value))
 
 /** 失业要付一次总支出，付不出可以先贷款（老鼠赛跑阶段银行一直在） */
 const unemploymentShort = computed(() =>
@@ -203,15 +202,13 @@ const bizStub = computed(() => {
         </div>
       </template>
 
+      <!-- 慈善（两条赛道各一个格）：与快车道绿格粉格同一条规矩，**只剩说明**，
+           「捐」按钮在 `.drawer-cta` 上一行（design/09 §4.4 的「可选落点」一行）。 -->
       <template v-else-if="landing.type === 'CHARITY'">
         <b style="font-size:13px">慈善事业</b>
         <p class="muted" style="margin:0">
-          捐出总收入的 10%（{{ fmt(charityCost) }}），此后 3 轮可自选掷 1 或 2 粒骰。不捐也可以直接结束回合。
+          捐出总收入的 10%（{{ fmt(charity) }}），此后 3 轮可自选掷 1 或 2 粒骰。不捐也可以直接结束回合。
         </p>
-        <button class="btn block" @click="pay('CHARITY', {}, '捐款做慈善？',
-          [`将支付 ${fmt(charityCost)}`, '此后 3 轮内可自选掷 1 或 2 粒骰'])">
-          捐 {{ fmt(charityCost) }}
-        </button>
       </template>
 
       <template v-else-if="landing.type === 'UNEMPLOYMENT'">

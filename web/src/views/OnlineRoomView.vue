@@ -11,7 +11,7 @@ import { bankRequest } from '../bankrequest'
 import { confirmAction } from '../confirm'
 import { useFtLanding } from '../ftlanding'
 import { majorStatus } from '../statuses'
-import { fmt, ftBizNums, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
+import { charityCost, fmt, ftBizNums, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
 import type { CardDto, Player } from '../types'
 import BoardView from '../components/board/BoardView.vue'
 import Die3d from '../components/board/Die3d.vue'
@@ -831,7 +831,11 @@ async function pay(action: string, payload: Record<string, any>, title: string, 
   await game.act(action, payload)
 }
 
-/** 快车道落点此刻要给我哪一行决策按钮（design/09 §4.4 那张表的「可选落点」一行）。
+/** 老鼠赛跑慈善格的捐款额（公式在 store 一处定义，落点面板的说明文字读的是同一个） */
+const rrCharityCost = computed(() => charityCost(me.value))
+
+/** 「可选落点」此刻要给我哪一行决策按钮（design/09 §4.4 那张表的「可选落点」一行）：
+ *  两条赛道的慈善格 + 快车道的绿格粉格。
  *
  *  v0.23 之前这几个按钮长在抽屉**正文**里（`OnlineLandingPanel`），于是 `cardCta` 恒为 null，
  *  「结束回合」那一行按 `ghost: !!cardCta` 渲染成**主按钮**——屏上两块同样大小同样金色的
@@ -846,9 +850,11 @@ const landingCta = computed(() => {
   if (!lg || lg.resolved) return null
   if (lg.type === 'FT_BUSINESS') return biz.value && !bizSold.value ? 'FT_BUSINESS' : null
   if (lg.type === 'FT_DREAM') return dream.value ? 'FT_DREAM' : null
-  // 三支都要求数据到齐才给按钮：棋盘没拉到时捐款额会显示成 $0，
-  // 而服务端照真价扣钱——按钮上的数字与实际付出的钱不一致，比没有按钮糟得多
+  // 快车道慈善的价钱来自棋盘数据，也要求数据到齐才给按钮：棋盘没拉到时捐款额会显示成 $0，
+  // 而服务端照真价扣钱——按钮上的数字与实际付出的钱不一致，比没有按钮糟得多。
+  // 老鼠赛跑那格的价钱是本人总收入的 10%，快照里就有，不受这条限制。
   if (lg.type === 'FT_CHARITY') return game.board ? 'FT_CHARITY' : null
+  if (lg.type === 'CHARITY') return 'CHARITY'
   return null
 })
 
@@ -1230,6 +1236,13 @@ const ctaShown = computed(() =>
                     @click="pay('FT_CHARITY', {}, '捐款做慈善？',
                       [`将支付 ${fmt(game.board?.fastTrack.charityCost)}`, '此后永久可自选掷 1–3 粒骰'])">
               捐 {{ fmt(game.board?.fastTrack.charityCost) }}
+            </button>
+            <!-- 老鼠赛跑的慈善格**不置灰**：那边的现金缺口是补得上的（银行贷款一直在），
+                 与快车道那三支的分界见 `ftlanding.ts` 的 `ftShort` 注释 -->
+            <button v-else-if="landingCta === 'CHARITY'" class="btn grow"
+                    @click="pay('CHARITY', {}, '捐款做慈善？',
+                      [`将支付 ${fmt(rrCharityCost)}`, '此后 3 轮内可自选掷 1 或 2 粒骰'])">
+              捐 {{ fmt(rrCharityCost) }}
             </button>
           </div>
           <!-- 掷骰行 + 慈善生效时压在它正上方的粒数选择器（v0.19 从轮心搬进抽屉，

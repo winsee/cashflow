@@ -803,6 +803,16 @@ export function ftWinProgress(f: { initial_income: number; current_income: numbe
   return Math.min(100, Math.round((f.current_income - f.initial_income) / FT_WIN_INCREMENT * 100))
 }
 
+/** 老鼠赛跑慈善格的捐款额 = 总收入的 10%（说明书 P.4）。
+ *
+ *  与引擎的 `(total_income + 5) // 10` 同一口径（总收入非负，四舍五入结果一致）。
+ *  三处要用同一个数：线下 `ActionTab`、纯线上的落点面板（写在说明文字里）与抽屉底的
+ *  捐款按钮——按钮上写多少，确认弹层与说明里就得是多少。
+ *  （快车道的慈善是一口价，由服务端随棋盘下发 `fastTrack.charityCost`，不走这个公式。） */
+export function charityCost(p: { derived: { totalIncome: number } } | null | undefined): number {
+  return Math.round((p?.derived.totalIncome ?? 0) / 10)
+}
+
 export function fmt(n: number | undefined | null): string {
   if (n === undefined || n === null) return '0'
   return '$' + n.toLocaleString('en-US')
