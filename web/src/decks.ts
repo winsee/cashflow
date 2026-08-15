@@ -6,6 +6,10 @@ export const DECK_LABEL: Record<string, string> = {
   MARKET: '市场风云',
   DOODAD: '额外支出',
   PROFESSION: '职业卡',
+  // 快车道的两种格子卡（design/09 §5.3 v0.23）。它们不是牌堆，但走同一段揭示帘幕，
+  // 所以色与名也在这儿一处定义。键名直接用 `landing.type`，不另起一套命名。
+  FT_BUSINESS: '快车道 · 企业投资',
+  FT_DREAM: '快车道 · 梦想',
 }
 
 /** 简短标签，用于弹层右上角的来源色标 */
@@ -15,6 +19,8 @@ export const DECK_SHORT: Record<string, string> = {
   MARKET: '市场风云',
   DOODAD: '额外支出',
   PROFESSION: '职业卡',
+  FT_BUSINESS: '企业投资',
+  FT_DREAM: '梦想',
 }
 
 export const DECK_COLOR: Record<string, string> = {
@@ -23,6 +29,10 @@ export const DECK_COLOR: Record<string, string> = {
   MARKET: '#4FA8C8',        // 环线青蓝
   DOODAD: '#B07FC0',        // 藕粉格
   PROFESSION: '#4A443A',
+  // 与棋盘上那两格逐字同色（BoardView 的 TYPE_COLOR 用的是 --deck-small / --deck-dream）：
+  // 牌背从哪一格飞出来，帘幕就是那一格的颜色
+  FT_BUSINESS: '#8FBF3F',   // 快车道绿格（企业投资）
+  FT_DREAM: '#C9A8CE',      // 快车道粉格（梦想）
 }
 
 /** 棋盘上不属于牌堆的两种格子色 */
