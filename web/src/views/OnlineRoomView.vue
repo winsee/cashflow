@@ -9,8 +9,9 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { bankRequest } from '../bankrequest'
 import { confirmAction } from '../confirm'
+import { useFtLanding } from '../ftlanding'
 import { majorStatus } from '../statuses'
-import { fmt, ftBizNums, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
+import { charityCost, fmt, ftBizNums, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
 import type { CardDto, Player } from '../types'
 import BoardView from '../components/board/BoardView.vue'
 import Die3d from '../components/board/Die3d.vue'
@@ -374,6 +375,7 @@ const heldTip = computed(() => {
     case 'dice': return game.stageNow.settling
       ? `掷出 ${game.stageNow.rolls.reduce((a, b) => a + b, 0)} 点` : '骰子还在转…'
     case 'deal': return '正在发牌…'
+    case 'square': return '正在翻开这一格…'
     case 'reshuffle': return '正在洗牌…'
     default: return '正在移动…'
   }
@@ -802,6 +804,60 @@ const dealFrom = computed(() => {
   return squareViewportRect(boardRef.value?.disc, dealStep.value!.track, from)
 })
 
+// ---------- 快车道落点：揭示帘幕 + 卡面 + 决策按钮 ----------
+
+/** 停在企业格/梦想格时那一拍全屏揭示（design/09 §5.3 v0.23）。
+ *  与 `dealStep` 一样**不按 playerId 过滤**——说明书要求把卡「大声读出来」，
+ *  线上就该全场同时看见同一张卡翻过来。 */
+const squareStep = computed(() => game.stageNow?.kind === 'square' ? game.stageNow : null)
+const squareFrom = computed(() => {
+  const from = squareStep.value?.fromIndex ?? 0
+  if (!from) return null
+  return squareViewportRect(boardRef.value?.disc, 'FAST_TRACK', from)
+})
+
+// 快车道落点的取数：与抽屉里那张卡面、帘幕里那张卡面共用一份（web/src/ftlanding.ts）
+const { biz, dream, dreamPrice, dreamOwner, isMyDream, bizSold, ftShort, ftCard } = useFtLanding()
+
+/** 我不是当前玩家，但场上有一张快车道卡面正摊着——抽屉里也该看得见（§5.3「全员同步」）。
+ *  卡面留到这一格被处理完为止，与老鼠赛跑的 `activeCard` 同一个生命周期。
+ *  「是不是那两种格」不在这儿再判一次：`ftCard` 本来就只在企业格/梦想格上非空，
+ *  多写一份类型清单就多一处会跟它走散的地方。 */
+const ftSpectate = computed(() =>
+  !game.isMyTurn && !!ftCard.value && !!landing.value && !landing.value.resolved)
+
+async function pay(action: string, payload: Record<string, any>, title: string, lines: string[]) {
+  if (!await confirmAction({ title, lines, okText: '确认' })) return
+  await game.act(action, payload)
+}
+
+/** 老鼠赛跑慈善格的捐款额（公式在 store 一处定义，落点面板的说明文字读的是同一个） */
+const rrCharityCost = computed(() => charityCost(me.value))
+
+/** 「可选落点」此刻要给我哪一行决策按钮（design/09 §4.4 那张表的「可选落点」一行）：
+ *  两条赛道的慈善格 + 快车道的绿格粉格。
+ *
+ *  v0.23 之前这几个按钮长在抽屉**正文**里（`OnlineLandingPanel`），于是 `cardCta` 恒为 null，
+ *  「结束回合」那一行按 `ghost: !!cardCta` 渲染成**主按钮**——屏上两块同样大小同样金色的
+ *  按钮，读不出哪个才是这一步该做的事（真机试玩带回的那张截图）。
+ *  搬进 `.drawer-cta` 之后与牌堆卡完全同构：决策在上一行，结束回合在下一行降为 ghost。
+ *
+ *  **不进 `decisionShownElsewhere`**：快车道这些落点是**可选**的（买不起、不想买都得能结束
+ *  回合），把结束回合整行收起会造出死局——UI 的闸门不许比服务端严。 */
+const landingCta = computed(() => {
+  if (held.value || !game.isMyTurn) return null
+  const lg = landing.value
+  if (!lg || lg.resolved) return null
+  if (lg.type === 'FT_BUSINESS') return biz.value && !bizSold.value ? 'FT_BUSINESS' : null
+  if (lg.type === 'FT_DREAM') return dream.value ? 'FT_DREAM' : null
+  // 快车道慈善的价钱来自棋盘数据，也要求数据到齐才给按钮：棋盘没拉到时捐款额会显示成 $0，
+  // 而服务端照真价扣钱——按钮上的数字与实际付出的钱不一致，比没有按钮糟得多。
+  // 老鼠赛跑那格的价钱是本人总收入的 10%，快照里就有，不受这条限制。
+  if (lg.type === 'FT_CHARITY') return game.board ? 'FT_CHARITY' : null
+  if (lg.type === 'CHARITY') return 'CHARITY'
+  return null
+})
+
 /** 这张卡此刻要不要给我一排决策按钮（钉在抽屉底） */
 const cardCta = computed(() => {
   const ac = game.state?.activeCard
@@ -845,7 +901,8 @@ const ctaEndShown = computed(() =>
  *  是从棋盘那儿夺来的（试玩截图：停在机会格，两个抽牌按钮已经在正文里给了，
  *  底下还空着三十来像素）。别人的回合同理，那时这块本来就一行都没有。 */
 const ctaShown = computed(() =>
-  !!me.value?.inBankruptcy || !!cardCta.value || ctaRollShown.value || ctaEndShown.value)
+  !!me.value?.inBankruptcy || !!cardCta.value || !!landingCta.value
+  || ctaRollShown.value || ctaEndShown.value)
 </script>
 
 <template>
@@ -1081,8 +1138,12 @@ const ctaShown = computed(() =>
                这些事没经我的手就改了我的账，必须被看见。纯线上此前根本没有这个出口。 -->
           <ReceiptStack />
           <!-- 演出没播完就先按住：棋子还在走的时候写「你停在机会格」，
-               和牌没翻过来卡片就躺在抽屉里，是同一个毛病 -->
-          <OnlineLandingPanel v-if="game.isMyTurn && !held" />
+               和牌没翻过来卡片就躺在抽屉里，是同一个毛病。
+               `ftSpectate` 那一支是给**旁观者**的（design/09 §5.3 v0.23）：帘幕散场后，
+               快车道那张卡面留在同桌每个人的抽屉里，不是只有当事人看得见——
+               与老鼠赛跑的 `OnlineCardPanel` 对全员渲染是同一条规矩。 -->
+          <OnlineLandingPanel v-if="!held && (game.isMyTurn || ftSpectate)"
+                              :spectator="!game.isMyTurn" />
           <!-- 进场当回合（老鼠赛跑里已走过一格）：本回合到此为止，不再糊出上一张已结算的旧卡 -->
           <div v-if="justLanded && !held" class="card focus ft-landed">
             <div class="todo-label gold">🏁 你已进入快车道</div>
@@ -1100,7 +1161,7 @@ const ctaShown = computed(() =>
           <!-- 别人的回合、且此刻没有别的东西可显示：牌桌自动兜底。
                这条兜底是对的，只是不够——抽了卡就轮不到它了，所以另有上面那个显式态。
                演出期间照旧显示（这时卡面还没落进抽屉，正文不该是空的） -->
-          <template v-if="!game.isMyTurn && (held || !activeCardInfo) && game.connected">
+          <template v-if="!game.isMyTurn && (held || (!activeCardInfo && !ftSpectate)) && game.connected">
             <div class="section-title">牌桌</div>
             <PlayerTableRow v-for="r in tableRows" :key="r.id" inner
                             :player="r.p" :step="r.step" :now="r.now" :self="r.id === me.id" />
@@ -1145,6 +1206,45 @@ const ctaShown = computed(() =>
                  : `支付 ${fmt(cardCta.settlePreview?.due ?? 0)}` }}
             </button>
           </div>
+          <!-- 快车道落点的决策：与上面那一行同一个位置、同一套样式。
+               这几个按钮 v0.23 之前长在抽屉正文里，于是「结束回合」永远是主按钮
+               （design/09 §4.4 v0.23）。与 `cardCta` 互斥：有待决策的卡说明落点已经定了。 -->
+          <div v-else-if="landingCta" class="cta-row">
+            <button v-if="landingCta === 'FT_BUSINESS' && biz" class="btn grow" :disabled="ftShort > 0"
+                    @click="pay('FT_BUY_BUSINESS', { squareId: biz.id }, '买下这项企业投资？',
+                      [`将支付 ${fmt(biz.down_payment)}`])">
+              {{ biz.dice_rule ? '🎲 买入并掷骰' : '买入' }} {{ fmt(biz.down_payment) }}
+            </button>
+            <template v-else-if="landingCta === 'FT_DREAM' && dream">
+              <button v-if="isMyDream" class="btn grow gold" :disabled="ftShort > 0"
+                      @click="pay('FT_BUY_DREAM', { squareId: dream.id }, '买下你的梦想？',
+                        [`将支付 ${fmt(dreamPrice)}`, '买下即获胜'])">
+                买下我的梦想 {{ fmt(dreamPrice) }}
+              </button>
+              <button v-else-if="dreamOwner" class="btn grow" :disabled="ftShort > 0"
+                      @click="pay('FT_DOUBLE_DREAM', { squareId: dream.id }, '给这个梦想加价？',
+                        [`将支付 ${fmt(dreamPrice)}`, '此后该梦想的价格翻一倍'])">
+                加价 {{ fmt(dreamPrice) }}
+              </button>
+              <button v-else class="btn grow" :disabled="ftShort > 0"
+                      @click="pay('FT_CLAIM_DREAM', { squareId: dream.id }, '原价买下占位？',
+                        [`将支付 ${fmt(dreamPrice)}`, '纯粹占位：不获胜、不加价、不改任何人的现金流'])">
+                买下占位 {{ fmt(dreamPrice) }}
+              </button>
+            </template>
+            <button v-else-if="landingCta === 'FT_CHARITY'" class="btn grow" :disabled="ftShort > 0"
+                    @click="pay('FT_CHARITY', {}, '捐款做慈善？',
+                      [`将支付 ${fmt(game.board?.fastTrack.charityCost)}`, '此后永久可自选掷 1–3 粒骰'])">
+              捐 {{ fmt(game.board?.fastTrack.charityCost) }}
+            </button>
+            <!-- 老鼠赛跑的慈善格**不置灰**：那边的现金缺口是补得上的（银行贷款一直在），
+                 与快车道那三支的分界见 `ftlanding.ts` 的 `ftShort` 注释 -->
+            <button v-else-if="landingCta === 'CHARITY'" class="btn grow"
+                    @click="pay('CHARITY', {}, '捐款做慈善？',
+                      [`将支付 ${fmt(rrCharityCost)}`, '此后 3 轮内可自选掷 1 或 2 粒骰'])">
+              捐 {{ fmt(rrCharityCost) }}
+            </button>
+          </div>
           <!-- 掷骰行 + 慈善生效时压在它正上方的粒数选择器（v0.19 从轮心搬进抽屉，
                轮心此后只剩骰盘）。选择器**不套 `.cta-row`**：它不是一对并列决策按钮，
                是掷骰按钮的前置选项。
@@ -1170,7 +1270,7 @@ const ctaShown = computed(() =>
                停赛（skip_turns>0）不再另开分支：这个状态与 `isMyTurn` 同时成立时只可能是
                停赛刚生效的这一回合（见上方注释），按普通回合结束即可，不必绕开确认弹窗。 -->
           <div v-if="ctaEndShown" class="cta-row">
-            <button class="btn grow" :class="{ ghost: !!cardCta }"
+            <button class="btn grow" :class="{ ghost: !!cardCta || !!landingCta }"
                     :disabled="!!blockedBy" @click="endTurn">
               {{ blockedBy || '✅ 结束回合' }}
             </button>
@@ -1186,6 +1286,13 @@ const ctaShown = computed(() =>
     <!-- 全屏发牌翻牌：全员同步播放 -->
     <DealCurtain v-if="dealStep" :deck="dealStep.deck" :title="dealStep.title"
                  :card="activeCardInfo" :from="dealFrom" @skip="game.skipStage()" />
+    <!-- 快车道落点的揭示：同一段帘幕、同一套节拍，卡面换成格子卡走默认插槽。
+         插槽内容第一帧就在（棋盘数据进房间就预取过），不存在「等数据到了才起播」那条老坑。 -->
+    <DealCurtain v-else-if="squareStep" :deck="squareStep.sqType" :title="squareStep.title"
+                 :from="squareFrom" @skip="game.skipStage()">
+      <FtSquareCard v-if="ftCard" v-bind="ftCard" />
+      <div v-else class="gcard hold"><div class="gcard-title">{{ squareStep.title }}</div></div>
+    </DealCurtain>
 
     <!-- 快车道格子详情：格面不写字的补偿 -->
     <div v-if="detail" class="modal-mask" @click.self="detail = null">

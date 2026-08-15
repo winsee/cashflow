@@ -2,7 +2,7 @@
 import { computed, nextTick, ref, watchEffect } from 'vue'
 import { confirmAction } from '../confirm'
 import { COLOR_PAYDAY, DECK_COLOR, DECK_LABEL, DECK_SHORT } from '../decks'
-import { fmt, useGame } from '../store'
+import { charityCost, fmt, useGame } from '../store'
 import type { CardDto } from '../types'
 import CardPicker from './CardPicker.vue'
 import FasttrackPanel from './FasttrackPanel.vue'
@@ -258,7 +258,7 @@ async function gotoBank(need: number) {
 }
 
 async function charity() {
-  const amount = Math.round(me.value!.derived.totalIncome / 10)
+  const amount = charityCost(me.value)
   const ok = await confirmAction({
     title: '慈善捐款？',
     lines: [`捐出总收入 10% = ${fmt(amount)}`, '此后 3 轮可选掷 1 或 2 粒骰子'],

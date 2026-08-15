@@ -62,6 +62,24 @@ export type StageStep =
   | { kind: 'reshuffle'; ms: number; deck: string }
   /** 拍 6–9：全屏发牌翻牌（帘幕组件负责四小段的 CSS 时序） */
   | { kind: 'deal'; ms: number; deck: string; cardId: string; title: string; track: Track; fromIndex: number }
+  /** 拍 6–9 的快车道版：停在企业格/梦想格时，那一格**翻开给全场看**（design/09 §5.3 v0.23）。
+   *
+   *  快车道格子不是从牌堆抽的，服务端也就没有 `CARD_DRAWN` —— 于是 v0.23 之前这两种落点
+   *  一拍动画都没有，卡面直接出现在当事人的抽屉里，同桌其他人一个字都看不见。
+   *  可它在游戏机制里的分量与抽一张大买卖卡完全对等（一笔六位数的买入），
+   *  按 §5.5 那条判据（**呈现的分量看它在机制里有多重**）就该走同一段帘幕。
+   *
+   *  与 `deal` 分开成两个 kind 而不是复用：`deal` 的调用方钉着 `activeCard` 那张牌堆卡，
+   *  这里没有 activeCard，卡面（`FtSquareCard`）得由调用方用插槽给。 */
+  | {
+    kind: 'square'; ms: number
+    /** 直接沿用 `landing.type`：`FT_BUSINESS` / `FT_DREAM`，不另起一套命名 */
+    sqType: string
+    refId: string
+    title: string
+    /** 牌背从这一格飞出来（同 `deal.fromIndex`） */
+    fromIndex: number
+  }
 
 export interface StageEvent {
   type: string
@@ -186,6 +204,9 @@ export function buildStage(events: StageEvent[], prev: RoomStateDto | null): Sta
         if (path.length) {
           landedAt[p.player_id] = { track, index: path[path.length - 1] }
           out.push({ kind: 'landing', ms: BEAT.landing, track, index: path[path.length - 1] })
+          // 落点脉冲之后接着翻开这一格（只有企业格/梦想格；其余 7 格各有归属，见 ftSquareStep）
+          const reveal = ftSquareStep(p.landing)
+          if (reveal) out.push(reveal)
         }
         break
       }
@@ -227,6 +248,31 @@ export function buildStage(events: StageEvent[], prev: RoomStateDto | null): Sta
     }
   }
   return out
+}
+
+/** 停在快车道的企业格/梦想格 → 一拍全屏揭示；其余落点一律 `null`。
+ *
+ *  为什么只有这两种：另外 7 格各有各的演出，重复给一段帘幕就是同一件事演两遍——
+ *  3 个现金流量日走发薪帘幕（`FT_PAYDAY` → `settle` 拍）、税审/离婚/官司走惩罚帘幕
+ *  （`FT_CASH_HIT` → `penalty` 拍）、慈善格与老鼠赛跑的慈善格一样不弹全屏（两条赛道
+ *  同一件事就该同一种呈现）。
+ *
+ *  **已被买断的企业格照样翻开**：`landing.type` 仍是 `FT_BUSINESS`，卡面自己会渲染
+ *  「已被买断」——「这一格已经没人能买了」同样需要一个交代，不是没有内容。
+ *
+ *  格名从棋盘缓存里查（`setStageBoard` 早就塞好了）：查不到就退成空标题，帘幕照播，
+ *  卡面由调用方给——这一拍的主语是「翻开」，不是那一行字。
+ */
+function ftSquareStep(landing: any): StageStep | null {
+  if (!landing || landing.track !== 'FAST_TRACK') return null
+  const sqType: string = landing.type
+  const refId: string = landing.ref_id ?? ''
+  if (!refId || (sqType !== 'FT_BUSINESS' && sqType !== 'FT_DREAM')) return null
+  const ft = boardCache?.fastTrack
+  const title = (sqType === 'FT_BUSINESS'
+    ? ft?.businesses.find(b => b.id === refId)?.name
+    : ft?.dreams.find(d => d.id === refId)?.name) ?? ''
+  return { kind: 'square', ms: BEAT.deal, sqType, refId, title, fromIndex: landing.index ?? 0 }
 }
 
 /** 帘幕上那四个数：一律取**结算之前**那一份快照。
