@@ -51,17 +51,20 @@ cd server
 
 镜像同时发布在两处，内容完全一致（同一 digest），按拉取方便挑一个即可：
 
-- Docker Hub：`winsee2017/cashflow`（免登录直接拉）
-- GitHub Packages：`ghcr.io/winsee2017/cashflow`
+- Docker Hub：`<DOCKERHUB_USERNAME>/cashflow`（免登录直接拉）
+- GitHub Packages：`ghcr.io/<仓库属主>/cashflow`
 
-打 `v*` tag（或在 Actions 手动触发 `publish-image`）会自动构建镜像并推送到这两处（`.github/workflows/publish-image.yml`）。推 Docker Hub 需要在仓库 Settings → Secrets 里配 `DOCKERHUB_USERNAME` 与 `DOCKERHUB_TOKEN`（Docker Hub 的 Access Token，权限 Read & Write）；没配时 workflow 自动跳过 Docker Hub，只推 ghcr。
+下面所有命令里的 `<DOCKERHUB_USERNAME>` 换成仓库 Secret `DOCKERHUB_USERNAME` 的值，`<仓库属主>` 就是 GitHub 上的仓库属主名；拿不准就去 Actions 里那次 `publish-image` 的运行记录或仓库 Packages 页看实际镜像地址。
+
+打 `v*` tag（或在 Actions 手动触发 `publish-image`）会自动构建镜像并推送到这两处（`.github/workflows/publish-image.yml`）。推 Docker Hub 需要在仓库 Settings → Secrets 里配 `DOCKERHUB_USERNAME` 与 `DOCKERHUB_TOKEN`（Docker Hub 的 Access Token，权限 Read & Write）；**镜像名也由 `DOCKERHUB_USERNAME` 推导，源码里不写死账号**（所以日志里会打码成 `docker.io/***/cashflow`，属正常）。没配时 workflow 自动跳过 Docker Hub，只推 ghcr。
 
 本机手动推一版（不走 CI）：
 
 ```powershell
-docker build -t winsee2017/cashflow:latest -t winsee2017/cashflow:0.1.0 .
-docker push winsee2017/cashflow:latest
-docker push winsee2017/cashflow:0.1.0
+$owner = "<你的 Docker Hub 用户名>"
+docker build -t "$owner/cashflow:latest" -t "$owner/cashflow:0.1.0" .
+docker push "$owner/cashflow:latest"
+docker push "$owner/cashflow:0.1.0"
 ```
 
 **本地**（构建当前代码并启动，改完即测）：
@@ -73,17 +76,17 @@ docker compose up -d --build
 **云端**（不用 compose，直接 `docker run` 拉镜像；TLS 交给反向代理）：
 
 ```bash
-docker pull winsee2017/cashflow:latest     # 或 ghcr.io/winsee2017/cashflow:latest
+docker pull <DOCKERHUB_USERNAME>/cashflow:latest   # 或 ghcr.io/<仓库属主>/cashflow:latest
 docker run -d --name cashflow \
   -p 127.0.0.1:8000:8000 \                  # 反代与容器不同机时改为 -p 8000:8000
   -v cashflow-data:/data \
   --restart unless-stopped \
-  winsee2017/cashflow:latest
+  <DOCKERHUB_USERNAME>/cashflow:latest
 ```
 
 镜像默认 `CASHFLOW_HTTPS=off`（只跑 HTTP 8000，TLS 由反代终止），不需要额外传环境变量；要让容器自己起自签 HTTPS 才需 `-e CASHFLOW_HTTPS=on -p 8443:8443`。
 
-拉 ghcr 上的私有包需先 `docker login ghcr.io`（用户名 winsee2017 + PAT，勾 `read:packages`）；把包设为 public 或改用 Docker Hub 则免登录。
+拉 ghcr 上的私有包需先 `docker login ghcr.io`（用户名 = 你的 GitHub 用户名，密码填 PAT，勾 `read:packages`）；把包设为 public 或改用 Docker Hub 则免登录。
 
 云端由反向代理（nginx/caddy 等）持有真实证书，把 443 转发到 `127.0.0.1:8000`，玩家直接访问 `https://<域名>`，无需自签证书或 `/trust`。云端房间 24 小时无活动自动归档（事件流留在数据库里可导出查账，但不再可加入）；从未开局又无人在线的空房间 1 小时后直接删除，不在大厅里堆着——这类房间没设密码时，大厅里任何人都能点 🗑 立刻删掉。
 

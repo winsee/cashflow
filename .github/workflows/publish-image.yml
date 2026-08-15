@@ -1,7 +1,8 @@
 # 打 tag（v*）或手动触发时，构建镜像并推送到 Docker Hub 与 GitHub Packages（ghcr.io）。
 # 默认精简（WITH_OCR=0，压缩后 ~60MB）：带 OCR 的镜像在小内存云主机上会被 OOM 杀掉，见 Dockerfile 注释。
-# 云端部署：docker pull winsee2017/cashflow:latest（见 README）。
+# 云端部署的拉取命令见 README「Docker 部署」一节。
 # Docker Hub 推送需要仓库 Secrets：DOCKERHUB_USERNAME、DOCKERHUB_TOKEN（Read & Write 的 Access Token）；
+# 镜像名也由 DOCKERHUB_USERNAME 推导（docker.io/<用户名>/cashflow），源码里不写死账号。
 # 未配置时自动跳过 Docker Hub，只推 ghcr，workflow 不会因此失败。
 name: publish-image
 
@@ -13,7 +14,8 @@ on:
 
 env:
   IMAGE_GHCR: ghcr.io/${{ github.repository_owner }}/cashflow
-  IMAGE_DOCKERHUB: docker.io/winsee2017/cashflow
+  # Docker Hub 那半边的镜像名在 Check Docker Hub credentials 那一步现拼：
+  # secrets 上下文用不在顶层 env 里（这里只有 github/vars/inputs 可用）。
 
 jobs:
   build-and-push:
@@ -28,13 +30,17 @@ jobs:
       - name: Check Docker Hub credentials
         id: dockerhub
         env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          if [ -n "$DOCKERHUB_TOKEN" ]; then
+          # image 无论开关与否都要给一个非空的名字：metadata-action 解析 name= 为空会直接报错，
+          # 而不是安静地按 enable=false 跳过。
+          echo "image=docker.io/${DOCKERHUB_USERNAME:-unused}/cashflow" >> "$GITHUB_OUTPUT"
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::未配置 DOCKERHUB_TOKEN，本次只推送 ghcr.io"
+            echo "::notice::未配置 DOCKERHUB_USERNAME / DOCKERHUB_TOKEN，本次只推送 ghcr.io"
           fi
 
       - name: Set up Docker Buildx
@@ -60,7 +66,7 @@ jobs:
         with:
           images: |
             ${{ env.IMAGE_GHCR }}
-            name=${{ env.IMAGE_DOCKERHUB }},enable=${{ steps.dockerhub.outputs.enabled }}
+            name=${{ steps.dockerhub.outputs.image }},enable=${{ steps.dockerhub.outputs.enabled }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
