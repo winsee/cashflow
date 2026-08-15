@@ -18,7 +18,6 @@
 import { computed } from 'vue'
 import { askBankLoan } from '../../bankrequest'
 import { confirmAction } from '../../confirm'
-import { DECK_COLOR, DECK_SHORT } from '../../decks'
 import { useFtLanding } from '../../ftlanding'
 import { fmt, useGame } from '../../store'
 import FtSquareCard from '../cards/FtSquareCard.vue'
@@ -38,10 +37,6 @@ const charityCost = computed(() =>
 /** 失业要付一次总支出，付不出可以先贷款（老鼠赛跑阶段银行一直在） */
 const unemploymentShort = computed(() =>
   Math.max(0, (me.value?.derived.totalExpenses ?? 0) - (me.value?.cash ?? 0)))
-
-/** 旁观者那一行表头：抄 `OnlineCardPanel` 的口径，两种卡面的「谁在决定」只有一种说法 */
-const deckLabel = computed(() => DECK_SHORT[landing.value?.type ?? ''] ?? '')
-const deckColor = computed(() => DECK_COLOR[landing.value?.type ?? ''] ?? 'var(--line-2)')
 
 async function pay(action: string, payload: Record<string, any>, title: string, lines: string[]) {
   if (!await confirmAction({ title, lines, okText: '确认' })) return
@@ -157,10 +152,9 @@ const bizStub = computed(() => {
   <!-- 旁观者：只看得到快车道那张卡面 + 一句「谁正在决定」。
        个人账目（现金缺口、三张存根）不对旁观者广播，所以这一支彻底走另一条路。 -->
   <div v-if="props.spectator" class="stack" style="gap:10px">
-    <div class="row between">
-      <b style="font-size:13px">{{ game.currentPlayer?.nickname ?? '对手' }} 正在决定</b>
-      <span v-if="deckLabel" class="deck-chip" :style="{ background: deckColor }">{{ deckLabel }}</span>
-    </div>
+    <!-- 不给 `.deck-chip`：卡面自己第一行就是「企业投资」/「梦想 · 谁选定」，
+         而且是同一个颜色。牌堆卡要那枚色标是因为 `GameCard` 的来源只是一条细色带。 -->
+    <b style="font-size:13px">{{ game.currentPlayer?.nickname ?? '对手' }} 正在决定</b>
     <FtSquareCard v-if="ftCard" v-bind="ftCard" />
   </div>
 
@@ -252,6 +246,9 @@ const bizStub = computed(() => {
         <b style="font-size:13px">慈善事业</b>
         <p class="muted" style="margin:0">
           捐 {{ fmt(board?.fastTrack.charityCost) }}，此后<b>永久</b>可自选掷 1、2 或 3 粒骰。
+        </p>
+        <p v-if="ftShort > 0" class="muted" style="color:var(--red);margin:0">
+          现金还差 {{ fmt(ftShort) }}。快车道没有银行贷款，现金不够就捐不了，可以直接结束回合。
         </p>
       </template>
     </div>

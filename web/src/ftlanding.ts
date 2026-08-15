@@ -11,9 +11,6 @@
 import { computed } from 'vue'
 import { fmt, ftBizNums, useGame } from './store'
 
-/** 需要全屏揭示 + 卡面的两种快车道格（其余 7 格各有归属，见 stage.ts 的注释） */
-export const FT_CARD_TYPES = ['FT_BUSINESS', 'FT_DREAM']
-
 export function useFtLanding() {
   const game = useGame()
   const me = computed(() => game.me)
@@ -39,14 +36,23 @@ export function useFtLanding() {
   const bizSold = computed(() =>
     !!biz.value && !!(game.state?.ftSoldSquares ?? {})[biz.value.id])
 
-  /** 快车道上现金不够就是买不了：这一段**没有**银行贷款（说明书第 6 页），
-   *  不能给一个指向不存在入口的按钮 —— 如实说清楚比给假出口好。 */
+  /** 这一格要付的钱还差多少。快车道上现金不够就是买不了：这一段**没有**银行贷款
+   *  （说明书第 6 页），不能给一个指向不存在入口的按钮 —— 如实说清楚比给假出口好。
+   *
+   *  三种花钱的落点（买企业 / 买梦想·加价·占位 / 捐慈善）**同一个口径**，服务端也是同一道
+   *  `_require_cash(..., loan_hint=False)`。大于 0 时按钮直接置灰：这不是「UI 的闸门比服务端严」
+   *  ——两边读的是同一个 `cash`、同一个价，服务端此刻必然拒绝，让人点一下换一条红字
+   *  只是把「买不了」说得更晚。老鼠赛跑那边按钮照旧可点，因为那儿的缺口**是可以补的**
+   *  （旁边就是「去贷款」），快车道没有那条路。 */
   const ftShort = computed(() => {
     const cash = me.value?.cash ?? 0
-    if (landing.value?.type === 'FT_BUSINESS' && biz.value)
-      return Math.max(0, biz.value.down_payment - cash)
-    if (landing.value?.type === 'FT_DREAM') return Math.max(0, dreamPrice.value - cash)
-    return 0
+    switch (landing.value?.type) {
+      case 'FT_BUSINESS': return biz.value ? Math.max(0, biz.value.down_payment - cash) : 0
+      case 'FT_DREAM': return Math.max(0, dreamPrice.value - cash)
+      case 'FT_CHARITY':
+        return Math.max(0, (game.board?.fastTrack.charityCost ?? 0) - cash)
+      default: return 0
+    }
   })
 
   /** 这一格的卡面（`FtSquareCard` 的整套 props）。**三处共用同一份**：揭示帘幕里那张、

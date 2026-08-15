@@ -19,9 +19,12 @@ export const DECK_SHORT: Record<string, string> = {
   MARKET: '市场风云',
   DOODAD: '额外支出',
   PROFESSION: '职业卡',
-  FT_BUSINESS: '企业投资',
-  FT_DREAM: '梦想',
 }
+
+/** 棋盘上不属于牌堆的三种格子色 */
+export const COLOR_PAYDAY = '#E8913C'   // 银行结算日 · 慈善（橙格）
+export const COLOR_FASTTRACK = '#6B3FA0' // 快车道外环紫罗兰
+export const COLOR_DREAM = '#B07FC0'     // 快车道梦想粉格
 
 export const DECK_COLOR: Record<string, string> = {
   SMALL_DEAL: '#8FBF3F',    // 内圈绿格
@@ -29,13 +32,10 @@ export const DECK_COLOR: Record<string, string> = {
   MARKET: '#4FA8C8',        // 环线青蓝
   DOODAD: '#B07FC0',        // 藕粉格
   PROFESSION: '#4A443A',
-  // 与棋盘上那两格逐字同色（BoardView 的 TYPE_COLOR 用的是 --deck-small / --deck-dream）：
-  // 牌背从哪一格飞出来，帘幕就是那一格的颜色
-  FT_BUSINESS: '#8FBF3F',   // 快车道绿格（企业投资）
-  FT_DREAM: '#C9A8CE',      // 快车道粉格（梦想）
+  // 快车道那两种格子卡（v0.23）。企业格与内圈绿格本来就同一个绿（`--deck-small`）；
+  // 梦想格取上面那个 `COLOR_DREAM`，**不是**棋盘上的 `--deck-dream`（`#C9A8CE`）——
+  // 后者是格子的**填充**色，浅到几乎和纸底一样，而这里要拿它当**墨色**用
+  // （牌背的双线边框与宋体牌堆名都是 `currentColor`），浅填充色印上去等于没印。
+  FT_BUSINESS: '#8FBF3F',
+  FT_DREAM: COLOR_DREAM,
 }
-
-/** 棋盘上不属于牌堆的两种格子色 */
-export const COLOR_PAYDAY = '#E8913C'   // 银行结算日 · 慈善（橙格）
-export const COLOR_FASTTRACK = '#6B3FA0' // 快车道外环紫罗兰
-export const COLOR_DREAM = '#B07FC0'     // 快车道梦想粉格

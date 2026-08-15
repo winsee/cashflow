@@ -9,7 +9,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { bankRequest } from '../bankrequest'
 import { confirmAction } from '../confirm'
-import { FT_CARD_TYPES, useFtLanding } from '../ftlanding'
+import { useFtLanding } from '../ftlanding'
 import { majorStatus } from '../statuses'
 import { fmt, ftBizNums, ftWinProgress, FT_WIN_INCREMENT, useGame } from '../store'
 import type { CardDto, Player } from '../types'
@@ -817,12 +817,14 @@ const squareFrom = computed(() => {
 })
 
 // 快车道落点的取数：与抽屉里那张卡面、帘幕里那张卡面共用一份（web/src/ftlanding.ts）
-const { biz, dream, dreamPrice, dreamOwner, isMyDream, bizSold, ftCard } = useFtLanding()
+const { biz, dream, dreamPrice, dreamOwner, isMyDream, bizSold, ftShort, ftCard } = useFtLanding()
 
 /** 我不是当前玩家，但场上有一张快车道卡面正摊着——抽屉里也该看得见（§5.3「全员同步」）。
- *  卡面留到这一格被处理完为止，与老鼠赛跑的 `activeCard` 同一个生命周期。 */
-const ftSpectate = computed(() => !game.isMyTurn && !!landing.value && !landing.value.resolved
-  && FT_CARD_TYPES.includes(landing.value.type) && !!ftCard.value)
+ *  卡面留到这一格被处理完为止，与老鼠赛跑的 `activeCard` 同一个生命周期。
+ *  「是不是那两种格」不在这儿再判一次：`ftCard` 本来就只在企业格/梦想格上非空，
+ *  多写一份类型清单就多一处会跟它走散的地方。 */
+const ftSpectate = computed(() =>
+  !game.isMyTurn && !!ftCard.value && !!landing.value && !landing.value.resolved)
 
 async function pay(action: string, payload: Record<string, any>, title: string, lines: string[]) {
   if (!await confirmAction({ title, lines, okText: '确认' })) return
@@ -844,7 +846,9 @@ const landingCta = computed(() => {
   if (!lg || lg.resolved) return null
   if (lg.type === 'FT_BUSINESS') return biz.value && !bizSold.value ? 'FT_BUSINESS' : null
   if (lg.type === 'FT_DREAM') return dream.value ? 'FT_DREAM' : null
-  if (lg.type === 'FT_CHARITY') return 'FT_CHARITY'
+  // 三支都要求数据到齐才给按钮：棋盘没拉到时捐款额会显示成 $0，
+  // 而服务端照真价扣钱——按钮上的数字与实际付出的钱不一致，比没有按钮糟得多
+  if (lg.type === 'FT_CHARITY') return game.board ? 'FT_CHARITY' : null
   return null
 })
 
@@ -1200,29 +1204,29 @@ const ctaShown = computed(() =>
                这几个按钮 v0.23 之前长在抽屉正文里，于是「结束回合」永远是主按钮
                （design/09 §4.4 v0.23）。与 `cardCta` 互斥：有待决策的卡说明落点已经定了。 -->
           <div v-else-if="landingCta" class="cta-row">
-            <button v-if="landingCta === 'FT_BUSINESS' && biz" class="btn grow"
+            <button v-if="landingCta === 'FT_BUSINESS' && biz" class="btn grow" :disabled="ftShort > 0"
                     @click="pay('FT_BUY_BUSINESS', { squareId: biz.id }, '买下这项企业投资？',
                       [`将支付 ${fmt(biz.down_payment)}`])">
               {{ biz.dice_rule ? '🎲 买入并掷骰' : '买入' }} {{ fmt(biz.down_payment) }}
             </button>
             <template v-else-if="landingCta === 'FT_DREAM' && dream">
-              <button v-if="isMyDream" class="btn grow gold"
+              <button v-if="isMyDream" class="btn grow gold" :disabled="ftShort > 0"
                       @click="pay('FT_BUY_DREAM', { squareId: dream.id }, '买下你的梦想？',
                         [`将支付 ${fmt(dreamPrice)}`, '买下即获胜'])">
                 买下我的梦想 {{ fmt(dreamPrice) }}
               </button>
-              <button v-else-if="dreamOwner" class="btn grow"
+              <button v-else-if="dreamOwner" class="btn grow" :disabled="ftShort > 0"
                       @click="pay('FT_DOUBLE_DREAM', { squareId: dream.id }, '给这个梦想加价？',
                         [`将支付 ${fmt(dreamPrice)}`, '此后该梦想的价格翻一倍'])">
                 加价 {{ fmt(dreamPrice) }}
               </button>
-              <button v-else class="btn grow"
+              <button v-else class="btn grow" :disabled="ftShort > 0"
                       @click="pay('FT_CLAIM_DREAM', { squareId: dream.id }, '原价买下占位？',
                         [`将支付 ${fmt(dreamPrice)}`, '纯粹占位：不获胜、不加价、不改任何人的现金流'])">
                 买下占位 {{ fmt(dreamPrice) }}
               </button>
             </template>
-            <button v-else-if="landingCta === 'FT_CHARITY'" class="btn grow"
+            <button v-else-if="landingCta === 'FT_CHARITY'" class="btn grow" :disabled="ftShort > 0"
                     @click="pay('FT_CHARITY', {}, '捐款做慈善？',
                       [`将支付 ${fmt(game.board?.fastTrack.charityCost)}`, '此后永久可自选掷 1–3 粒骰'])">
               捐 {{ fmt(game.board?.fastTrack.charityCost) }}
