@@ -1278,8 +1278,8 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .die3d.rolling { animation: dieToss .52s ease-in-out infinite; }
 .die3d.landed { animation: dieLand .6s var(--ease); }
 @keyframes dieTumble {
-  from { transform: rotateX(0) rotateY(0) rotateZ(0); }
-  to { transform: rotateX(720deg) rotateY(1080deg) rotateZ(360deg); }
+  from { transform: rotateX(0) rotateY(0) rotateZ(0) scale(.9); }
+  to { transform: rotateX(720deg) rotateY(1080deg) rotateZ(360deg) scale(.9); }
 }
 @keyframes dieToss {
   0%, 100% { transform: translateY(0) scale(1); }
