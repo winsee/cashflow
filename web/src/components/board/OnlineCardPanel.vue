@@ -7,7 +7,7 @@
  */
 import { computed } from 'vue'
 import { askBankLoan } from '../../bankrequest'
-import { fmt, useGame } from '../../store'
+import { fmt, signed, toneOf, useGame } from '../../store'
 import { DECK_COLOR, DECK_SHORT } from '../../decks'
 import type { CardDto } from '../../types'
 import GameCard from '../cards/GameCard.vue'
@@ -83,8 +83,11 @@ const gambleNet = computed(() => (gamble.value
       <div v-if="['REALESTATE', 'BUSINESS', 'COLLECTIBLE'].includes(ac.subtype)" class="preview">
         <div class="prow"><span>首付</span>
           <span class="money neg">{{ fmt(props.card.data.downPayment) }}</span></div>
+        <!-- 卡库里有 4 张月现金流为负的房产（sd-045/sd-051/bd-008/bd-041），
+             符号与颜色都得跟着数走，不能写死 `+` 和绿色 -->
         <div class="prow"><span>每月现金流</span>
-          <span class="money pos">+{{ fmt(props.card.data.cashflow) }}</span></div>
+          <span class="money" :class="toneOf(props.card.data.cashflow)">
+            {{ signed(props.card.data.cashflow) }}</span></div>
       </div>
 
       <StockTradeBox v-else-if="ac.subtype === 'STOCK_OFFER'" />
@@ -140,9 +143,7 @@ const gambleNet = computed(() => (gamble.value
              : `支付 ${fmt(gamble.stake)}，血本无归` }}
         </div>
       </div>
-      <span class="amt money" :class="gambleNet >= 0 ? 'pos' : 'neg'">
-        {{ gambleNet >= 0 ? '+' : '−' }}{{ fmt(Math.abs(gambleNet)) }}
-      </span>
+      <span class="amt money" :class="toneOf(gambleNet)">{{ signed(gambleNet) }}</span>
     </div>
   </div>
 </template>

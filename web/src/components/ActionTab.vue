@@ -2,7 +2,7 @@
 import { computed, nextTick, ref, watchEffect } from 'vue'
 import { confirmAction } from '../confirm'
 import { COLOR_PAYDAY, DECK_COLOR, DECK_LABEL, DECK_SHORT } from '../decks'
-import { charityCost, fmt, useGame } from '../store'
+import { charityCost, fmt, signed, toneOf, useGame } from '../store'
 import type { CardDto } from '../types'
 import CardPicker from './CardPicker.vue'
 import FasttrackPanel from './FasttrackPanel.vue'
@@ -149,7 +149,7 @@ async function decideBuy() {
   const c = activeCardInfo.value!
   const ok = await confirmAction({
     title: `买入「${c.title}」？`,
-    lines: [`首付 ${fmt(c.data.downPayment)}`, `月现金流 +${fmt(c.data.cashflow)}`],
+    lines: [`首付 ${fmt(c.data.downPayment)}`, `月现金流 ${signed(c.data.cashflow)}`],
   })
   if (ok && await game.act('CARD_DECISION', { decision: 'buy' })) {
     game.flash(`已买入，支付首付 ${fmt(c.data.downPayment)}`)
@@ -239,7 +239,7 @@ async function payday() {
   const t = paydayTimes.value
   const ok = await confirmAction({
     title: `结算银行结算日 ×${t}？`,
-    lines: [`月现金流 ${fmt(cf)} × ${t} = ${fmt(cf * t)}`, '经过多次请先在右侧选择次数一并结算'],
+    lines: [`月现金流 ${signed(cf)} × ${t} = ${signed(cf * t)}`, '经过多次请先在右侧选择次数一并结算'],
     warning: paydayBankrupts.value
       ? '现金不足以支付到期款项，本次结算将直接进入破产清算（说明书 P.5），不能改为贷款'
       : cf < 0 ? '月现金流为负，将从现金中扣除' : undefined,
@@ -247,7 +247,7 @@ async function payday() {
   })
   if (!ok || !await game.act('PAYDAY', { times: t })) return
   if (me.value?.inBankruptcy) game.flash('结算日无力支付，已进入破产清算', 'err')
-  else game.flash(`已结算银行结算日 ×${t}，现金${cf >= 0 ? ' +' : ' '}${fmt(cf * t)}`)
+  else game.flash(`已结算银行结算日 ×${t}，现金 ${signed(cf * t)}`)
 }
 
 // 强制卡「去银行贷款」：展开常驻工具，再让 BankPanel 自己预填缺口并滚到自己身上
@@ -424,8 +424,8 @@ const tableStepText = computed(() => {
               <div class="prow"><span>买入后 · 现金</span>
                 <span class="money" :class="buyPreview.cashAfter < 0 ? 'neg' : ''">{{ fmt(buyPreview.cashAfter) }}</span></div>
               <div class="prow" v-if="buyPreview.hasFlow"><span>买入后 · 月现金流</span>
-                <span class="money" :class="buyPreview.flowAfter >= 0 ? 'pos' : 'neg'">
-                  {{ buyPreview.flowAfter >= 0 ? '+' : '' }}{{ fmt(buyPreview.flowAfter) }}</span></div>
+                <span class="money" :class="toneOf(buyPreview.flowAfter)">
+                  {{ signed(buyPreview.flowAfter) }}</span></div>
             </div>
             <!-- 买不起：按钮置灰并写清差额，旁边直接给贷款入口 -->
             <div v-if="buyPreview && buyPreview.cashAfter < 0" class="card inner danger"

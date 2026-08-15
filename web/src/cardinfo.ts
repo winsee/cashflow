@@ -1,7 +1,5 @@
+import { fmt as money, signed as signedMoney } from './money'
 import type { CardDto } from './types'
-
-const money = (n: number) => `$${n.toLocaleString()}`
-const signedMoney = (n: number) => `${n >= 0 ? '+' : '-'}$${Math.abs(n).toLocaleString()}`
 
 const PRICE_BASIS_UNIT: Record<string, string> = {
   PER_UNIT: '/套',

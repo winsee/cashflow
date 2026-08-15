@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** 一行「标签 → 数值」。数值等宽对齐，正负走语义色（换肤时不跟着变）。 */
-import { fmt } from '../../store'
+import { fmt, signed } from '../../store'
 
 const props = withDefaults(defineProps<{
   label: string
@@ -14,7 +14,7 @@ const props = withDefaults(defineProps<{
 
 function text(): string {
   if (typeof props.value !== 'number') return props.value
-  return (props.signed && props.value >= 0 ? '+' : '') + fmt(props.value)
+  return props.signed ? signed(props.value) : fmt(props.value)
 }
 function cls(): string {
   if (props.tone) return props.tone

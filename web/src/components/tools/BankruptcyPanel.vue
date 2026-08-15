@@ -3,7 +3,7 @@
  *  线下「行动」页与纯线上抽屉 full 档共用——一旦破产，两边都必须能把清算走完。 */
 import { computed, ref } from 'vue'
 import { confirmAction } from '../../confirm'
-import { fmt, useGame } from '../../store'
+import { fmt, signed, useGame } from '../../store'
 
 /** 纯线上把「完成清算」钉在抽屉底（`.drawer-cta`），面板里就不再重复一颗 */
 const props = withDefaults(defineProps<{ showResolve?: boolean }>(), { showResolve: true })
@@ -49,7 +49,10 @@ async function bankruptcyRepay() {
       <div class="row between">
         <div>
           <b style="font-size:13px">{{ a.name }}</b>
-          <div class="muted">卖出得 {{ fmt(Math.floor(a.down_payment / 2)) }} · 月现金流 −{{ fmt(a.cashflow) }}</div>
+          <!-- 主语是「卖掉它我的月现金流怎么变」（原来那个写死的 `−` 就是这个意思），
+               不是「这项资产的现金流是多少」——清算要的正是「离转正还差多少」这笔账。
+               负现金流的房产（卡库里有 4 张）卖掉反而是 +$100，正是该先卖的那一种。 -->
+          <div class="muted">卖出得 {{ fmt(Math.floor(a.down_payment / 2)) }} · 月现金流 {{ signed(-a.cashflow) }}</div>
         </div>
         <button class="btn small warn" @click="bankruptcySell(a.name, a.id, Math.floor(a.down_payment / 2))">卖给银行</button>
       </div>
