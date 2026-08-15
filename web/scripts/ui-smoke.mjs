@@ -9,7 +9,7 @@
  * 产物：build/ui-smoke/*.png（不进 git）
  */
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -37,6 +37,42 @@ if (!browserPath) { console.error('找不到 Edge/Chrome'); process.exit(1) }
 if (!existsSync(join(root, 'dist', 'index.html'))) {
   console.error('缺少 dist/，先跑 npm run build'); process.exit(1)
 }
+
+/** 静态护栏：calc() 里不许做量纲除法（design/09 §3.4.2 规则 ③）。
+ *
+ *  `calc(58px * (var(--bw) / 332px))` 这种「长度 ÷ 长度」是 CSS Values 4 的类型运算，
+ *  2025 年才陆续进各家稳定版——旧 Safari 不认，整条声明 invalid at computed-value time，
+ *  骰子的 `--d` 因此失效、整颗塌成零尺寸（iPad Safari 骰子看不见的根因）。
+ *  这台冒烟跑在新 Chromium 上，几何断言**原理上**照不出这种「只在旧引擎坏」的解析级问题，
+ *  所以只能在源文件层面把这个写法本身挡住：除法必须在 JS 里做完，CSS 只拿无量纲数乘长度。
+ *  除以纯数（`/ 2`）合法，不拦；注释先剥掉（里面写着「不许 / 332px」的示例本身会撞上）。 */
+function scanCalcDimensionDivision() {
+  const cssPath = join(root, 'src', 'style.css')
+  const raw = readFileSync(cssPath, 'utf8')
+  // 剥注释但保留换行，行号才对得上
+  const css = raw.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '))
+  const bad = []
+  for (let i = css.indexOf('calc('); i !== -1; i = css.indexOf('calc(', i + 1)) {
+    let depth = 0, end = i + 4
+    for (; end < css.length; end++) {
+      if (css[end] === '(') depth++
+      else if (css[end] === ')' && --depth === 0) break
+    }
+    const expr = css.slice(i, end + 1)
+    // 除号后面跟「带单位的数」或 var()（变量多半装着长度）即判违规
+    if (/\/\s*(?:\.?\d[\d.]*[a-z%]|var\()/i.test(expr)) {
+      const line = css.slice(0, i).split('\n').length
+      bad.push(`style.css:${line}  ${expr.replace(/\s+/g, ' ')}`)
+    }
+  }
+  if (bad.length) {
+    console.error('calc() 里发现量纲除法（长度÷长度），旧 Safari 会让整条声明失效：')
+    for (const b of bad) console.error(`  ${b}`)
+    console.error('除法请在 JS 里做完，CSS 只拿无量纲数乘长度（如 --bws，见 OnlineRoomView）。')
+    process.exit(1)
+  }
+}
+scanCalcDimensionDivision()
 
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
