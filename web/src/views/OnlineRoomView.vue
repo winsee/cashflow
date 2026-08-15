@@ -515,6 +515,12 @@ const boardPx = computed(() => {
   return Math.min(BOARD_MAX, byH, byW)
 })
 const boardWidth = computed(() => `${boardPx.value}px`)
+/** 板宽相对满宽 332 的**无量纲**比例，专供骰子尺寸链（style.css 的 `--d`）。
+ *  除法必须在这里做完：CSS calc 里「长度 ÷ 长度」是 CSS Values 4 的类型运算，
+ *  旧 Safari 不支持，整条 `--d` 会 invalid at computed-value time、骰子塌成零尺寸
+ *  ——这就是 iPad Safari 上骰子看不见的根因（design/09 §3.4.2 规则 ③）。
+ *  CSS 那头只拿这个数去乘长度（`calc(58px * var(--bws, 1))`），所有浏览器都认。 */
+const boardScale = computed(() => String(boardPx.value / BOARD_MAX))
 const compactBoard = computed(() => boardPx.value < BOARD_TEXT_MIN)
 
 /** 抽屉贴合内容高度：短内容不该把抽屉撑到当前档位的目标高度，多出来的空间该还给棋盘。
@@ -969,7 +975,7 @@ const ctaShown = computed(() =>
          玩到第 20 轮的人不该被自己看过 20 遍的动画拖住 -->
     <div class="board-stage" ref="stageEl"
          :class="{ 'card-open': (!held && !!game.state.activeCard) || assetsOpen }"
-         :style="{ '--bw': boardWidth }"
+         :style="{ '--bw': boardWidth, '--bws': boardScale }"
          @click="assetsOpen ? (assetsOpen = false) : (game.staging && game.skipStage())">
       <!-- 悬浮工具挂在 stage 内部的右上角（design/09 §8）。
            🏦 排最上：三个里只有它是「事到临头才需要」的，另外两个是随便什么时候翻翻。
