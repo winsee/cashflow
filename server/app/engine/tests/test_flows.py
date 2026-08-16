@@ -586,6 +586,25 @@ def test_ft_business_and_income_victory(duo):
     assert duo.state.winner_id == "A"
 
 
+def test_victory_arrives_in_the_same_batch_as_its_dice_roll(duo):
+    """胜利与它的掷骰在**同一批事件**里到达。
+
+    这条钉的是「批的形状」，不是某个数值——纯线上模式下这一批被一次性广播出去
+    （`rooms.broadcast_state(last_events=...)`），客户端先把两拍骰子排进演出队列、
+    下一行就换上新快照。结局屏若不等演出播完（`OnlineRoomView` 的 `finished` 那道
+    `held` 闸门），整棵板子连同刚排上队的骰子会在同一拍里被卸载，玩家看到的是
+    「点一下就赢了」，中间什么都没发生过——真机试玩带回的正是这一条。
+    """
+    _enter_ft(duo, "A")
+    # 金矿：≥3 成功、+50,000/月，一格就够跨过 +50,000 的胜利线
+    evs = duo.act("A", "FT_BUY_BUSINESS", squareId="ft-b-goldmine", diceRoll=3)
+    bought = next(e for e in evs if e["type"] == "FT_BUSINESS_BOUGHT")
+    assert bought["payload"]["dice_roll"] == 3        # 演出要的点数在这一批里
+    assert bought["payload"]["success"] is True
+    assert duo.state.status == RoomStatus.FINISHED    # 而这一批同时就把对局结束了
+    assert duo.state.winner_id == "A"
+
+
 def test_ft_dice_business_failure_keeps_square_open(duo):
     _enter_ft(duo, "A")
     duo.act("A", "FT_BUY_BUSINESS", squareId="ft-b-goldmine", diceRoll=2)

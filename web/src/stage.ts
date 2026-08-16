@@ -14,8 +14,19 @@ export type Track = 'RAT_RACE' | 'FAST_TRACK'
 export type StageStep =
   /** 拍 1–2：骰子翻滚 + 点数落定。终值就是服务端的点数，绝不本地预演。
    *  `settling` 是落定后**多停的那一拍**：骰子已经转到那一面，棋子还没起步。
-   *  没有这一拍的话，点数刚出现棋子就走了，读数的时间要跟走格动画抢（第三轮试玩） */
-  | { kind: 'dice'; ms: number; playerId: string; rolls: number[]; settling?: boolean }
+   *  没有这一拍的话，点数刚出现棋子就走了，读数的时间要跟走格动画抢（第三轮试玩）
+   *
+   *  `solo` = **不为移动而掷的那一骰**（骰子赌局卡 / 快车道掷骰企业格）。
+   *  移动掷骰的主语是棋盘——玩家自己点的那颗骰子、眼睛就在轮心上，板上那一颗足够；
+   *  而这两种是玩家在**抽屉里**点了一个决策按钮换来的，那一刻抽屉正被整张卡面撑高、
+   *  棋盘被挤到最小，轮心那颗骰子只剩 20~35px（`--bws` 等比缩），视线也不在那儿。
+   *  按 §5.5「呈现的分量看它在机制里有多重」，一笔六位数买入的成败该有自己的一屏，
+   *  所以 `solo` 的那两拍由 `DiceCurtain` 接管（只给当事人，旁观者仍看板上那颗）。
+   *  取值同时是**内容从哪个存根来**：`store.gambleStub` / `store.bizStub`。 */
+  | {
+    kind: 'dice'; ms: number; playerId: string; rolls: number[]; settling?: boolean
+    solo?: 'GAMBLE' | 'FT_BUSINESS'
+  }
   /** 拍 3：棋子逐格跳跃，一格一步 */
   | { kind: 'step'; ms: number; playerId: string; track: Track; index: number }
   /** 拍 4：过站结算——当事人一屏发薪帘幕，旁观者是格子橙光 + 金额飘字。
@@ -97,6 +108,10 @@ export interface StageEvent {
 export const BEAT = {
   dice: 1300,       // 翻滚（匀速，服务端已经回来了但节奏要给足）
   diceStop: 650,    // 点数落定 + 读数的空拍，棋子还没起步
+  // `solo` 那两拍（赌局卡 / 掷骰企业格）的落定拍：650ms 只够读一个点数，
+  // 而这一屏要读的是「掷了几点 · 达没达标 · 拿到什么」三件事。与 settle/penalty
+  // 同一量级——它们同属「低频重击」一档，一局撞不上几次，可以慢慢看。
+  diceRead: 1700,
   step: 240,
   // 发薪帘幕：220ms 淡入 + 三行明细错相 360 + hero 打出 300 + 停 600 + 200 收起。
   // 比发牌（2050）短——发牌之后要读一张卡，发薪只有一个数。
@@ -148,22 +163,28 @@ export function buildStage(events: StageEvent[], prev: RoomStateDto | null): Sta
         })
         break
       // 骰子赌局卡：服务端早就摇好点数写进事件，这里只是把它接进演出线——
-      // 与 DICE_ROLLED 同一对拍子，held 门与棋盘中央的 Die3d 全部直接复用。
+      // 与 DICE_ROLLED 同一对拍子，held 门直接复用；`solo` 让当事人那一份走全屏帘幕。
       case 'DICE_GAMBLE_RESOLVED':
-        out.push({ kind: 'dice', ms: BEAT.dice, playerId: p.player_id, rolls: p.rolls ?? [] })
         out.push({
-          kind: 'dice', ms: BEAT.diceStop, playerId: p.player_id,
-          rolls: p.rolls ?? [], settling: true,
+          kind: 'dice', ms: BEAT.dice, playerId: p.player_id,
+          rolls: p.rolls ?? [], solo: 'GAMBLE',
+        })
+        out.push({
+          kind: 'dice', ms: BEAT.diceRead, playerId: p.player_id,
+          rolls: p.rolls ?? [], settling: true, solo: 'GAMBLE',
         })
         break
       // 快车道掷骰企业格：只有带 diceRule 的企业格才有 dice_roll，没有这个字段的
       // 企业（无骰子）买入不该无中生有一段动画。
       case 'FT_BUSINESS_BOUGHT':
         if (p.dice_roll != null) {
-          out.push({ kind: 'dice', ms: BEAT.dice, playerId: p.player_id, rolls: [p.dice_roll] })
           out.push({
-            kind: 'dice', ms: BEAT.diceStop, playerId: p.player_id,
-            rolls: [p.dice_roll], settling: true,
+            kind: 'dice', ms: BEAT.dice, playerId: p.player_id,
+            rolls: [p.dice_roll], solo: 'FT_BUSINESS',
+          })
+          out.push({
+            kind: 'dice', ms: BEAT.diceRead, playerId: p.player_id,
+            rolls: [p.dice_roll], settling: true, solo: 'FT_BUSINESS',
           })
         }
         break
