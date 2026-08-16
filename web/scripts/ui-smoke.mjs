@@ -1807,6 +1807,12 @@ async function main() {
       const next = JSON.parse(JSON.stringify(window.__lastState))
       next.status = 'FINISHED'
       next.winnerId = s.playerId
+      // **必须一并置空**：服务端的 `current_player_id` 是派生属性（`models.py`：
+      // `status != PLAYING` 一律 None），结束对局的那一帧它就是 null。第一版忘了这一条，
+      // 于是这屏「假」得比真的宽容——带回合键的 `bizStub` getter 在真实那一帧会失配返回
+      // null，帘幕写不出成败，而合成帧照样能取到，断言全绿。合成事件的断言只有在
+      // **逐字照着服务端那一帧造**的时候才算数。
+      next.currentPlayerId = null
       window.__ws.onmessage({
         data: JSON.stringify({
           type: 'state', seq: (window.__lastSeq ?? 0) + 1, state: next,

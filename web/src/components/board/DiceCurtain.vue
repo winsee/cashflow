@@ -32,8 +32,18 @@ const total = computed(() => props.step.rolls.reduce((a, b) => a + b, 0))
 
 /** 两种来源各给一套文案。`success` 只在落定那一拍才读——翻滚期间揭晓结果，
  *  等于让骰子转给一个已经知道答案的人看。 */
-const biz = computed(() => (props.step.solo === 'FT_BUSINESS' ? game.bizStub : null))
-const gamble = computed(() => (props.step.solo === 'GAMBLE' ? game.gambleStub : null))
+/** 读的是 `lastBiz`/`lastGamble` **原始那两份，不是带回合键的 `bizStub`/`gambleStub` getter**。
+ *
+ *  那两个 getter 拿 `turnCount@currentPlayerId` 比对，而 `current_player_id` 是服务端的
+ *  **派生属性**（`models.py`：`status != PLAYING` 一律返回 None）——这一批正好把对局结束了，
+ *  于是键必然对不上、getter 一律返回 null，帘幕上就只剩点数、写不出「需 X 点 / 成功 / 收益」。
+ *  这正是房主那一局的形状（买断企业过线当场获胜），`test_flows.py` 里那条测试钉着它。
+ *
+ *  不用键也是安全的：这一拍与写入那两份的 `catchDiceOutcome` 出自**同一批事件**、
+ *  判据逐字相同（`dice_roll != null` + `player_id === 我`），而帘幕的寿命由这一拍圈定，
+ *  本来就不需要回合键来兜。抽屉里那两张存根卡照旧走带键的 getter——它们要随回合过期。 */
+const biz = computed(() => (props.step.solo === 'FT_BUSINESS' ? game.lastBiz : null))
+const gamble = computed(() => (props.step.solo === 'GAMBLE' ? game.lastGamble : null))
 
 const title = computed(() => biz.value?.name || gamble.value?.title || '掷骰')
 /** 达标线：企业格是「≥ 阈值」，赌局卡的条件写在卡面上，这里只复述「掷出几点」 */
@@ -41,10 +51,14 @@ const need = computed(() => {
   const b = biz.value
   return b?.threshold ? `需 ${b.threshold} 点及以上` : ''
 })
-const success = computed(() => {
+/** `null` = 还不知道（翻滚拍还没揭晓，或存根没到）。
+ *  **不许退化成 `false`**：那会把「不知道」说成「未达标」——屏上是一句假话，
+ *  底色还会跟着转冷。存根与这一拍出自同一批事件、同一道 `player_id` 判据，
+ *  正常路径上不会缺；缺了就什么都不断言，点数照旧显示。 */
+const success = computed<boolean | null>(() => {
   if (biz.value) return biz.value.success
   if (gamble.value) return gamble.value.won
-  return false
+  return null
 })
 
 /** 收益行：企业格成功给月现金流或一次性收益，赌局卡给赔付；失败各写各的代价。 */
@@ -64,7 +78,7 @@ const gainLine = computed(() => {
 </script>
 
 <template>
-  <div class="curtain dice" :class="{ ftx: step.solo === 'FT_BUSINESS', lost: !rolling && !success }"
+  <div class="curtain dice" :class="{ ftx: step.solo === 'FT_BUSINESS', lost: !rolling && success === false }"
        @click="$emit('skip')">
     <div class="curtain-inner">
       <div class="dice-title">{{ title }}</div>
@@ -90,7 +104,7 @@ const gainLine = computed(() => {
         </div>
       </div>
 
-      <h2 v-if="!rolling">{{ success ? '成功' : '未达标' }}</h2>
+      <h2 v-if="!rolling && success !== null">{{ success ? '成功' : '未达标' }}</h2>
 
       <p class="fineprint">点一下跳过</p>
     </div>

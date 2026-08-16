@@ -596,6 +596,7 @@ def test_victory_arrives_in_the_same_batch_as_its_dice_roll(duo):
     「点一下就赢了」，中间什么都没发生过——真机试玩带回的正是这一条。
     """
     _enter_ft(duo, "A")
+    turn_before = duo.state.turn_count
     # 金矿：≥3 成功、+50,000/月，一格就够跨过 +50,000 的胜利线
     evs = duo.act("A", "FT_BUY_BUSINESS", squareId="ft-b-goldmine", diceRoll=3)
     bought = next(e for e in evs if e["type"] == "FT_BUSINESS_BOUGHT")
@@ -603,6 +604,15 @@ def test_victory_arrives_in_the_same_batch_as_its_dice_roll(duo):
     assert bought["payload"]["success"] is True
     assert duo.state.status == RoomStatus.FINISHED    # 而这一批同时就把对局结束了
     assert duo.state.winner_id == "A"
+    # 对局一结束，`current_player_id` 就变 None —— 它是 models.py 里的**派生属性**
+    # （`status != PLAYING` 一律返回 None），不是某处顺手清的。
+    # 这条钉在这儿是因为客户端有东西依赖它：`store` 那几份存根（lastBiz/lastGamble/
+    # lastSettlement/lastPenalty）用 `turnCount@currentPlayerId` 当键，**攒的时候读旧快照、
+    # 取的时候比新快照**，于是这一批之后键必然对不上、getter 一律返回 null。
+    # 所以掷骰帘幕（`DiceCurtain`）**不许走那几个带键的 getter**，只能读原始的
+    # `lastBiz`/`lastGamble`——它的寿命本来就由那一拍演出圈定，不需要回合键来兜。
+    assert duo.state.current_player_id is None
+    assert duo.state.turn_count == turn_before
 
 
 def test_ft_dice_business_failure_keeps_square_open(duo):
