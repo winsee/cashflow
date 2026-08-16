@@ -1007,9 +1007,18 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 .result-hero .crown { font-size: 40px; }
 .result-hero h1 { font-size: 1.7rem; margin: 6px 0 2px; }
 .result-hero .sub { color: var(--muted); font-size: var(--fs-sm); }
-.rank-row { display: flex; align-items: center; gap: 11px; padding: var(--sp-3) var(--sp-1); border-bottom: 1px solid var(--line); }
-.rank-row:last-child { border-bottom: 0; }
-.rank-row.me { background: var(--brand-soft); border-radius: var(--r); border-bottom: 0; padding: var(--sp-3); }
+/* 分隔线是两行「之间」的关系，不是某一行自己的属性。写成 border-bottom 的话，
+   浅底卡片（.me）只关得掉自己脚下那条，头顶那条归上一行所有——于是卡片顶上会挂一条
+   悬空的线，而卡片本就自带边界，等于同一件事说了两遍。改挂到下面那一行的 border-top 上，
+   一条规则同时管住卡片的上方与下方（同「一个位置只有一个主人」）。
+   用相邻兄弟 `+` 而不是 `:has()`：各引擎无一例外都支持，项目最低线是 iOS Safari 16。
+   横向 padding 三行统一（原来普通行 --sp-1、卡片 --sp-3，奖牌/昵称/金额三列对不齐），
+   .me 从此只与别人差在「浅底 + 圆角」这一件事上。 */
+.rank-row { display: flex; align-items: center; gap: 11px; padding: var(--sp-3); }
+.rank-row + .rank-row { border-top: 1px solid var(--line); }
+.rank-row.me,
+.rank-row.me + .rank-row { border-top: 0; }
+.rank-row.me { background: var(--brand-soft); border-radius: var(--r); }
 .rank-medal { font-size: 20px; width: 30px; text-align: center; flex: none; }
 .rank-name { font-weight: 800; }
 .rank-meta { font-size: 12px; color: var(--muted); }
