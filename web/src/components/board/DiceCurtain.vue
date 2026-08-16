@@ -46,10 +46,34 @@ const biz = computed(() => (props.step.solo === 'FT_BUSINESS' ? game.lastBiz : n
 const gamble = computed(() => (props.step.solo === 'GAMBLE' ? game.lastGamble : null))
 
 const title = computed(() => biz.value?.name || gamble.value?.title || '掷骰')
-/** 达标线：企业格是「≥ 阈值」，赌局卡的条件写在卡面上，这里只复述「掷出几点」 */
+
+/** 赌局卡的胜负条件（`>3` 这种）**不在事件 payload 里**，只在卡库的 `data.winCondition` 上。
+ *  帘幕落下时卡面被整个盖住，玩家在这一屏没有第二个地方能读到它——不写出来，
+ *  输的那一屏就只有「未达标」三个字，说不出为什么。整局缓存的 `cardsCatalog` 里就有
+ *  （进房间已预取），所以这里回查一次即可，服务端一个字不用改。 */
+const WIN_OP: Record<string, (n: string) => string> = {
+  '>=': n => `需 ${n} 点及以上`,
+  '<=': n => `需 ${n} 点及以下`,
+  '>': n => `需 大于 ${n} 点`,
+  '<': n => `需 小于 ${n} 点`,
+  '==': n => `需 正好 ${n} 点`,
+}
+function describeWin(cond: string): string {
+  // 长的运算符排在前：`>=` 必须先于 `>` 匹配，否则 `>=4` 会被读成「大于 =4」
+  for (const op of ['>=', '<=', '>', '<', '==']) {
+    if (cond.startsWith(op)) return WIN_OP[op](cond.slice(op.length))
+  }
+  return ''
+}
+
+/** 达标线：企业格用事件里的 `threshold`，赌局卡回卡库查 `winCondition` */
 const need = computed(() => {
   const b = biz.value
-  return b?.threshold ? `需 ${b.threshold} 点及以上` : ''
+  if (b) return b.threshold ? `需 ${b.threshold} 点及以上` : ''
+  const g = gamble.value
+  if (!g?.cardId) return ''
+  const cond = game.cardsCatalog?.find(c => c.id === g.cardId)?.data?.winCondition
+  return typeof cond === 'string' ? describeWin(cond) : ''
 })
 /** `null` = 还不知道（翻滚拍还没揭晓，或存根没到）。
  *  **不许退化成 `false`**：那会把「不知道」说成「未达标」——屏上是一句假话，
