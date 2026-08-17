@@ -42,6 +42,9 @@ export interface PenaltyStub {
 export interface GambleStub {
   key: string
   playerId: string
+  /** 卡 id：胜负条件（`data.winCondition`）不进事件 payload，掷骰帘幕靠它回卡库查
+   *  「需大于几点」——没有这一行，输的那一屏只写「未达标」，说不出为什么。 */
+  cardId: string
   title: string
   rolls: number[]
   total: number
@@ -586,7 +589,8 @@ export const useGame = defineStore('game', {
         if (p.player_id !== meId) continue
         if (ev.type === 'DICE_GAMBLE_RESOLVED') {
           this.lastGamble = {
-            key, playerId: meId, title: p.title ?? '', rolls: p.rolls ?? [],
+            key, playerId: meId, cardId: p.card_id ?? '',
+            title: p.title ?? '', rolls: p.rolls ?? [],
             total: p.total ?? 0, won: !!p.won, stake: p.stake ?? 0, payout: p.payout ?? 0,
           }
         } else if (ev.type === 'FT_BUSINESS_BOUGHT' && p.dice_roll != null) {

@@ -239,10 +239,30 @@ async function main() {
 
   // 每个玩家一个独立的浏览器上下文：同一个 profile 里两个 tab 共享 localStorage，
   // 会话会互相覆盖，第二个人一开就把第一个人的身份顶掉。
-  async function openAs(session) {
+  /** `tapWs`：把 store 自己那条 WebSocket 抓在 `window.__ws` 上，并记下最后一份快照。
+   *  只有 30 屏（结局屏闸门）用得着——它要往 store 真正的 `onmessage` 上补发一帧合成消息。
+   *  默认关掉：包一层 `window.WebSocket` 是全局改动，没必要让另外 74 屏都跑在补丁下。 */
+  async function openAs(session, tapWs = false) {
     const ctx = await browser.createBrowserContext()
     const page = await ctx.newPage()
     await page.setViewport({ width: 400, height: 860, deviceScaleFactor: 2 })
+    if (tapWs) await page.evaluateOnNewDocument(() => {
+      const Real = window.WebSocket
+      window.WebSocket = function (...args) {
+        const ws = new Real(...args)
+        // 只认**第一条**：store 的 connect() 最早建连，`send()` 那些临时连接会顶掉它
+        if (String(args[0]).includes('/ws?') && !window.__ws) {
+          window.__ws = ws
+          ws.addEventListener('message', e => {
+            const m = JSON.parse(e.data)
+            if (m.state) { window.__lastState = m.state; window.__lastSeq = m.seq }
+          })
+        }
+        return ws
+      }
+      window.WebSocket.prototype = Real.prototype
+      Object.assign(window.WebSocket, Real)
+    })
     page.on('pageerror', e => failures.push(`控制台异常: ${e.message}`))
     // 渲染进程崩溃时 puppeteer 只会在下一次 evaluate 抛「detached Frame」，看不出原因
     page.on('error', e => failures.push(`页面崩溃: ${e.message}`))
@@ -1747,6 +1767,128 @@ async function main() {
       failures.push(`29-纯线上-座次条角标与牌桌状态: HUD 座次条应有 1 个角标，实际 ${marks.hud} 个`)
     if (!marks.badge.some(t => t.includes('已出局')))
       failures.push('29-纯线上-座次条角标与牌桌状态: 牌桌那一行没写「已出局」')
+  }
+
+  // 30 非移动掷骰的帘幕 + 结局屏必须排在演出队列后面（design/09 §5.0 ④、§5.3.1）。
+  //
+  // **这里是全仓唯一一处合成事件的断言**，理由写清楚：掷骰点数与落点都由服务端定，
+  // 冒烟局没有确定路径能抽到 `sd-013`、也走不到快车道那 5 个掷骰企业格（真机试玩撞上过，
+  // 这里撞不上）。所以改成：起一局真的纯线上房间，拿页面手上那份**真的**快照，
+  // 挂一批带骰子的 lastEvents 往 store 自己那条 WS 的 `onmessage` 上补发一帧。
+  //
+  // **payload 逐字照卡库/棋盘的真值造**，不臆造点数与金额——合成帧一旦比真帧宽容，
+  // 它保护的就不是线上那条路径了（第一版忘了置空 `currentPlayerId`，正好把「帘幕走了
+  // 带回合键的 getter、对局一结束必然取空」那个 bug 放了过去）。
+  {
+    const va = await api('/api/rooms', {
+      nickname: '阿闸', name: '结局闸门局', maxPlayers: 4, password: null, mode: 'ONLINE' })
+    const vb = await api(`/api/rooms/${va.roomCode}/join`, { nickname: '小闸', password: null })
+    const [ha, hb] = [
+      await openAs({ ...va, nickname: '阿闸' }, true),
+      await openAs({ ...vb, nickname: '小闸' }),
+    ]
+    const dreams = (await (await fetch(`${BASE}/api/board/fasttrack`)).json()).dreams
+    for (const [i, g] of [ha, hb].entries()) {
+      await send(g, 'SELECT_PROFESSION')
+      await sleep(200)
+      await send(g, 'SELECT_DREAM', { dreamId: dreams[i].id })
+      await sleep(200)
+    }
+    await send(ha, 'START_GAME')
+    await sleep(600)
+    await ha.goto(`${BASE}/#/play`, { waitUntil: 'networkidle2' })
+    await sleep(800)
+
+    /** 往 store 那条 WS 补一帧。`finished` 为真时**连 `currentPlayerId` 一起置空**——
+     *  服务端的 `current_player_id` 是派生属性（`models.py`：`status != PLAYING` 一律
+     *  返回 None），结束对局的那一帧它就是 null。 */
+    const inject = (events, finished) => ha.evaluate((evs, fin) => {
+      if (!window.__ws || !window.__lastState) return false
+      const s = JSON.parse(localStorage.getItem('cashflow.session'))
+      const next = JSON.parse(JSON.stringify(window.__lastState))
+      if (fin) { next.status = 'FINISHED'; next.winnerId = s.playerId; next.currentPlayerId = null }
+      window.__ws.onmessage({
+        data: JSON.stringify({
+          type: 'state', seq: (window.__lastSeq ?? 0) + 1, state: next,
+          lastEvents: evs.map(e => ({ ...e, payload: { ...e.payload, player_id: s.playerId } })),
+        }),
+      })
+      return true
+    }, events, finished)
+
+    const readCurtain = () => ha.evaluate(() => ({
+      on: !!document.querySelector('.curtain.dice'),
+      lost: !!document.querySelector('.curtain.dice.lost'),
+      dice: document.querySelectorAll('.curtain.dice .die3d').length,
+      text: (document.querySelector('.curtain.dice')?.innerText ?? '').replace(/\n/g, ' '),
+      result: !!document.querySelector('.result-hero'),
+      heroTop: document.querySelector('.curtain.dice .dice-hero')?.getBoundingClientRect().top ?? -1,
+    }))
+
+    // ---- 30c 老鼠赛跑的赌局卡，输的那一支 ----
+    // 真值：sd-013「嫂子借钱」diceCount 1 / winCondition '>3' / downPayment 5000 / payout 10000。
+    // 掷 2 点必输。这一支专钉两件事：胜负条件写不写得出来（它只在卡库的 data.winCondition
+    // 上，不进事件 payload——不写出来，输的那一屏就只有「未达标」三个字，说不出为什么），
+    // 以及输了要转冷色。这一批**不结束对局**。
+    if (!await inject([{
+      type: 'DICE_GAMBLE_RESOLVED',
+      payload: { card_id: 'sd-013', title: '嫂子借钱', rolls: [2], total: 2,
+        won: false, stake: 5000, payout: 0 },
+    }], false)) failures.push('30c-掷骰帘幕: 没抓到 store 那条 WS，这一屏没验成')
+    await sleep(1500)
+    const lostNow = await readCurtain()
+    await shotNow(ha, '30c-纯线上-赌局卡未达标')
+    if (!lostNow.on) failures.push('30c-掷骰帘幕: 赌局卡的帘幕没上屏')
+    if (lostNow.dice !== 1)
+      failures.push(`30c-掷骰帘幕: sd-013 只掷 1 粒骰，屏上却有 ${lostNow.dice} 粒`)
+    if (!lostNow.lost) failures.push('30c-掷骰帘幕: 未达标了底色没转冷')
+    for (const t of ['需 大于 3 点', '未达标', '−$5,000'])
+      if (!lostNow.text.includes(t))
+        failures.push(`30c-掷骰帘幕: 没写出「${t}」（实为「${lostNow.text}」）`)
+    await sleep(2200)   // 等这一段演出排空，再进下一支
+
+    // ---- 30/30a/30b 快车道掷骰企业格，成功且这一笔正好赢下整局（真机报的就是这条）----
+    // 真值：ft-b-goldmine「购买一座金矿」threshold 3 / successCashflow 50000 / downPayment 150000。
+    // +50,000 一格就够跨过 +50,000 的胜利线，所以服务端会在**同一批**里把 status 置成 FINISHED
+    // （engine 侧由 test_victory_arrives_in_the_same_batch_as_its_dice_roll 钉着）。
+    const winEvents = [{
+      type: 'FT_BUSINESS_BOUGHT',
+      payload: { square_id: 'ft-b-goldmine', name: '购买一座金矿', down_payment: 150000,
+        dice_roll: 3, success: true, cashflow: 50000, lump_sum: 0 },
+    }]
+    if (!await inject(winEvents, true))
+      failures.push('30-结局屏闸门: 没抓到 store 那条 WS，这一屏没验成')
+
+    // 翻滚拍：帘幕在、结局屏必须还没出现
+    await sleep(150)
+    const rollingNow = await readCurtain()
+    await shotNow(ha, '30-纯线上-掷骰帘幕-翻滚')
+    if (!rollingNow.on) failures.push('30-结局屏闸门: 掷骰帘幕没上屏')
+    if (rollingNow.dice !== 1)
+      failures.push(`30-结局屏闸门: 该有 1 粒骰子，实为 ${rollingNow.dice}`)
+    if (rollingNow.result)
+      failures.push('30-结局屏闸门: 结局屏抢在演出前面出现了（这正是「点一下就赢了」那个 bug）')
+
+    // 落定拍：点数、达标线、成败、收益都要写出来，结局屏仍然不许出现
+    await sleep(1400)
+    const settledNow = await readCurtain()
+    await shotNow(ha, '30a-纯线上-掷骰帘幕-落定')
+    if (settledNow.result) failures.push('30a-结局屏闸门: 落定拍时结局屏就出现了')
+    // 「成功」这一条是**带回合键的 getter 那个 bug 的正主**：对局一结束
+    // `currentPlayerId` 变 null，`bizStub` 必然失配返回 null，屏上就只剩「掷出 3 点」
+    for (const t of ['掷出', '3 点', '需 3 点及以上', '每月现金流', '+$50,000', '成功'])
+      if (!settledNow.text.includes(t))
+        failures.push(`30a-结局屏闸门: 落定拍没写出「${t}」（实为「${settledNow.text}」）`)
+    // 骰子是这一屏的主体：落定拍多出的那几行字不许把它顶得挪位置（§5.4）
+    if (Math.abs(settledNow.heroTop - rollingNow.heroTop) > 2)
+      failures.push('30a-结局屏闸门: 落定时骰子被新增的几行字顶得挪了位置'
+        + `（${rollingNow.heroTop} → ${settledNow.heroTop}）`)
+
+    // 演出播完：帘幕退场，结局屏这才接上
+    await sleep(2200)
+    await shot(ha, '30b-纯线上-演出播完才出结局屏', '.result-hero')
+    if ((await readCurtain()).on)
+      failures.push('30b-结局屏闸门: 演出播完了掷骰帘幕还赖着不走')
   }
 
   // 文字溢出不靠肉眼查：扫一遍撑破容器的元素（跳过可滚容器与 SVG 内部）

@@ -963,6 +963,41 @@ table.fin.payoff td:last-child .btn { padding: 5px 10px; font-size: 12px; min-he
 }
 .curtain.penalty.warm .fineprint { color: #8A6F28; }
 
+/* ---------- 非移动掷骰帘幕：赌局卡 / 快车道掷骰企业格（design/09 §5.3 v0.25） ----------
+   与发薪/惩罚帘幕同一套交互语言：点任意处跳过、不给按钮。
+   底色按赛道分——老鼠赛跑的赌局卡走默认暖色纸底，快车道的企业格走 .ftx 那条金箔
+   （与整屏 .skin-ft 的 --bg-* 逐字一致，帘幕落下时严丝合缝地接上）。 */
+.curtain.dice {
+  animation-duration: 220ms;
+  background: radial-gradient(120% 80% at 50% 0%, #FFFBF3, #F6F0E4 55%, #EDE4C6);
+}
+/* **顶端定位，不居中**（§5.4「过场里的主体，几何要么全程不变，要么只在它自己的动画里变」）：
+   落定那一拍会多出「达标线 / 收益 / 成功」几行，居中的话整块会往上顶，
+   而**骰子正是这一屏的主体**——它绝不能因为下面多了几行字就挪位置。
+   顶端锚死之后新增的行只往下长，骰子一个像素都不动。 */
+.curtain.dice .curtain-inner {
+  justify-content: flex-start; gap: var(--sp-3);
+  padding-top: calc(24dvh + env(safe-area-inset-top));
+}
+.dice-title { font-size: 12.5px; letter-spacing: .5px; color: #8A6F28; }
+/* 尺寸在这儿写死，**不吃 `--bws`**：帘幕是全屏的，与棋盘此刻被挤成多大毫无关系
+   —— 板上那颗只剩 20~35px 正是这一屏存在的理由。 */
+.dice-hero { display: flex; gap: 14px; justify-content: center; padding: var(--sp-2) 0; }
+.dice-hero .die3d { --d: 92px; }
+.dice-hero.n2 .die3d { --d: 76px; }
+.dice-hero.n3 .die3d { --d: 64px; }
+
+/* 金箔那条要写回来：.curtain.ftx 排在上面，同特异性下会被 .curtain.dice 盖掉 */
+.curtain.dice.ftx { background: radial-gradient(120% 80% at 50% 0%, #FFF6DC, #F3E3B8 55%, #E8D296); }
+
+/* 未达标：转成与失业/惩罚同一条冷色主干——「这是坏消息」在整套演出里只有一种说法。
+   排在 .ftx 之后，所以两条赛道的失败都走这一套。 */
+.curtain.dice.lost { background: radial-gradient(120% 80% at 50% 0%, #FFF9F7, #F7E9E6 55%, #EDD8D4); }
+.curtain.dice.lost h2 { color: #6B2B22; }
+.curtain.dice.lost .cline.hero { background: linear-gradient(180deg, #7A3128, #56201A); }
+.curtain.dice.lost .fineprint,
+.curtain.dice.lost .dice-title { color: #8A473C; }
+
 /* ---------- 战报页 ---------- */
 .result-hero {
   text-align: center; padding: 22px var(--sp-4); border-radius: var(--r-lg);

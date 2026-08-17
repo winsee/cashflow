@@ -25,6 +25,7 @@ import OnlineCardPanel from '../components/board/OnlineCardPanel.vue'
 import OnlineLandingPanel from '../components/board/OnlineLandingPanel.vue'
 import PaydayCurtain from '../components/board/PaydayCurtain.vue'
 import PenaltyCurtain from '../components/board/PenaltyCurtain.vue'
+import DiceCurtain from '../components/board/DiceCurtain.vue'
 import PlayerTableRow from '../components/PlayerTableRow.vue'
 import PromptModal from '../components/PromptModal.vue'
 import ReceiptStack from '../components/ReceiptStack.vue'
@@ -41,7 +42,6 @@ import FundsSheet from '../components/board/FundsSheet.vue'
 import StatRow from '../components/base/StatRow.vue'
 
 const game = useGame()
-const finished = computed(() => game.state?.status === 'FINISHED')
 const me = computed(() => game.me)
 const ft = computed(() => me.value?.phase === 'FAST_TRACK')
 
@@ -305,6 +305,13 @@ const settleSpot = computed(() => {
 const penaltyStep = computed(() =>
   game.stageNow?.kind === 'penalty' && game.stageNow.playerId === game.session?.playerId
     ? game.stageNow : null)
+/** 非移动掷骰（赌局卡 / 快车道掷骰企业格）的帘幕，同样只给当事人：
+ *  旁观者拿到的是棋盘轮心那颗照常转的骰子（同发薪帘幕「当事人一屏、旁观者看板上」的分工）。
+ *  移动掷骰不带 `solo`，照旧只走棋盘——那时玩家自己点的就是轮心那颗骰子。 */
+const diceStep = computed(() =>
+  game.stageNow?.kind === 'dice' && !!game.stageNow.solo
+    && game.stageNow.playerId === game.session?.playerId
+    ? game.stageNow : null)
 const pulse = computed<Spot | null>(() =>
   game.stageNow?.kind === 'landing'
     ? { track: game.stageNow.track, index: game.stageNow.index } : null)
@@ -370,6 +377,24 @@ const step = computed<1 | 2 | 3>(() => {
  *  发牌是队列的最后一拍，所以这道门一开，卡片正好在收牌之后落进抽屉（design/09 §5.1 第 9 拍）。
  */
 const held = computed(() => game.staging)
+
+/** 结局屏**也归 held 门管**（design/09 §5.0）。
+ *
+ *  胜利可能和掷骰/发薪在**同一批事件**里到达：`_a_ft_business_bought` 买断成功后会
+ *  `_check_income_victory`，非工资收入较进场时多满 $50,000 就当场 `status = FINISHED`；
+ *  买下自己选定的梦想（`_a_ft_dream_bought`）必定结束；破产清算完只剩一人也是。
+ *  而 `store.ts` 的 WS 分支是「先 `ingestStage()` 排队、下一行就 `this.state = msg.state`」，
+ *  所以不按住的话，模板的 `v-if="finished"` 会把整棵板子（棋盘、骰子、抽屉、全部帘幕）
+ *  在同一拍里卸载掉——刚排进队列的那两拍骰子播进了一棵下一帧就不存在的树，
+ *  抽屉里那张「掷出 X 点」的存根卡一帧都轮不到。玩家看到的是「点一下就赢了」，
+ *  中间什么都没发生过（真机试玩带回的正是这一条）。
+ *
+ *  三条出口都通向 `staging === false`，不会卡在板上出不来：队列由 `advanceStage` 的
+ *  `setTimeout` 必然排空、点棋盘任意处走 `skipStage()`、`prefersReducedMotion()` 下
+ *  `ingestStage` 整条丢弃。重连首帧是 `type:'snapshot'`（不带 `lastEvents`，
+ *  `ingestStage` 根本不会被调用），结局屏照旧立刻出现。 */
+const finished = computed(() => game.state?.status === 'FINISHED' && !held.value)
+
 const heldTip = computed(() => {
   switch (game.stageNow?.kind) {
     case 'dice': return game.stageNow.settling
@@ -1288,6 +1313,9 @@ const ctaShown = computed(() =>
     <!-- 全屏发薪：只给当事人，自动消散（design/09 §5.5） -->
     <PaydayCurtain v-if="paydayStep" :step="paydayStep" @skip="game.skipStage()" />
     <PenaltyCurtain v-if="penaltyStep" :step="penaltyStep" @skip="game.skipStage()" />
+    <!-- 非移动掷骰：赌局卡 / 快车道掷骰企业格。板上那颗此刻只剩 20~35px（抽屉正被
+         卡面撑高），而这一下决定的是一笔六位数买入的成败——§5.5 那条判据 -->
+    <DiceCurtain v-if="diceStep" :step="diceStep" @skip="game.skipStage()" />
 
     <!-- 全屏发牌翻牌：全员同步播放 -->
     <DealCurtain v-if="dealStep" :deck="dealStep.deck" :title="dealStep.title"
